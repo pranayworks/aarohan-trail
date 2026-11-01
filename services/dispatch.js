@@ -177,7 +177,7 @@ class DispatchService {
     // 1. Authoritatively validate and consume quote
     const validatedQuote = pricingService.validateAndConsumeQuote(quoteId, tierId);
 
-    const tripId = 'TRIP-GMN-' + Math.floor(1000 + Math.random() * 9000);
+    const tripId = 'TRIP-AAR-' + Math.floor(1000 + Math.random() * 9000);
     const pin = Math.floor(1000 + Math.random() * 9000).toString();
 
     const trip = {
@@ -186,7 +186,7 @@ class DispatchService {
       pin,
       rider: {
         id: riderId || 'USR-RIDER-1',
-        name: riderName || 'Gaman Passenger',
+        name: riderName || 'AArohan Passenger',
         phone: riderPhone || '+265 99 123 4567'
       },
       driver: null,
@@ -285,7 +285,7 @@ class DispatchService {
     const settlementResult = financeService.settleCompletedRide({
       rideId: trip.id,
       quoteId: trip.quoteId,
-      versionId: trip.versionId || 'GMN-PRICE-V1',
+      versionId: trip.versionId || 'AAROHAN-PRICE-V1',
       categoryId: trip.tierId || 'cab',
       driverId,
       riderId,
@@ -321,6 +321,18 @@ class DispatchService {
 
     return trip;
   }
+
+  // Security: Never expose Trip.pin in any driver-facing response
+  getDriverSafeTrip(trip) {
+    if (!trip) return null;
+    const { pin, ...driverSafeTrip } = trip;
+    return driverSafeTrip;
+  }
 }
 
-module.exports = new DispatchService();
+const dispatchServiceInstance = new DispatchService();
+dispatchServiceInstance.stripPinForDriver = function(trip) {
+  return dispatchServiceInstance.getDriverSafeTrip(trip);
+};
+
+module.exports = dispatchServiceInstance;

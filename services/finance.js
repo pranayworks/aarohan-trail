@@ -140,7 +140,7 @@ class FinanceService {
   settleCompletedRide({
     rideId,
     quoteId = null,
-    versionId = 'GMN-PRICE-V1',
+    versionId = 'AAROHAN-PRICE-V1',
     categoryId = 'cab',
     driverId,
     riderId,
@@ -205,8 +205,8 @@ class FinanceService {
     this.ledger.breakdowns.push(breakdown);
 
     // 3. Post to Commission Ledger
-    // Cash rides: PENDING_CASH_SETTLEMENT (driver collected full cash in hand, owes 30% to Gaman)
-    // Digital rides: DEDUCTED_DIGITAL_ESCROW (30% retained in Gaman bank account, 70% credited to driver)
+    // Cash rides: PENDING_CASH_SETTLEMENT (driver collected full cash in hand, owes 30% to AArohan)
+    // Digital rides: DEDUCTED_DIGITAL_ESCROW (30% retained in AArohan bank account, 70% credited to driver)
     const commissionEntryId = 'COM-' + crypto.randomBytes(6).toString('hex').toUpperCase();
     const commissionEntry = {
       entryId: commissionEntryId,
@@ -219,8 +219,8 @@ class FinanceService {
       settlementStatus: isCash ? 'PENDING_CASH_SETTLEMENT' : 'DEDUCTED_DIGITAL_ESCROW',
       idempotencyKey,
       notes: isCash 
-        ? `Driver collected MWK ${split.totalPassengerPayable.toLocaleString()} cash; owes MWK ${split.commissionAmount.toLocaleString()} (30%) to Gaman`
-        : `Digital escrow: Gaman withheld MWK ${split.commissionAmount.toLocaleString()} commission`,
+        ? `Driver collected MWK ${split.totalPassengerPayable.toLocaleString()} cash; owes MWK ${split.commissionAmount.toLocaleString()} (30%) to AArohan`
+        : `Digital escrow: AArohan withheld MWK ${split.commissionAmount.toLocaleString()} commission`,
       settledAt: isCash ? null : new Date().toISOString(),
       createdAt: new Date().toISOString()
     };
@@ -645,6 +645,106 @@ class FinanceService {
     };
     this.ledger.auditLogs.push(log);
     this.persistLedger();
+  }
+
+  // Atomic database transaction: Updates wallet and creates ledger entries in Supabase PostgreSQL
+  async recordDbSettlement({
+    tripId,
+    riderUserId,
+    driverUserId,
+    grossFareMWK,
+    commissionMWK,
+    driverEarningsMWK,
+    driverTipMWK = 0,
+    paymentMethod = 'CASH',
+    idempotencyKey
+  }) {
+    const prisma = require('../lib/prisma');
+    const isCash = (paymentMethod || '').toUpperCase().includes('CASH');
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Fetch wallets
+      let riderWallet = riderUserId ? await tx.wallet.findUnique({ where: { userId: riderUserId } }) : null;
+      let driverWallet = driverUserId ? await tx.wallet.findUnique({ where: { userId: driverUserId } }) : null;
+
+      // 2. Post Driver Settlement record
+      const settlement = await tx.driverSettlement.upsert({
+        where: { tripId },
+        update: {},
+        create: {
+          driverId: driverUserId || 'DEV-DRIVER-UNKNOWN',
+          tripId,
+          grossFareMWK,
+          driverEarningsMWK,
+          commissionMWK,
+          commissionDebtMWK: isCash ? commissionMWK : 0,
+          settlementStatus: isCash ? 'PENDING_CASH_COLLECTION' : 'ESCROW_PAID'
+        }
+      });
+
+      // 3. Post Ledger entries for platform revenue (30% commission)
+      await tx.ledgerEntry.create({
+        data: {
+          account: 'PLATFORM_REVENUE',
+          type: 'PLATFORM_COMMISSION',
+          amountMWK: commissionMWK,
+          balanceAfterMWK: 0,
+          currency: 'MWK',
+          description: `Platform 30% commission on trip ${tripId}`,
+          idempotencyKey: `LEDGER-COM-${idempotencyKey}`,
+          tripId,
+          reference: tripId
+        }
+      });
+
+      // If digital payment: debit rider wallet & credit ledger
+      if (!isCash && riderWallet) {
+        const newRiderBalance = Math.max(0, riderWallet.balanceMWK - grossFareMWK);
+        await tx.wallet.update({
+          where: { id: riderWallet.id },
+          data: { balanceMWK: newRiderBalance }
+        });
+        await tx.ledgerEntry.create({
+          data: {
+            account: 'RIDER',
+            userId: riderUserId,
+            walletId: riderWallet.id,
+            tripId,
+            type: 'RIDE_FARE',
+            amountMWK: -grossFareMWK,
+            balanceAfterMWK: newRiderBalance,
+            description: `Payment for ride ${tripId}`,
+            idempotencyKey: `LEDGER-RIDE-${idempotencyKey}`,
+            reference: tripId
+          }
+        });
+      }
+
+      // If digital payment: credit driver wallet & credit ledger
+      if (!isCash && driverWallet) {
+        const newDriverBalance = driverWallet.balanceMWK + driverEarningsMWK;
+        await tx.wallet.update({
+          where: { id: driverWallet.id },
+          data: { balanceMWK: newDriverBalance }
+        });
+        await tx.ledgerEntry.create({
+          data: {
+            account: 'DRIVER',
+            userId: driverUserId,
+            walletId: driverWallet.id,
+            tripId,
+            type: 'DRIVER_EARNING',
+            amountMWK: driverEarningsMWK,
+            balanceAfterMWK: newDriverBalance,
+            description: `70% driver earnings on trip ${tripId}`,
+            idempotencyKey: `LEDGER-DRV-${idempotencyKey}`,
+            reference: tripId
+          }
+        });
+      }
+
+      return settlement;
+    });
   }
 }
 

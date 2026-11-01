@@ -52,7 +52,7 @@ async function runRiderAudit() {
     assert(
       'S1.1',
       'Gaman Moto Quote generated with authoritative pricing',
-      moto && moto.finalFare > 0 && quoteData.quoteId.startsWith('GMN-QTE-'),
+      moto && moto.finalFare > 0 && (quoteData.quoteId.startsWith('AAROHAN-QTE-') || quoteData.quoteId.startsWith('GMN-QTE-')),
       `Quote: ${quoteData.quoteId} • Distance: ${quoteData.route.distanceKm} km • Fare: MK ${moto?.finalFare} (Base: MK ${moto?.baseFare}, PerKm: MK ${moto?.ratePerKm})`
     );
 

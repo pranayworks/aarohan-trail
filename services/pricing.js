@@ -17,15 +17,15 @@
 
 const crypto = require('crypto');
 
-// Initial Verified Launch Pricing Version (GMN-PRICE-V1)
+// Initial Verified Launch Pricing Version (AAROHAN-PRICE-V1)
 const INITIAL_PRICING_VERSIONS = [
   {
-    versionId: 'GMN-PRICE-V1',
+    versionId: 'AAROHAN-PRICE-V1',
     versionName: 'Lilongwe Standard Urban Mobility Tariffs 2026',
     effectiveFrom: new Date('2026-01-01T00:00:00Z').toISOString(),
     isActive: true,
     currency: 'MWK',
-    commissionRate: 0.30, // 30% Gaman Commission
+    commissionRate: 0.30, // 30% AArohan Commission
     driverShareRate: 0.70, // 70% Driver Share
     roundingUnit: 50,
     bookingFee: 150,
@@ -38,7 +38,7 @@ const INITIAL_PRICING_VERSIONS = [
     categories: {
       moto: {
         id: 'moto',
-        name: 'Gaman Moto',
+        name: 'AArohan Moto',
         subtitle: 'Fastest through Lilongwe traffic',
         icon: 'two_wheeler',
         capacity: '1 rider',
@@ -51,7 +51,7 @@ const INITIAL_PRICING_VERSIONS = [
       },
       auto: {
         id: 'auto',
-        name: 'Gaman Auto',
+        name: 'AArohan Auto',
         subtitle: 'Comfortable & sheltered local ride',
         icon: 'electric_rickshaw',
         capacity: '3 riders',
@@ -64,7 +64,7 @@ const INITIAL_PRICING_VERSIONS = [
       },
       cab: {
         id: 'cab',
-        name: 'Gaman Cab',
+        name: 'AArohan Cab',
         subtitle: 'Private air-conditioned car',
         icon: 'local_taxi',
         capacity: '4 riders',
@@ -118,7 +118,7 @@ class PricingService {
     makeActive = false,
     actorId = 'ADMIN_SUPER'
   }) {
-    const versionId = 'GMN-PRICE-' + Date.now().toString(36).toUpperCase();
+    const versionId = 'AAROHAN-PRICE-' + Date.now().toString(36).toUpperCase();
     const activeVersion = this.getActiveVersion();
 
     const mergedCategories = Object.assign({}, activeVersion.categories, categories);
@@ -329,7 +329,7 @@ class PricingService {
       throw new Error('Valid road distance required from routing provider.');
     }
 
-    const quoteId = 'GMN-QTE-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+    const quoteId = 'AAROHAN-QTE-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     const activeVersion = this.getActiveVersion();
     const expiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
 
@@ -370,7 +370,7 @@ class PricingService {
       },
       demandMultiplier: demandMultiplier || 1.0,
       tiers: tierQuotes,
-      signature: crypto.createHmac('sha256', process.env.JWT_SECRET || 'gaman-platform-secret-lilongwe')
+      signature: crypto.createHmac('sha256', process.env.JWT_SECRET || 'aarohan-platform-secret-lilongwe')
         .update(`${quoteId}:${dist}:${dur}:${activeVersion.versionId}`)
         .digest('hex')
     };

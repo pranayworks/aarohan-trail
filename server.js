@@ -252,7 +252,7 @@ app.get('/api/map-config', (req, res) => {
 });
 
 // =============================================================
-// GAMAN REAL-TIME PLATFORM ENDPOINTS (PHASES 2-12)
+// AAROHAN REAL-TIME PLATFORM ENDPOINTS (PHASES 2-12)
 // =============================================================
 
 // 1. Authoritative Road Routing & Dynamic Pricing Quote (Phase 4 & 5)
@@ -438,7 +438,7 @@ app.get('/api/user/frequent-places', (req, res) => {
   res.json(frequent);
 });
 
-// 8. Admin Real-Time Metrics & Management (Gaman 30% Platform Commission Policy)
+// 8. Admin Real-Time Metrics & Management (AArohan 30% Platform Commission Policy)
 app.get('/api/admin/metrics', (req, res) => {
   const finReport = financeService.getPlatformFinancialReport();
   const completedTrips = (state.transactionLogs || []).filter(t => t.type === 'TRIP');
@@ -969,7 +969,7 @@ io.on('connection', (socket) => {
           quoteId: data.quoteId,
           tierId: data.tierId || 'moto',
           riderId: data.riderId || 'USR-RIDER-1',
-          riderName: state.rider?.name || 'Gaman Passenger',
+          riderName: state.rider?.name || 'AArohan Passenger',
           riderPhone: state.rider?.phone || '+265 99 123 4567',
           paymentMethod: data.paymentMethod || 'Airtel Money Locked Escrow'
         });
@@ -979,7 +979,7 @@ io.on('connection', (socket) => {
     }
 
     if (!trip) {
-      const tripId = 'TRIP-GMN-' + Math.floor(1000 + Math.random() * 9000);
+      const tripId = 'TRIP-AAR-' + Math.floor(1000 + Math.random() * 9000);
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
       trip = {
         id: tripId,
@@ -1060,7 +1060,7 @@ io.on('connection', (socket) => {
 
   // 6. Trip Completed (Driver Slide-to-Complete) - Authoritative 30% Commission / 70% Driver Split
   socket.on('trip:complete', (completionData = {}) => {
-    console.log('[RealTime] Trip completed! Settling financial escrow (30% Gaman / 70% Driver).');
+    console.log('[RealTime] Trip completed! Settling financial escrow (30% AArohan / 70% Driver).');
     state.activeTrip.status = 'COMPLETED';
     state.activeTrip.completedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -1069,11 +1069,11 @@ io.on('connection', (socket) => {
     const driverTip = completionData.driverTip || state.activeTrip.tipAmount || 0;
     const isCash = paymentMethod.toUpperCase().includes('CASH');
 
-    // Authoritative 30% Gaman / 70% Driver Settlement
+    // Authoritative 30% AArohan / 70% Driver Settlement
     const settlementResult = financeService.settleCompletedRide({
-      rideId: state.activeTrip.id || ('TRIP-GMN-' + Date.now().toString(36).toUpperCase()),
+      rideId: state.activeTrip.id || ('TRIP-AAR-' + Date.now().toString(36).toUpperCase()),
       quoteId: state.activeTrip.quoteId,
-      versionId: 'GMN-PRICE-V1',
+      versionId: 'AAROHAN-PRICE-V1',
       categoryId: state.activeTrip.tierId || 'cab',
       driverId: state.driver?.id || 'DRV-MW-101',
       riderId: state.rider?.id || 'USR-RIDER-1',
@@ -1087,7 +1087,7 @@ io.on('connection', (socket) => {
 
     const breakdown = settlementResult.breakdown;
     const netDriverEarnings = breakdown.totalDriverNetEarnings; // 70% share + 100% tip
-    const platformCommission = breakdown.commissionAmount; // 30% Gaman commission
+    const platformCommission = breakdown.commissionAmount; // 30% AArohan commission
 
     // Update Rider Balance
     if (!isCash) {
@@ -1293,7 +1293,7 @@ server.listen(PORT, '0.0.0.0', () => {
   const networkRiderUrl = `http://${LOCAL_IP}:${PORT}/rider/`;
 
   console.log('\n=============================================================');
-  console.log('   GAMAN • REAL-TIME RIDE-HAILING PLATFORM • LILONGWE');
+  console.log('   AAROHAN • REAL-TIME RIDE-HAILING PLATFORM • LILONGWE');
   console.log('=============================================================');
   console.log(` > Server running locally on:   ${localUrl}`);
   console.log(` > Phone Rider App URL:         ${networkRiderUrl}`);

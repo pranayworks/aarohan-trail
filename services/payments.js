@@ -399,7 +399,7 @@ class TnmMpambaAdapter extends PaymentAdapter {
  */
 class SandboxPaymentAdapter extends PaymentAdapter {
   constructor() {
-    super('Gaman Sandbox Payment Rail', true);
+    super('AArohan Sandbox Payment Rail', true);
   }
 
   async initiateCollection({ amount, currency = 'MWK', phone, reference, idempotencyKey }) {
@@ -444,6 +444,27 @@ class SandboxPaymentAdapter extends PaymentAdapter {
     if (this.processedWebhookIds.has(txId)) {
       return { status: 'ALREADY_PROCESSED', transactionId: txId };
     }
+
+    try {
+      const prisma = require('../lib/prisma');
+      const existing = await prisma.webhookIdempotency.findUnique({
+        where: { provider_webhookId: { provider: 'SANDBOX', webhookId: txId } }
+      });
+      if (existing) {
+        this.processedWebhookIds.add(txId);
+        return { status: 'ALREADY_PROCESSED', transactionId: txId };
+      }
+      await prisma.webhookIdempotency.create({
+        data: {
+          provider: 'SANDBOX',
+          webhookId: txId,
+          responseStatus: 'PROCESSED'
+        }
+      });
+    } catch (e) {
+      // In-memory fallback
+    }
+
     this.processedWebhookIds.add(txId);
     return {
       status: 'VERIFIED',

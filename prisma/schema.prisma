@@ -1,0 +1,610 @@
+// ============================================================================
+// AArohan Smart Urban Mobility Platform • Database Schema
+// Lilongwe, Malawi • PostgreSQL on Supabase (DATABASE_URL + DIRECT_URL)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  RIDER
+  DRIVER
+  ADMIN
+  DISPATCHER
+  SUPPORT
+  FINANCE
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  PENDING_VERIFICATION
+}
+
+enum DriverApproval {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum DriverAvailability {
+  ONLINE
+  BUSY
+  OFFLINE
+}
+
+enum VehicleType {
+  MOTO
+  AUTO
+  CAB
+}
+
+enum TripStatus {
+  REQUESTED
+  OFFERED
+  DRIVER_ARRIVING
+  ARRIVED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED_BY_RIDER
+  CANCELLED_BY_DRIVER
+  EXPIRED
+  NO_DRIVERS
+}
+
+enum TripOfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  REVERSED
+}
+
+enum PaymentMethod {
+  CASH
+  AIRTEL_MONEY
+  TNM_MPAMBA
+  WALLET_ESCROW
+}
+
+enum PaymentType {
+  TOPUP
+  TRIP
+  PAYOUT
+}
+
+enum DocumentType {
+  DRIVING_LICENSE
+  NATIONAL_ID
+  VEHICLE_REGISTRATION
+  CERTIFICATE_OF_FITNESS
+  INSURANCE_CERTIFICATE
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SosStatus {
+  ACTIVE
+  ESCALATED_POLICE
+  RESOLVED
+  FALSE_ALARM
+}
+
+enum LedgerAccount {
+  RIDER
+  DRIVER
+  PLATFORM_REVENUE
+  PLATFORM_ESCROW
+}
+
+enum LedgerEntryType {
+  RIDE_FARE
+  PLATFORM_COMMISSION
+  DRIVER_EARNING
+  TIP
+  CASH_COLLECTION
+  COMMISSION_DEBT
+  DEBT_SETTLEMENT
+  WALLET_TOPUP
+  P2P_TRANSFER_DEBIT
+  P2P_TRANSFER_CREDIT
+  REFUND
+  CANCELLATION_FEE
+  ADJUSTMENT
+}
+
+enum AuditAction {
+  USER_LOGIN
+  USER_LOGOUT
+  USER_REGISTER
+  OTP_REQUEST
+  OTP_VERIFY_SUCCESS
+  OTP_FAILED
+  OTP_LOCKED
+  DRIVER_REGISTERED
+  DRIVER_APPROVED
+  DRIVER_REJECTED
+  DRIVER_SUSPENDED
+  TRIP_CREATED
+  TRIP_OFFERED
+  TRIP_ACCEPTED
+  TRIP_DRIVER_ARRIVED
+  TRIP_STARTED
+  TRIP_COMPLETED
+  TRIP_CANCELLED
+  PIN_VERIFIED
+  PIN_FAILED
+  PRICE_CONFIG_UPDATED
+  PAYMENT_INITIATED
+  PAYMENT_WEBHOOK
+  PAYMENT_REFUNDED
+  COMMISSION_SETTLED
+  MANUAL_ADJUSTMENT
+  SOS_TRIGGERED
+  SOS_RESOLVED
+}
+
+// ============================================================================
+// AUTHENTICATION & IDENTITY
+// ============================================================================
+
+// Keyed strictly by phone (no userId foreign key; user record created only after OTP verify success)
+model OtpCode {
+  id          String   @id @default(uuid())
+  phone       String   @unique
+  codeHash    String   // HMAC-SHA256 hashed OTP
+  attempts    Int      @default(0) // Locked after 5 incorrect attempts
+  maxAttempts Int      @default(5)
+  expiresAt   DateTime
+  isConsumed  Boolean  @default(false)
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([phone])
+}
+
+model User {
+  id                     String      @id @default(uuid())
+  phone                  String      @unique
+  name                   String?
+  email                  String?
+  role                   UserRole    @default(RIDER)
+  status                 UserStatus  @default(ACTIVE)
+  passwordHash           String?     // Used ONLY for admin logins created via CLI script
+  kycTier                String      @default("TIER_1_STANDARD")
+  avatarUrl              String?
+  emergencyContactName   String?
+  emergencyContactPhone  String?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
+  // 1-to-1 Profiles
+  driverProfile          Driver?
+  wallet                 Wallet?
+
+  // 1-to-Many Relations
+  tripsAsRider           Trip[]         @relation("RiderTrips")
+  refreshTokens          RefreshToken[]
+  auditLogs              AuditLog[]
+  deviceTokens           DeviceToken[]
+  ledgerEntries          LedgerEntry[]
+  chatMessages           ChatMessage[]
+  payments               Payment[]
+  sosEvents              SosEvent[]
+  ratingsGiven           Rating[]       @relation("RatingsGiven")
+  ratingsReceived        Rating[]       @relation("RatingsReceived")
+
+  @@index([phone])
+  @@index([role, status])
+}
+
+model Driver {
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approvalStatus    DriverApproval     @default(PENDING)
+  availability      DriverAvailability @default(OFFLINE)
+  rating            Float              @default(5.0)
+  tripsCompleted    Int                @default(0)
+  commissionDebtMWK Int                @default(0) // 30% debt accumulated from cash rides (Integer MWK)
+  
+  // Real-time GPS Telemetry
+  currentLat        Float?
+  currentLng        Float?
+  currentHeading    Float?
+  lastLocationAt    DateTime?
+
+  // Administrative verification
+  approvedAt        DateTime?
+  approvedBy        String?            // Admin user id
+  rejectionReason   String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  // Relations
+  vehicle           Vehicle?
+  documents         DriverDocument[]
+  tripsAsDriver     Trip[]             @relation("DriverTrips")
+  offers            TripOffer[]
+  settlements       DriverSettlement[]
+
+  @@index([approvalStatus, availability])
+  @@index([currentLat, currentLng])
+  @@index([userId])
+}
+
+model Vehicle {
+  id          String      @id @default(uuid())
+  driverId    String      @unique
+  driver      Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type        VehicleType
+  makeModel   String      // e.g. "Toyota Passo", "Bajaj RE Compact", "Boxer 150"
+  color       String
+  plateNumber String      @unique
+  year        Int?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([driverId])
+  @@index([plateNumber])
+}
+
+model DriverDocument {
+  id              String         @id @default(uuid())
+  driverId        String
+  driver          Driver         @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  type            DocumentType
+  storagePath     String         // Secure Supabase Storage bucket object path
+  status          DocumentStatus @default(PENDING)
+  rejectionReason String?
+  reviewedBy      String?        // Admin/Support user id
+  reviewedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([driverId, status])
+}
+
+// Rotating Refresh Token with SHA-256 token hashing
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique // Hashed in DB; raw token sent to client only
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, tokenHash])
+}
+
+model DeviceToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String
+  platform   String   @default("ANDROID") // "ANDROID", "IOS", "WEB"
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, token])
+  @@index([userId])
+}
+
+// ============================================================================
+// TRIPS & REAL-TIME DISPATCH
+// ============================================================================
+
+model Trip {
+  id                 String        @id @default(uuid())
+  riderId            String
+  rider              User          @relation("RiderTrips", fields: [riderId], references: [id])
+  driverId           String?
+  driver             Driver?       @relation("DriverTrips", fields: [driverId], references: [id])
+  status             TripStatus    @default(REQUESTED)
+  tier               VehicleType
+  
+  // Spatial & Routing
+  pickupAddress      String
+  dropoffAddress     String
+  pickupLat          Float
+  pickupLng          Float
+  dropoffLat         Float
+  dropoffLng         Float
+  distanceKm         Float
+  durationMins       Int
+  routeGeometry      String?       // Encoded polyline or GeoJSON path
+  
+  // Authoritative Pricing & Split (Integer MWK, no floats)
+  // Commission = round(fare * 0.30), DriverShare = fare - Commission
+  fareMWK            Int           // Gross total fare
+  baseFareMWK        Int
+  bookingFeeMWK      Int           @default(0)
+  driverShareMWK     Int           // 70% share of commissionable fare
+  commissionMWK      Int           // 30% AArohan platform commission
+  driverTipMWK       Int           @default(0) // 100% to driver (0% commission)
+  cancellationFeeMWK Int           @default(0)
+  
+  // 4-Digit Passenger Safety PIN (Never returned in driver-facing responses)
+  pin                String
+  pinAttempts        Int           @default(0) // Locked / flagged after 5 wrong attempts
+  
+  // Idempotency & Payment State
+  idempotencyKey     String        @unique
+  paymentMethod      PaymentMethod @default(CASH)
+  paymentStatus      PaymentStatus @default(PENDING)
+  paymentRef         String?       // Gateway transaction reference
+  
+  // Cancellation metadata
+  cancelledBy        String?       // "RIDER" | "DRIVER" | "SYSTEM" | "ADMIN"
+  cancelReason       String?
+  
+  // Lifecycle timestamps
+  createdAt          DateTime      @default(now())
+  acceptedAt         DateTime?
+  arrivedAt          DateTime?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  updatedAt          DateTime      @updatedAt
+
+  // Relations
+  offers             TripOffer[]
+  ledgerEntries      LedgerEntry[]
+  payments           Payment[]
+  settlement         DriverSettlement?
+  chatMessages       ChatMessage[]
+  sosEvents          SosEvent[]
+  ratings            Rating[]
+
+  @@index([riderId, status])
+  @@index([driverId, status])
+  @@index([status, createdAt])
+  @@index([idempotencyKey])
+}
+
+// Dispatch Offer Queue: Dispatches trip requests to eligible nearby drivers
+model TripOffer {
+  id          String          @id @default(uuid())
+  tripId      String
+  trip        Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driverId    String
+  driver      Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  status      TripOfferStatus @default(PENDING)
+  expiresAt   DateTime
+  respondedAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([driverId, status])
+  @@index([tripId, status])
+}
+
+model ChatMessage {
+  id         String    @id @default(uuid())
+  tripId     String
+  trip       Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User      @relation(fields: [senderId], references: [id])
+  senderRole String    // "RIDER" | "DRIVER"
+  text       String
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tripId, createdAt])
+}
+
+// ============================================================================
+// PAYMENTS, WALLET & FINANCIAL LEDGER
+// ============================================================================
+
+model Payment {
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  tripId         String?
+  trip           Trip?         @relation(fields: [tripId], references: [id])
+  provider       String        // "AIRTEL_MONEY" | "TNM_MPAMBA" | "CASH" | "WALLET"
+  type           PaymentType   // TOPUP | TRIP | PAYOUT
+  amountMWK      Int           // Integer MWK, no floats
+  status         PaymentStatus @default(PENDING)
+  providerRef    String?       @unique // Carrier transaction reference
+  idempotencyKey String        @unique
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([userId, status])
+  @@index([tripId])
+  @@index([providerRef])
+  @@index([idempotencyKey])
+}
+
+model Wallet {
+  id              String        @id @default(uuid())
+  userId          String        @unique
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balanceMWK      Int           @default(0) // Integer Kwacha, never floats (CHECK >= 0 in SQL)
+  lockedEscrowMWK Int           @default(0) // Locked during active rides
+  currency        String        @default("MWK")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  ledgerEntries   LedgerEntry[]
+
+  @@index([userId])
+}
+
+// Double-Entry Ledger: Every wallet change and ledger row written in ONE DB transaction
+model LedgerEntry {
+  id              String          @id @default(uuid())
+  account         LedgerAccount   // RIDER, DRIVER, PLATFORM_REVENUE, PLATFORM_ESCROW
+  userId          String?         // Optional: null for PLATFORM_REVENUE / PLATFORM_ESCROW entries
+  user            User?           @relation(fields: [userId], references: [id])
+  walletId        String?
+  wallet          Wallet?         @relation(fields: [walletId], references: [id])
+  tripId          String?
+  trip            Trip?           @relation(fields: [tripId], references: [id])
+  type            LedgerEntryType
+  amountMWK       Int             // Positive for credits, negative for debits
+  balanceAfterMWK Int             // Balance snapshot immediately after transaction
+  currency        String          @default("MWK")
+  description     String
+  idempotencyKey  String          @unique
+  reference       String?         // External provider reference, trip ID, or payout ID
+  metadata        Json?           // Additional audit payload
+  createdAt       DateTime        @default(now())
+
+  @@index([userId, createdAt])
+  @@index([account, createdAt])
+  @@index([walletId])
+  @@index([tripId])
+  @@index([idempotencyKey])
+}
+
+model DriverSettlement {
+  id                String   @id @default(uuid())
+  driverId          String
+  driver            Driver   @relation(fields: [driverId], references: [id])
+  tripId            String   @unique
+  trip              Trip     @relation(fields: [tripId], references: [id])
+  grossFareMWK      Int
+  driverEarningsMWK Int      // 70% of fare + 100% tip
+  commissionMWK     Int      // 30% platform commission
+  commissionDebtMWK Int      @default(0) // Debt created if cash ride
+  settlementStatus  String   // "SETTLED" | "PENDING_CASH_COLLECTION" | "ESCROW_PAID"
+  payoutReference   String?  // Mobile money disburse ID
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([driverId, settlementStatus])
+  @@index([tripId])
+}
+
+// ============================================================================
+// PRICING CONFIGURATION VERSIONS
+// ============================================================================
+
+model PricingConfig {
+  id                      String   @id @default(uuid())
+  versionId               String   @unique // e.g. "AAROHAN-PRICE-V1"
+  versionName             String
+  isActive                Boolean  @default(false)
+  currency                String   @default("MWK")
+  commissionRate          Float    @default(0.30) // 30% platform
+  driverShareRate         Float    @default(0.70) // 70% driver
+  roundingUnit            Int      @default(50)
+  bookingFeeMWK           Int      @default(150)
+  waitingChargePerMinMWK  Int      @default(50)
+  freeWaitingMins         Int      @default(3)
+  cancellationFeeMWK      Int      @default(1000)
+  demandMultiplierEnabled Boolean  @default(false)
+  categoryRules           Json     // Per vehicle tier: baseFare, pricePerKm, pricePerMinute, minimumFare
+  notes                   String?
+  effectiveFrom           DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ============================================================================
+// SAFETY, REPUTATION & AUDIT
+// ============================================================================
+
+model SosEvent {
+  id          String    @id @default(uuid())
+  tripId      String?
+  trip        Trip?     @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  lat         Float
+  lng         Float
+  status      SosStatus @default(ACTIVE)
+  notes       String?
+  resolvedBy  String?   // Admin / Support user id
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([tripId])
+}
+
+model Rating {
+  id         String   @id @default(uuid())
+  tripId     String
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromUserId String
+  fromUser   User     @relation("RatingsGiven", fields: [fromUserId], references: [id])
+  toUserId   String
+  toUser     User     @relation("RatingsReceived", fields: [toUserId], references: [id])
+  stars      Int      // 1 to 5 integer rating
+  tags       String[] // e.g. ["Punctual", "Safe Driving", "Clean Vehicle", "Friendly"]
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@unique([tripId, fromUserId])
+  @@index([toUserId])
+  @@index([tripId])
+}
+
+// Webhook idempotency protection against duplicate carrier deliveries (Airtel / TNM)
+model WebhookIdempotency {
+  id             String   @id @default(uuid())
+  provider       String   // "AIRTEL" | "TNM"
+  webhookId      String   // Provider transaction ID or callback ID
+  payloadHash    String?
+  responseStatus String   @default("PROCESSED") // "PROCESSED" | "IGNORED" | "FAILED"
+  processedAt    DateTime @default(now())
+
+  @@unique([provider, webhookId])
+  @@index([provider, webhookId])
+}
+
+// Append-only audit trail (no updatedAt)
+model AuditLog {
+  id         String      @id @default(uuid())
+  userId     String?
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     AuditAction
+  entityType String      // e.g. "TRIP", "DRIVER", "WALLET", "PAYMENT", "PRICING"
+  entityId   String?
+  details    Json?       // Immutable structured audit data
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+}
