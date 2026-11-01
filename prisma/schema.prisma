@@ -359,7 +359,7 @@ model Trip {
   pinAttempts        Int           @default(0) // Locked / flagged after 5 wrong attempts
   
   // Idempotency & Payment State
-  idempotencyKey     String        @unique
+  idempotencyKey     String
   paymentMethod      PaymentMethod @default(CASH)
   paymentStatus      PaymentStatus @default(PENDING)
   paymentRef         String?       // Gateway transaction reference
@@ -378,6 +378,7 @@ model Trip {
   updatedAt          DateTime      @updatedAt
 
   // Relations
+  statusHistory      TripStatusHistory[]
   offers             TripOffer[]
   ledgerEntries      LedgerEntry[]
   payments           Payment[]
@@ -386,10 +387,26 @@ model Trip {
   sosEvents          SosEvent[]
   ratings            Rating[]
 
+  @@unique([riderId, idempotencyKey])
   @@index([riderId, status])
   @@index([driverId, status])
   @@index([status, createdAt])
   @@index([idempotencyKey])
+}
+
+model TripStatusHistory {
+  id         String      @id @default(uuid())
+  tripId     String
+  trip       Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromStatus TripStatus?
+  status     TripStatus
+  changedBy  String?     // userId or "SYSTEM"
+  reason     String?
+  lat        Float?
+  lng        Float?
+  createdAt  DateTime    @default(now())
+
+  @@index([tripId, createdAt])
 }
 
 // Dispatch Offer Queue: Dispatches trip requests to eligible nearby drivers
@@ -467,9 +484,10 @@ model Wallet {
 // Double-Entry Ledger: Every wallet change and ledger row written in ONE DB transaction
 model LedgerEntry {
   id              String          @id @default(uuid())
+  journalId       String          // UUID linking balanced debit/credit legs of a transaction
   account         LedgerAccount   // RIDER, DRIVER, PLATFORM_REVENUE, PLATFORM_ESCROW
   userId          String?         // Optional: null for PLATFORM_REVENUE / PLATFORM_ESCROW entries
-  user            User?           @relation(fields: [userId], references: [id])
+  user            User?           @relation(fields: [userId], references: [id], onDelete: Restrict)
   walletId        String?
   wallet          Wallet?         @relation(fields: [walletId], references: [id])
   tripId          String?
@@ -486,6 +504,7 @@ model LedgerEntry {
 
   @@index([userId, createdAt])
   @@index([account, createdAt])
+  @@index([journalId])
   @@index([walletId])
   @@index([tripId])
   @@index([idempotencyKey])
@@ -595,7 +614,7 @@ model WebhookIdempotency {
 model AuditLog {
   id         String      @id @default(uuid())
   userId     String?
-  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: Restrict)
   action     AuditAction
   entityType String      // e.g. "TRIP", "DRIVER", "WALLET", "PAYMENT", "PRICING"
   entityId   String?

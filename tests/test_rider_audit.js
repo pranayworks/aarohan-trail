@@ -52,7 +52,7 @@ async function runRiderAudit() {
     assert(
       'S1.1',
       'Gaman Moto Quote generated with authoritative pricing',
-      moto && moto.finalFare > 0 && (quoteData.quoteId.startsWith('AAROHAN-QTE-') || quoteData.quoteId.startsWith('GMN-QTE-')),
+      moto && moto.finalFare > 0 && quoteData.quoteId.startsWith('AAROHAN-QTE-'),
       `Quote: ${quoteData.quoteId} • Distance: ${quoteData.route.distanceKm} km • Fare: MK ${moto?.finalFare} (Base: MK ${moto?.baseFare}, PerKm: MK ${moto?.ratePerKm})`
     );
 
@@ -182,7 +182,7 @@ async function runRiderAudit() {
       type: 'BOOK_RIDE',
       idempotencyKey: 'IDEMP-OFFLINE-' + Date.now(),
       payload: {
-        quoteId: 'GMN-QTE-MOCK-TEST',
+        quoteId: 'AAROHAN-QTE-MOCK-TEST',
         tierId: 'moto',
         fare: 2450,
         pickup: 'Gateway Mall',
@@ -290,8 +290,8 @@ async function runRiderAudit() {
     const auditCashDriverId = 'DRV-AUDIT-CASH-' + Date.now();
     const cashSettlement = financeService.settleCompletedRide({
       rideId: 'TRIP-AUDIT-CASH-' + Date.now(),
-      quoteId: 'GMN-QTE-AUDIT-CASH',
-      versionId: 'GMN-PRICE-V1',
+      quoteId: 'AAROHAN-QTE-AUDIT-CASH',
+      versionId: 'AAROHAN-PRICE-V1',
       categoryId: 'cab',
       driverId: auditCashDriverId,
       riderId: 'USR-AUDIT-RIDER',
@@ -335,7 +335,7 @@ async function runRiderAudit() {
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 10 & 11: Mobile Money Collection & Webhook Verification ---');
   try {
-    const payAuditRef = 'GMN-PAY-AUDIT-' + Date.now();
+    const payAuditRef = 'AAROHAN-PAY-AUDIT-' + Date.now();
     const initRes = await fetch(`${BASE_URL}/api/payments/initiate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -391,7 +391,7 @@ async function runRiderAudit() {
   console.log('\n--- SCENARIO 12: Refund Processing & Reversal ---');
   try {
     const adapter = paymentManager.getAdapter('sandbox');
-    const refundRes = await adapter.refundPayment('GMN-PAY-AUDIT-101', 3500, 'Customer cancelled before driver arrival');
+    const refundRes = await adapter.refundPayment('AAROHAN-PAY-AUDIT-101', 3500, 'Customer cancelled before driver arrival');
 
     assert(
       'S12.1',
@@ -410,7 +410,7 @@ async function runRiderAudit() {
   try {
     // Rider attempts to forge a price quote by submitting a low fare
     const forgedQuote = {
-      quoteId: 'GMN-QTE-FORGED-000',
+      quoteId: 'AAROHAN-QTE-FORGED-000',
       tiers: {
         moto: { finalFare: 10 } // illegal 10 MWK fare
       }

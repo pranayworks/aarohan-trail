@@ -68,7 +68,7 @@ async function verify() {
 
     assert(
       'Server issues signed 10-minute expiring Quote ID',
-      quoteId && (quoteId.startsWith('AAROHAN-QTE-') || quoteId.startsWith('GMN-QTE-')),
+      quoteId && quoteId.startsWith('AAROHAN-QTE-'),
       `Quote ID: ${quoteId} (Expires in ${Math.round((quoteData.expiresAt - Date.now()) / 60000)} mins)`
     );
 

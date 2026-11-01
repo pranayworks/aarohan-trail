@@ -12,8 +12,9 @@ function hashPassword(password) {
 }
 
 async function main() {
-  if (process.env.NODE_ENV !== 'development') {
-    console.log('[Seed] ⚠️ Skipping seed: NODE_ENV is not "development" (current: ' + process.env.NODE_ENV + ')');
+  const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
+  if (!isDev) {
+    console.log('[Seed] ⚠️ Skipping seed: NODE_ENV is not "development" (current: ' + process.env.NODE_ENV + '). Pass --dev to run in dev mode.');
     return;
   }
 
@@ -150,6 +151,28 @@ async function main() {
       where: { id: demoRider.wallet.id },
       data: { balanceMWK: 38500 }
     });
+
+    const existingLedger = await prisma.ledgerEntry.findUnique({
+      where: { idempotencyKey: 'SEED-OPENING-RIDER-CHISOMO' }
+    });
+    if (!existingLedger) {
+      await prisma.ledgerEntry.create({
+        data: {
+          journalId: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'),
+          account: 'RIDER',
+          userId: demoRider.id,
+          walletId: demoRider.wallet.id,
+          type: 'WALLET_TOPUP',
+          amountMWK: 38500,
+          balanceAfterMWK: 38500,
+          currency: 'MWK',
+          description: 'Demo opening wallet balance',
+          idempotencyKey: 'SEED-OPENING-RIDER-CHISOMO',
+          reference: 'DEV_SEED_OPENING_BALANCE'
+        }
+      });
+      console.log('[Seed] ✅ Demo rider opening-balance ledger entry created (38,500 MWK)');
+    }
   }
   console.log('[Seed] ✅ Demo rider verified (+265991234567, Chisomo Banda)');
 

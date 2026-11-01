@@ -1,52 +1,27 @@
+-- ============================================================================
+-- AArohan Smart Urban Mobility • Clean Unified Supabase Database Migration
+-- Lilongwe, Malawi • PostgreSQL on Supabase (Pooler + Direct)
+-- ============================================================================
+
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('RIDER', 'DRIVER', 'ADMIN', 'DISPATCHER', 'SUPPORT', 'FINANCE');
-
--- CreateEnum
 CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'BANNED', 'PENDING_VERIFICATION');
-
--- CreateEnum
 CREATE TYPE "DriverApproval" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED');
-
--- CreateEnum
 CREATE TYPE "DriverAvailability" AS ENUM ('ONLINE', 'BUSY', 'OFFLINE');
-
--- CreateEnum
 CREATE TYPE "VehicleType" AS ENUM ('MOTO', 'AUTO', 'CAB');
-
--- CreateEnum
 CREATE TYPE "TripStatus" AS ENUM ('REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED', 'NO_DRIVERS');
-
--- CreateEnum
 CREATE TYPE "TripOfferStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED');
-
--- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REFUNDED', 'REVERSED');
-
--- CreateEnum
 CREATE TYPE "PaymentMethod" AS ENUM ('CASH', 'AIRTEL_MONEY', 'TNM_MPAMBA', 'WALLET_ESCROW');
-
--- CreateEnum
 CREATE TYPE "PaymentType" AS ENUM ('TOPUP', 'TRIP', 'PAYOUT');
-
--- CreateEnum
 CREATE TYPE "DocumentType" AS ENUM ('DRIVING_LICENSE', 'NATIONAL_ID', 'VEHICLE_REGISTRATION', 'CERTIFICATE_OF_FITNESS', 'INSURANCE_CERTIFICATE');
-
--- CreateEnum
 CREATE TYPE "DocumentStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
-
--- CreateEnum
 CREATE TYPE "SosStatus" AS ENUM ('ACTIVE', 'ESCALATED_POLICE', 'RESOLVED', 'FALSE_ALARM');
-
--- CreateEnum
 CREATE TYPE "LedgerAccount" AS ENUM ('RIDER', 'DRIVER', 'PLATFORM_REVENUE', 'PLATFORM_ESCROW');
-
--- CreateEnum
 CREATE TYPE "LedgerEntryType" AS ENUM ('RIDE_FARE', 'PLATFORM_COMMISSION', 'DRIVER_EARNING', 'TIP', 'CASH_COLLECTION', 'COMMISSION_DEBT', 'DEBT_SETTLEMENT', 'WALLET_TOPUP', 'P2P_TRANSFER_DEBIT', 'P2P_TRANSFER_CREDIT', 'REFUND', 'CANCELLATION_FEE', 'ADJUSTMENT');
-
--- CreateEnum
 CREATE TYPE "AuditAction" AS ENUM ('USER_LOGIN', 'USER_LOGOUT', 'USER_REGISTER', 'OTP_REQUEST', 'OTP_VERIFY_SUCCESS', 'OTP_FAILED', 'OTP_LOCKED', 'DRIVER_REGISTERED', 'DRIVER_APPROVED', 'DRIVER_REJECTED', 'DRIVER_SUSPENDED', 'TRIP_CREATED', 'TRIP_OFFERED', 'TRIP_ACCEPTED', 'TRIP_DRIVER_ARRIVED', 'TRIP_STARTED', 'TRIP_COMPLETED', 'TRIP_CANCELLED', 'PIN_VERIFIED', 'PIN_FAILED', 'PRICE_CONFIG_UPDATED', 'PAYMENT_INITIATED', 'PAYMENT_WEBHOOK', 'PAYMENT_REFUNDED', 'COMMISSION_SETTLED', 'MANUAL_ADJUSTMENT', 'SOS_TRIGGERED', 'SOS_RESOLVED');
 
--- CreateTable
+-- CreateTable: OtpCode
 CREATE TABLE "OtpCode" (
     "id" TEXT NOT NULL,
     "phone" TEXT NOT NULL,
@@ -58,11 +33,10 @@ CREATE TABLE "OtpCode" (
     "ipAddress" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "OtpCode_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: User
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "phone" TEXT NOT NULL,
@@ -77,11 +51,10 @@ CREATE TABLE "User" (
     "emergencyContactPhone" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: Driver
 CREATE TABLE "Driver" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -99,11 +72,10 @@ CREATE TABLE "Driver" (
     "rejectionReason" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "Driver_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: Vehicle
 CREATE TABLE "Vehicle" (
     "id" TEXT NOT NULL,
     "driverId" TEXT NOT NULL,
@@ -114,11 +86,10 @@ CREATE TABLE "Vehicle" (
     "year" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "Vehicle_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: DriverDocument
 CREATE TABLE "DriverDocument" (
     "id" TEXT NOT NULL,
     "driverId" TEXT NOT NULL,
@@ -130,11 +101,10 @@ CREATE TABLE "DriverDocument" (
     "reviewedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "DriverDocument_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: RefreshToken
 CREATE TABLE "RefreshToken" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -145,11 +115,10 @@ CREATE TABLE "RefreshToken" (
     "ipAddress" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: DeviceToken
 CREATE TABLE "DeviceToken" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -158,11 +127,10 @@ CREATE TABLE "DeviceToken" (
     "lastSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "DeviceToken_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: Trip
 CREATE TABLE "Trip" (
     "id" TEXT NOT NULL,
     "riderId" TEXT NOT NULL,
@@ -200,11 +168,24 @@ CREATE TABLE "Trip" (
     "completedAt" TIMESTAMP(3),
     "cancelledAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "Trip_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: TripStatusHistory
+CREATE TABLE "TripStatusHistory" (
+    "id" TEXT NOT NULL,
+    "tripId" TEXT NOT NULL,
+    "fromStatus" "TripStatus",
+    "status" "TripStatus" NOT NULL,
+    "changedBy" TEXT,
+    "reason" TEXT,
+    "lat" DOUBLE PRECISION,
+    "lng" DOUBLE PRECISION,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "TripStatusHistory_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable: TripOffer
 CREATE TABLE "TripOffer" (
     "id" TEXT NOT NULL,
     "tripId" TEXT NOT NULL,
@@ -214,11 +195,10 @@ CREATE TABLE "TripOffer" (
     "respondedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "TripOffer_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: ChatMessage
 CREATE TABLE "ChatMessage" (
     "id" TEXT NOT NULL,
     "tripId" TEXT NOT NULL,
@@ -227,11 +207,10 @@ CREATE TABLE "ChatMessage" (
     "text" TEXT NOT NULL,
     "readAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT "ChatMessage_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: Payment
 CREATE TABLE "Payment" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -245,11 +224,10 @@ CREATE TABLE "Payment" (
     "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: Wallet
 CREATE TABLE "Wallet" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -258,13 +236,13 @@ CREATE TABLE "Wallet" (
     "currency" TEXT NOT NULL DEFAULT 'MWK',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "Wallet_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: LedgerEntry
 CREATE TABLE "LedgerEntry" (
     "id" TEXT NOT NULL,
+    "journalId" TEXT NOT NULL,
     "account" "LedgerAccount" NOT NULL,
     "userId" TEXT,
     "walletId" TEXT,
@@ -278,11 +256,10 @@ CREATE TABLE "LedgerEntry" (
     "reference" TEXT,
     "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT "LedgerEntry_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: DriverSettlement
 CREATE TABLE "DriverSettlement" (
     "id" TEXT NOT NULL,
     "driverId" TEXT NOT NULL,
@@ -295,11 +272,10 @@ CREATE TABLE "DriverSettlement" (
     "payoutReference" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "DriverSettlement_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: PricingConfig
 CREATE TABLE "PricingConfig" (
     "id" TEXT NOT NULL,
     "versionId" TEXT NOT NULL,
@@ -319,11 +295,10 @@ CREATE TABLE "PricingConfig" (
     "effectiveFrom" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "PricingConfig_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: SosEvent
 CREATE TABLE "SosEvent" (
     "id" TEXT NOT NULL,
     "tripId" TEXT,
@@ -336,11 +311,10 @@ CREATE TABLE "SosEvent" (
     "resolvedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "SosEvent_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: Rating
 CREATE TABLE "Rating" (
     "id" TEXT NOT NULL,
     "tripId" TEXT NOT NULL,
@@ -350,11 +324,10 @@ CREATE TABLE "Rating" (
     "tags" TEXT[],
     "comment" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT "Rating_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: WebhookIdempotency
 CREATE TABLE "WebhookIdempotency" (
     "id" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
@@ -362,11 +335,10 @@ CREATE TABLE "WebhookIdempotency" (
     "payloadHash" TEXT,
     "responseStatus" TEXT NOT NULL DEFAULT 'PROCESSED',
     "processedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT "WebhookIdempotency_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+-- CreateTable: AuditLog
 CREATE TABLE "AuditLog" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
@@ -377,246 +349,204 @@ CREATE TABLE "AuditLog" (
     "ipAddress" TEXT,
     "userAgent" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
+-- Standard Indexes
 CREATE UNIQUE INDEX "OtpCode_phone_key" ON "OtpCode"("phone");
-
--- CreateIndex
 CREATE INDEX "OtpCode_phone_idx" ON "OtpCode"("phone");
-
--- CreateIndex
 CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
-
--- CreateIndex
 CREATE INDEX "User_phone_idx" ON "User"("phone");
-
--- CreateIndex
 CREATE INDEX "User_role_status_idx" ON "User"("role", "status");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Driver_userId_key" ON "Driver"("userId");
-
--- CreateIndex
 CREATE INDEX "Driver_approvalStatus_availability_idx" ON "Driver"("approvalStatus", "availability");
-
--- CreateIndex
 CREATE INDEX "Driver_currentLat_currentLng_idx" ON "Driver"("currentLat", "currentLng");
-
--- CreateIndex
 CREATE INDEX "Driver_userId_idx" ON "Driver"("userId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Vehicle_driverId_key" ON "Vehicle"("driverId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Vehicle_plateNumber_key" ON "Vehicle"("plateNumber");
-
--- CreateIndex
 CREATE INDEX "Vehicle_driverId_idx" ON "Vehicle"("driverId");
-
--- CreateIndex
 CREATE INDEX "Vehicle_plateNumber_idx" ON "Vehicle"("plateNumber");
-
--- CreateIndex
 CREATE INDEX "DriverDocument_driverId_status_idx" ON "DriverDocument"("driverId", "status");
-
--- CreateIndex
 CREATE UNIQUE INDEX "RefreshToken_tokenHash_key" ON "RefreshToken"("tokenHash");
-
--- CreateIndex
 CREATE INDEX "RefreshToken_userId_tokenHash_idx" ON "RefreshToken"("userId", "tokenHash");
-
--- CreateIndex
 CREATE INDEX "DeviceToken_userId_idx" ON "DeviceToken"("userId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "DeviceToken_userId_token_key" ON "DeviceToken"("userId", "token");
 
--- CreateIndex
-CREATE UNIQUE INDEX "Trip_idempotencyKey_key" ON "Trip"("idempotencyKey");
-
--- CreateIndex
+-- Trip Indexes & Scoped Idempotency
+CREATE UNIQUE INDEX "Trip_riderId_idempotencyKey_key" ON "Trip"("riderId", "idempotencyKey");
 CREATE INDEX "Trip_riderId_status_idx" ON "Trip"("riderId", "status");
-
--- CreateIndex
 CREATE INDEX "Trip_driverId_status_idx" ON "Trip"("driverId", "status");
-
--- CreateIndex
 CREATE INDEX "Trip_status_createdAt_idx" ON "Trip"("status", "createdAt");
-
--- CreateIndex
 CREATE INDEX "Trip_idempotencyKey_idx" ON "Trip"("idempotencyKey");
+CREATE INDEX "TripStatusHistory_tripId_createdAt_idx" ON "TripStatusHistory"("tripId", "createdAt");
 
--- CreateIndex
+-- Offer, Chat & Payment Indexes
 CREATE INDEX "TripOffer_driverId_status_idx" ON "TripOffer"("driverId", "status");
-
--- CreateIndex
 CREATE INDEX "TripOffer_tripId_status_idx" ON "TripOffer"("tripId", "status");
-
--- CreateIndex
 CREATE INDEX "ChatMessage_tripId_createdAt_idx" ON "ChatMessage"("tripId", "createdAt");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Payment_providerRef_key" ON "Payment"("providerRef");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Payment_idempotencyKey_key" ON "Payment"("idempotencyKey");
-
--- CreateIndex
 CREATE INDEX "Payment_userId_status_idx" ON "Payment"("userId", "status");
-
--- CreateIndex
 CREATE INDEX "Payment_tripId_idx" ON "Payment"("tripId");
-
--- CreateIndex
 CREATE INDEX "Payment_providerRef_idx" ON "Payment"("providerRef");
-
--- CreateIndex
 CREATE INDEX "Payment_idempotencyKey_idx" ON "Payment"("idempotencyKey");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Wallet_userId_key" ON "Wallet"("userId");
-
--- CreateIndex
 CREATE INDEX "Wallet_userId_idx" ON "Wallet"("userId");
 
--- CreateIndex
+-- LedgerEntry Indexes
 CREATE UNIQUE INDEX "LedgerEntry_idempotencyKey_key" ON "LedgerEntry"("idempotencyKey");
-
--- CreateIndex
 CREATE INDEX "LedgerEntry_userId_createdAt_idx" ON "LedgerEntry"("userId", "createdAt");
-
--- CreateIndex
 CREATE INDEX "LedgerEntry_account_createdAt_idx" ON "LedgerEntry"("account", "createdAt");
-
--- CreateIndex
+CREATE INDEX "LedgerEntry_journalId_idx" ON "LedgerEntry"("journalId");
 CREATE INDEX "LedgerEntry_walletId_idx" ON "LedgerEntry"("walletId");
-
--- CreateIndex
 CREATE INDEX "LedgerEntry_tripId_idx" ON "LedgerEntry"("tripId");
-
--- CreateIndex
 CREATE INDEX "LedgerEntry_idempotencyKey_idx" ON "LedgerEntry"("idempotencyKey");
 
--- CreateIndex
+-- Settlements, Pricing & Audit Indexes
 CREATE UNIQUE INDEX "DriverSettlement_tripId_key" ON "DriverSettlement"("tripId");
-
--- CreateIndex
 CREATE INDEX "DriverSettlement_driverId_settlementStatus_idx" ON "DriverSettlement"("driverId", "settlementStatus");
-
--- CreateIndex
 CREATE INDEX "DriverSettlement_tripId_idx" ON "DriverSettlement"("tripId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "PricingConfig_versionId_key" ON "PricingConfig"("versionId");
-
--- CreateIndex
 CREATE INDEX "PricingConfig_isActive_idx" ON "PricingConfig"("isActive");
-
--- CreateIndex
 CREATE INDEX "SosEvent_userId_status_idx" ON "SosEvent"("userId", "status");
-
--- CreateIndex
 CREATE INDEX "SosEvent_tripId_idx" ON "SosEvent"("tripId");
-
--- CreateIndex
 CREATE INDEX "Rating_toUserId_idx" ON "Rating"("toUserId");
-
--- CreateIndex
 CREATE INDEX "Rating_tripId_idx" ON "Rating"("tripId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Rating_tripId_fromUserId_key" ON "Rating"("tripId", "fromUserId");
-
--- CreateIndex
 CREATE INDEX "WebhookIdempotency_provider_webhookId_idx" ON "WebhookIdempotency"("provider", "webhookId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "WebhookIdempotency_provider_webhookId_key" ON "WebhookIdempotency"("provider", "webhookId");
-
--- CreateIndex
 CREATE INDEX "AuditLog_userId_createdAt_idx" ON "AuditLog"("userId", "createdAt");
-
--- CreateIndex
 CREATE INDEX "AuditLog_entityType_entityId_idx" ON "AuditLog"("entityType", "entityId");
-
--- CreateIndex
 CREATE INDEX "AuditLog_action_createdAt_idx" ON "AuditLog"("action", "createdAt");
 
--- AddForeignKey
+-- Foreign Keys
 ALTER TABLE "Driver" ADD CONSTRAINT "Driver_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Vehicle" ADD CONSTRAINT "Vehicle_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "DriverDocument" ADD CONSTRAINT "DriverDocument_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "RefreshToken" ADD CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "DeviceToken" ADD CONSTRAINT "DeviceToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Trip" ADD CONSTRAINT "Trip_riderId_fkey" FOREIGN KEY ("riderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Trip" ADD CONSTRAINT "Trip_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
+ALTER TABLE "TripStatusHistory" ADD CONSTRAINT "TripStatusHistory_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "TripOffer" ADD CONSTRAINT "TripOffer_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "TripOffer" ADD CONSTRAINT "TripOffer_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "ChatMessage" ADD CONSTRAINT "ChatMessage_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Wallet" ADD CONSTRAINT "Wallet_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
+-- Enforce Restrict on User deletion for financial and audit immutability (anonymization only)
+ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_walletId_fkey" FOREIGN KEY ("walletId") REFERENCES "Wallet"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "DriverSettlement" ADD CONSTRAINT "DriverSettlement_driverId_fkey" FOREIGN KEY ("driverId") REFERENCES "Driver"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "DriverSettlement" ADD CONSTRAINT "DriverSettlement_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "SosEvent" ADD CONSTRAINT "SosEvent_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "SosEvent" ADD CONSTRAINT "SosEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Rating" ADD CONSTRAINT "Rating_tripId_fkey" FOREIGN KEY ("tripId") REFERENCES "Trip"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Rating" ADD CONSTRAINT "Rating_fromUserId_fkey" FOREIGN KEY ("fromUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Rating" ADD CONSTRAINT "Rating_toUserId_fkey" FOREIGN KEY ("toUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
-ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+-- ============================================================================
+-- EMBEDDED HARDENING & CONSTRAINTS
+-- ============================================================================
+
+-- 1. Revoke public/PostgREST permissions from anon and authenticated roles
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated;
+
+-- 2. Enable Row Level Security (RLS) on all 20 tables + _prisma_migrations
+ALTER TABLE "_prisma_migrations" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Driver" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Vehicle" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "DriverDocument" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "OtpCode" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "RefreshToken" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "DeviceToken" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Trip" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "TripStatusHistory" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "TripOffer" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ChatMessage" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Payment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Wallet" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "LedgerEntry" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "DriverSettlement" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PricingConfig" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "WebhookIdempotency" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "AuditLog" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SosEvent" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Rating" ENABLE ROW LEVEL SECURITY;
+
+-- 3. CHECK Constraints: Rating stars 1-5, PIN attempts 0-5, non-negative money
+ALTER TABLE "Rating" ADD CONSTRAINT "rating_stars_range" CHECK ("stars" >= 1 AND "stars" <= 5);
+ALTER TABLE "Trip" ADD CONSTRAINT "trip_pin_attempts_range" CHECK ("pinAttempts" >= 0 AND "pinAttempts" <= 5);
+ALTER TABLE "Trip" ADD CONSTRAINT "trip_fare_non_negative" CHECK ("fareMWK" >= 0);
+ALTER TABLE "Trip" ADD CONSTRAINT "trip_base_fare_non_negative" CHECK ("baseFareMWK" >= 0);
+ALTER TABLE "Trip" ADD CONSTRAINT "trip_driver_share_non_negative" CHECK ("driverShareMWK" >= 0);
+ALTER TABLE "Trip" ADD CONSTRAINT "trip_commission_non_negative" CHECK ("commissionMWK" >= 0);
+ALTER TABLE "Payment" ADD CONSTRAINT "payment_amount_positive" CHECK ("amountMWK" > 0);
+ALTER TABLE "Wallet" ADD CONSTRAINT "wallet_balance_non_negative" CHECK ("balanceMWK" >= 0);
+ALTER TABLE "Wallet" ADD CONSTRAINT "wallet_locked_escrow_non_negative" CHECK ("lockedEscrowMWK" >= 0);
+
+-- 4. Partial Unique Indexes
+-- A. Exactly one ACCEPTED offer per trip
+CREATE UNIQUE INDEX "unique_accepted_offer_per_trip" ON "TripOffer"("tripId") WHERE "status" = 'ACCEPTED';
+
+-- B. At most one active trip per rider
+CREATE UNIQUE INDEX "unique_active_trip_per_rider" ON "Trip"("riderId") 
+WHERE "status" IN ('REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT');
+
+-- C. At most one active trip per driver
+CREATE UNIQUE INDEX "unique_active_trip_per_driver" ON "Trip"("driverId") 
+WHERE "status" IN ('DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT') AND "driverId" IS NOT NULL;
+
+-- 5. Trigger Functions (SET search_path = '', WITHOUT SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION prevent_update_or_delete()
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  RAISE EXCEPTION 'Table % is strictly append-only. UPDATE and DELETE operations are forbidden.', TG_TABLE_NAME;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION prevent_truncate()
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  RAISE EXCEPTION 'Table % is strictly append-only. TRUNCATE operations are forbidden.', TG_TABLE_NAME;
+END;
+$$;
+
+-- Row-level triggers rejecting UPDATE and DELETE
+DROP TRIGGER IF EXISTS trg_ledger_entry_immutable_row ON "LedgerEntry";
+CREATE TRIGGER trg_ledger_entry_immutable_row
+BEFORE UPDATE OR DELETE ON "LedgerEntry"
+FOR EACH ROW EXECUTE FUNCTION prevent_update_or_delete();
+
+DROP TRIGGER IF EXISTS trg_audit_log_immutable_row ON "AuditLog";
+CREATE TRIGGER trg_audit_log_immutable_row
+BEFORE UPDATE OR DELETE ON "AuditLog"
+FOR EACH ROW EXECUTE FUNCTION prevent_update_or_delete();
+
+-- Statement-level triggers rejecting TRUNCATE
+DROP TRIGGER IF EXISTS trg_ledger_entry_immutable_truncate ON "LedgerEntry";
+CREATE TRIGGER trg_ledger_entry_immutable_truncate
+BEFORE TRUNCATE ON "LedgerEntry"
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_truncate();
+
+DROP TRIGGER IF EXISTS trg_audit_log_immutable_truncate ON "AuditLog";
+CREATE TRIGGER trg_audit_log_immutable_truncate
+BEFORE TRUNCATE ON "AuditLog"
+FOR EACH STATEMENT EXECUTE FUNCTION prevent_truncate();
