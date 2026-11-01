@@ -181,17 +181,17 @@
         <!-- Drag Handle -->
         <div class="w-10 h-1 rounded-full bg-slate-200 mx-auto my-2.5"></div>
 
-        <!-- Segmented Mode Tabs (Matching Reference Image Layout, Metro Removed as Instructed) -->
-        <div class="grid grid-cols-2 gap-3 mb-3.5">
+        <!-- Segmented Mode Tabs -->
+        <div id="home-mode-tabs-container" class="grid grid-cols-1 gap-3 mb-3.5">
           <!-- Active Ride Tab with prominent Blue Pin Icon -->
-          <div
+          <div id="home-ride-card"
             class="py-3 px-4 rounded-2xl border-2 border-slate-900 bg-white shadow-xs flex flex-col items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]">
             <span class="material-symbols-outlined text-[24px] text-blue-600"
               style="font-variation-settings: 'FILL' 1;">location_on</span>
             <span class="text-xs font-bold text-slate-900" data-i18n="navRide">Ride</span>
           </div>
-          <!-- Smooth Parcel Tab (Replacing Metro cleanly as requested) -->
-          <div onclick="switchView('parcel')"
+          <!-- Smooth Parcel Tab (Hidden behind feature flag) -->
+          <div onclick="switchView('parcel')" id="home-parcel-card" data-feature-flag="ENABLE_PARCEL" style="display: none;"
             class="py-3 px-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]">
             <span class="material-symbols-outlined text-[24px] text-slate-700">package_2</span>
             <span class="text-xs font-semibold text-slate-700" data-i18n="navParcel">Parcel</span>
@@ -375,8 +375,8 @@
               </div>
             </div>
 
-            <!-- Card 4: Parcel Courier -->
-            <div onclick="switchView('parcel')"
+            <!-- Card 4: Parcel Courier (Hidden behind feature flag) -->
+            <div onclick="switchView('parcel')" id="search-parcel-card" data-feature-flag="ENABLE_PARCEL" style="display: none;"
               class="min-w-[160px] p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/70 shadow-xs cursor-pointer hover:shadow-md hover:bg-white transition-all flex flex-col justify-between active:scale-98">
               <div>
                 <span
@@ -1265,17 +1265,22 @@
         </div>
 
         <div class="grid grid-cols-2 gap-2 mt-3">
-          <button onclick="openWalletTopUpModal()"
-            class="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black text-center shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5">
-            <span class="material-symbols-outlined text-[16px]">add_circle</span>
-            <span>Top Up (Airtel/TNM)</span>
+          <button id="btn-topup-wallet" disabled
+            class="py-2.5 bg-slate-700/60 opacity-60 cursor-not-allowed rounded-xl text-xs font-black text-center shadow-md flex items-center justify-center gap-1.5 text-slate-300"
+            title="Disabled until server-side ledger exists">
+            <span class="material-symbols-outlined text-[16px]">block</span>
+            <span>Top Up (Disabled)</span>
           </button>
-          <button onclick="openP2PTransferModal()"
-            class="py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-center transition-all active:scale-98 flex items-center justify-center gap-1.5 border border-white/10">
-            <span class="material-symbols-outlined text-[16px]">send_money</span>
-            <span>Send Kwacha</span>
+          <button id="btn-p2p-send" disabled
+            class="py-2.5 bg-white/5 opacity-50 cursor-not-allowed rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 border border-white/10 text-slate-400"
+            title="Disabled until server-side ledger exists">
+            <span class="material-symbols-outlined text-[16px]">block</span>
+            <span>Send Kwacha (Disabled)</span>
           </button>
         </div>
+        <p class="text-[10px] text-slate-400 mt-2 text-center">
+          Wallet top-up &amp; P2P transfers are disabled until server-side ledger is integrated.
+        </p>
       </div>
 
       <!-- Saved Places Shortcut -->
@@ -1322,7 +1327,7 @@
             </div>
             <div>
               <h4 class="font-extrabold text-xs text-slate-900">Map API & Navigation Tiles</h4>
-              <span class="text-[11px] text-slate-400">Mapbox, Google Maps, or Carto</span>
+              <span class="text-[11px] text-slate-400">Mapbox, CartoDB, or MapTiler</span>
             </div>
           </div>
           <button onclick="openMapConfigModal()"
@@ -2396,7 +2401,7 @@
           </div>
           <div>
             <h3 class="font-black text-base text-slate-900">Map API & Tile Provider</h3>
-            <span class="text-[11px] text-slate-400">Configure Mapbox, Google Maps, or Carto</span>
+            <span class="text-[11px] text-slate-400">Configure Mapbox, CartoDB, or MapTiler</span>
           </div>
         </div>
         <button onclick="closeMapConfigModal()"
@@ -2409,12 +2414,12 @@
       <div>
         <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Select Map
           Provider</label>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <!-- CartoDB -->
           <button onclick="selectMapProviderUI('carto')" id="map-provider-btn-carto"
             class="provider-choice-btn p-3 rounded-2xl border-2 border-emerald-600 bg-emerald-50/50 flex flex-col gap-1 text-left transition-all">
             <div class="flex items-center justify-between">
-              <span class="font-extrabold text-xs text-slate-900">CartoDB Voyager</span>
+              <span class="font-extrabold text-xs text-slate-900">CartoDB</span>
               <span class="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded">FREE</span>
             </div>
             <span class="text-[10px] text-slate-500">Pastel styling, zero key required</span>
@@ -2428,16 +2433,6 @@
               <span class="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded">PRO</span>
             </div>
             <span class="text-[10px] text-slate-500">Vector streets & navigation tiles</span>
-          </button>
-
-          <!-- Google Maps -->
-          <button onclick="selectMapProviderUI('google')" id="map-provider-btn-google"
-            class="provider-choice-btn p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col gap-1 text-left transition-all">
-            <div class="flex items-center justify-between">
-              <span class="font-extrabold text-xs text-slate-900">Google Maps</span>
-              <span class="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded">KEY</span>
-            </div>
-            <span class="text-[10px] text-slate-500">Official Google roadmap tiles</span>
           </button>
 
           <!-- MapTiler -->
@@ -2501,19 +2496,19 @@
         <span class="text-[10px]">Ride</span>
       </button>
 
-      <button onclick="switchView('rentals')" id="nav-rentals"
+      <button onclick="switchView('rentals')" id="nav-rentals" data-feature-flag="ENABLE_OWNLY" style="display: none;"
         class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
         <span class="material-symbols-outlined text-[22px]">car_rental</span>
         <span class="text-[10px]">Ownly</span>
       </button>
 
-      <button onclick="switchView('parcel')" id="nav-parcel"
+      <button onclick="switchView('parcel')" id="nav-parcel" data-feature-flag="ENABLE_PARCEL" style="display: none;"
         class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
         <span class="material-symbols-outlined text-[22px]">package_2</span>
         <span class="text-[10px]">Parcel</span>
       </button>
 
-      <button onclick="switchView('travel')" id="nav-travel"
+      <button onclick="switchView('travel')" id="nav-travel" data-feature-flag="ENABLE_TRAVEL" style="display: none;"
         class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
         <span class="material-symbols-outlined text-[22px]">luggage</span>
         <span class="text-[10px]">Travel</span>
@@ -2534,6 +2529,19 @@
   <script>
     // Navigation UI Handlers
     function switchView(viewName) {
+      if (viewName === 'rentals' && window.AAROHAN_FLAGS && !window.AAROHAN_FLAGS.ENABLE_OWNLY) {
+        if (typeof window.showToast === 'function') window.showToast('Ownly vehicle rentals are currently disabled.');
+        return;
+      }
+      if (viewName === 'parcel' && window.AAROHAN_FLAGS && !window.AAROHAN_FLAGS.ENABLE_PARCEL) {
+        if (typeof window.showToast === 'function') window.showToast('Parcel courier service is currently disabled.');
+        return;
+      }
+      if (viewName === 'travel' && window.AAROHAN_FLAGS && !window.AAROHAN_FLAGS.ENABLE_TRAVEL) {
+        if (typeof window.showToast === 'function') window.showToast('Intercity travel service is currently disabled.');
+        return;
+      }
+
       document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
       const active = document.getElementById('view-' + viewName);
       if (active) {
@@ -2594,13 +2602,15 @@
     }
 
     function topUpWallet() {
-      openWalletTopUpModal();
+      if (typeof window.showToast === 'function') {
+        window.showToast('Wallet top-up is disabled until server-side ledger integration is active.');
+      }
     }
 
     function openWalletTopUpModal() {
-      const modal = document.getElementById('wallet-topup-modal');
-      if (modal) modal.classList.remove('hidden');
-      if (window.aarohanSound) window.aarohanSound.playClick();
+      if (typeof window.showToast === 'function') {
+        window.showToast('Wallet top-up is disabled until server-side ledger integration is active.');
+      }
     }
     function closeWalletTopUpModal() {
       const modal = document.getElementById('wallet-topup-modal');
@@ -2608,9 +2618,9 @@
     }
 
     function openP2PTransferModal() {
-      const modal = document.getElementById('p2p-modal');
-      if (modal) modal.classList.remove('hidden');
-      if (window.aarohanSound) window.aarohanSound.playClick();
+      if (typeof window.showToast === 'function') {
+        window.showToast('P2P Kwacha transfers are disabled until server-side ledger integration is active.');
+      }
     }
     function closeP2PTransferModal() {
       const modal = document.getElementById('p2p-modal');

@@ -72,12 +72,46 @@
     if (queued) offlineActionQueue = JSON.parse(queued);
   } catch (e) { }
 
+  // Feature Flags: Hide Ownly, Parcel, and Travel tabs
+  window.AAROHAN_FLAGS = Object.assign({
+    ENABLE_OWNLY: false,
+    ENABLE_PARCEL: false,
+    ENABLE_TRAVEL: false
+  }, window.AAROHAN_FLAGS || {});
+
+  function applyFeatureFlags() {
+    const flags = window.AAROHAN_FLAGS || {};
+    const navRentals = document.getElementById('nav-rentals');
+    const navParcel = document.getElementById('nav-parcel');
+    const navTravel = document.getElementById('nav-travel');
+    if (navRentals) navRentals.style.display = flags.ENABLE_OWNLY ? 'flex' : 'none';
+    if (navParcel) navParcel.style.display = flags.ENABLE_PARCEL ? 'flex' : 'none';
+    if (navTravel) navTravel.style.display = flags.ENABLE_TRAVEL ? 'flex' : 'none';
+
+    const homeParcel = document.getElementById('home-parcel-card');
+    if (homeParcel) homeParcel.style.display = flags.ENABLE_PARCEL ? 'flex' : 'none';
+    const homeTabsContainer = document.getElementById('home-mode-tabs-container');
+    if (homeTabsContainer) {
+      homeTabsContainer.className = flags.ENABLE_PARCEL ? 'grid grid-cols-2 gap-3 mb-3.5' : 'grid grid-cols-1 gap-3 mb-3.5';
+    }
+
+    const searchParcel = document.getElementById('search-parcel-card');
+    if (searchParcel) searchParcel.style.display = flags.ENABLE_PARCEL ? 'flex' : 'none';
+
+    const viewRentals = document.getElementById('view-rentals');
+    const viewParcel = document.getElementById('view-parcel');
+    const viewTravel = document.getElementById('view-travel');
+    if (!flags.ENABLE_OWNLY && viewRentals) viewRentals.classList.add('hidden');
+    if (!flags.ENABLE_PARCEL && viewParcel) viewParcel.classList.add('hidden');
+    if (!flags.ENABLE_TRAVEL && viewTravel) viewTravel.classList.add('hidden');
+  }
+  window.applyFeatureFlags = applyFeatureFlags;
+
   // Map Tile Configuration
   window.aarohanMapConfig = {
     provider: 'carto',
     apiKey: '',
     mapboxToken: '',
-    googleKey: '',
     maptilerKey: ''
   };
 
@@ -88,6 +122,7 @@
 
   // --- Initializer ---
   document.addEventListener('DOMContentLoaded', () => {
+    applyFeatureFlags();
     initLeafletMap();
     initRiderGeolocation();
     initLocationSearch();
@@ -112,7 +147,7 @@
       const res = await fetch('/api/map-config');
       if (res.ok) {
         const data = await res.json();
-        if (data.apiKey || data.mapboxToken || data.googleKey || data.maptilerKey) {
+        if (data.apiKey || data.mapboxToken || data.maptilerKey) {
           window.aarohanMapConfig = Object.assign(window.aarohanMapConfig, data);
         }
         applyTileLayerToMap(map, false);
@@ -126,20 +161,13 @@
 
   function getMapTileLayerConfig(config) {
     const provider = (config && config.provider) || 'carto';
-    const key = (config && (config.apiKey || config.mapboxToken || config.googleKey || config.maptilerKey)) || '';
+    const key = (config && (config.apiKey || config.mapboxToken || config.maptilerKey)) || '';
 
     if (provider === 'mapbox' && (config.mapboxToken || key)) {
       const token = config.mapboxToken || key;
       return {
         url: `https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=${token}`,
         options: { maxZoom: 19, tileSize: 512, zoomOffset: -1, attribution: '© Mapbox © OpenStreetMap' }
-      };
-    }
-    if (provider === 'google' && (config.googleKey || key)) {
-      const gkey = config.googleKey || key;
-      return {
-        url: `https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${gkey}`,
-        options: { maxZoom: 20, attribution: '© Google Maps' }
       };
     }
     if (provider === 'maptiler' && (config.maptilerKey || key)) {
@@ -1753,7 +1781,6 @@
     const input = document.getElementById('map-api-key-input');
     if (input) {
       if (provider === 'mapbox') input.value = window.aarohanMapConfig.mapboxToken || window.aarohanMapConfig.apiKey || '';
-      else if (provider === 'google') input.value = window.aarohanMapConfig.googleKey || window.aarohanMapConfig.apiKey || '';
       else if (provider === 'maptiler') input.value = window.aarohanMapConfig.maptilerKey || window.aarohanMapConfig.apiKey || '';
       else input.value = window.aarohanMapConfig.apiKey || '';
     }
@@ -1766,7 +1793,7 @@
 
   window.selectMapProviderUI = function (provider) {
     window.selectedProviderUI = provider;
-    ['carto', 'mapbox', 'google', 'maptiler'].forEach(p => {
+    ['carto', 'mapbox', 'maptiler'].forEach(p => {
       const btn = document.getElementById('map-provider-btn-' + p);
       if (btn) {
         btn.className = (p === provider)
@@ -1794,6 +1821,11 @@
       if (provider === 'mapbox') {
         if (label) label.innerText = 'Mapbox Public Access Token (pk.xxx)';
         if (input) input.placeholder = 'pk.eyJ1IjoieW91cm5hbWUiLCJhIjoi...';
+        if (helpText) helpText.innerHTML = 'Enter your Mapbox public token for high-resolution navigation tiles.';
+      } else if (provider === 'maptiler') {
+        if (label) label.innerText = 'MapTiler API Key';
+        if (input) input.placeholder = 'Enter MapTiler key...';
+        if (helpText) helpText.innerHTML = 'Enter your MapTiler API key for OpenStreetMap vector tiles.';
       }
     }
   };
@@ -1805,7 +1837,6 @@
 
     const newConfig = { provider, apiKey: keyVal };
     if (provider === 'mapbox') newConfig.mapboxToken = keyVal;
-    if (provider === 'google') newConfig.googleKey = keyVal;
     if (provider === 'maptiler') newConfig.maptilerKey = keyVal;
 
     window.aarohanMapConfig = Object.assign(window.aarohanMapConfig, newConfig);
@@ -1817,15 +1848,7 @@
     applyTileLayerToMap(trackingMap, true);
     updateMapConfigBadge();
 
-    try {
-      await fetch('/api/map-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newConfig)
-      });
-    } catch (err) { }
-
-    showToast(`✅ ${provider.toUpperCase()} Map Key applied!`);
+    showToast(`✅ ${provider.toUpperCase()} Map Key applied locally!`);
     window.closeMapConfigModal();
   };
 
@@ -1839,9 +1862,6 @@
     if (p === 'mapbox') {
       label = 'Mapbox';
       profileLabel = 'Mapbox Streets (Active)';
-    } else if (p === 'google') {
-      label = 'Google';
-      profileLabel = 'Google Maps (Active)';
     } else if (p === 'maptiler') {
       label = 'MapTiler';
       profileLabel = 'MapTiler (Active)';
@@ -2366,9 +2386,7 @@
   let selectedTopUpAmountNum = 10000;
 
   window.openWalletTopUpModal = function () {
-    const modal = document.getElementById('wallet-topup-modal');
-    if (modal) modal.classList.remove('hidden');
-    if (window.aarohanSound) window.aarohanSound.playClick();
+    showToast('Wallet top-up is disabled until server-side ledger integration is active.');
   };
 
   window.closeWalletTopUpModal = function () {
@@ -2407,27 +2425,12 @@
   };
 
   window.executeWalletTopUpAction = function () {
-    const input = document.getElementById('topup-amount-input');
-    const amt = input ? parseInt(input.value, 10) : selectedTopUpAmountNum;
-    if (isNaN(amt) || amt < 500) {
-      showToast('Minimum top up is MK 500');
-      return;
-    }
-
-    const store = window.aarohanStore || window.mwendoStore;
-    if (store) {
-      store.topUpRiderWallet(amt, selectedTopUpProviderName);
-    }
-
+    showToast('Wallet top-up is disabled until server-side ledger integration is active.');
     window.closeWalletTopUpModal();
-    showToast(`✅ MK ${amt.toLocaleString()} added to AArohan Wallet via ${selectedTopUpProviderName}!`);
-    if (window.aarohanSound) window.aarohanSound.playCashRegister();
   };
 
   window.openP2PTransferModal = function () {
-    const modal = document.getElementById('p2p-modal');
-    if (modal) modal.classList.remove('hidden');
-    if (window.aarohanSound) window.aarohanSound.playClick();
+    showToast('P2P Kwacha transfers are disabled until server-side ledger integration is active.');
   };
 
   window.closeP2PTransferModal = function () {
@@ -2436,44 +2439,8 @@
   };
 
   window.executeP2PTransferAction = function () {
-    const phoneInput = document.getElementById('p2p-phone-input');
-    const amtInput = document.getElementById('p2p-amount-input');
-    const phone = phoneInput ? phoneInput.value.trim() : '';
-    const amt = amtInput ? parseInt(amtInput.value, 10) : 0;
-
-    if (!phone) {
-      showToast('Please enter recipient mobile number');
-      return;
-    }
-    if (isNaN(amt) || amt <= 0) {
-      showToast('Please enter a valid amount');
-      return;
-    }
-
-    const store = window.aarohanStore || window.mwendoStore;
-    if (store) {
-      const state = store.getState();
-      if (state.rider.walletBalance < amt) {
-        showToast('Insufficient wallet balance. Top up first!');
-        return;
-      }
-      state.rider.walletBalance -= amt;
-      state.transactionLogs.unshift({
-        id: 'TX-P2P-' + Math.floor(100 + Math.random() * 900),
-        type: 'P2P',
-        title: `Transfer to ${phone}`,
-        amount: -amt,
-        method: 'AArohan Kwacha',
-        time: 'Just now',
-        status: 'Sent'
-      });
-      store.saveState(state);
-      store.notifyListeners(state, 'P2P_SENT', { phone, amt });
-    }
-
+    showToast('P2P Kwacha transfers are disabled until server-side ledger integration is active.');
     window.closeP2PTransferModal();
-    showToast(`✅ Sent MK ${amt.toLocaleString()} to ${phone}!`);
-    if (window.aarohanSound) window.aarohanSound.playCashRegister();
   };
 
   // =========================================================================

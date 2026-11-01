@@ -152,17 +152,13 @@ function persistState() {
 if (!state.mapConfig) {
   state.mapConfig = {
     provider: process.env.MAP_PROVIDER || 'carto',
-    apiKey: process.env.MAP_API_KEY || process.env.MAPBOX_ACCESS_TOKEN || process.env.GOOGLE_MAPS_API_KEY || '',
+    apiKey: process.env.MAP_API_KEY || process.env.MAPBOX_ACCESS_TOKEN || '',
     mapboxToken: process.env.MAPBOX_ACCESS_TOKEN || '',
-    googleKey: process.env.GOOGLE_MAPS_API_KEY || '',
     maptilerKey: process.env.MAPTILER_API_KEY || ''
   };
 } else {
   if (process.env.MAPBOX_ACCESS_TOKEN && !state.mapConfig.mapboxToken) {
     state.mapConfig.mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
-  }
-  if (process.env.GOOGLE_MAPS_API_KEY && !state.mapConfig.googleKey) {
-    state.mapConfig.googleKey = process.env.GOOGLE_MAPS_API_KEY;
   }
   if (process.env.MAPTILER_API_KEY && !state.mapConfig.maptilerKey) {
     state.mapConfig.maptilerKey = process.env.MAPTILER_API_KEY;
@@ -243,7 +239,6 @@ app.get('/api/map-config', (req, res) => {
     provider: process.env.MAP_PROVIDER || 'carto',
     apiKey: process.env.MAP_API_KEY || '',
     mapboxToken: process.env.MAPBOX_ACCESS_TOKEN || '',
-    googleKey: process.env.GOOGLE_MAPS_API_KEY || '',
     maptilerKey: process.env.MAPTILER_API_KEY || ''
   };
   res.json({
@@ -251,41 +246,9 @@ app.get('/api/map-config', (req, res) => {
     availableProviders: [
       { id: 'carto', name: 'CartoDB Voyager (Default / Free)', requiresKey: false, desc: 'Pastel Google-Maps styling, zero key required' },
       { id: 'mapbox', name: 'Mapbox Streets & Navigation', requiresKey: true, desc: 'High-detail vector/raster tiles (Requires pk.xxx token)' },
-      { id: 'google', name: 'Google Maps Roadmap & Satellite', requiresKey: true, desc: 'Official Google Maps tiles (Requires AIzaSy... key)' },
       { id: 'maptiler', name: 'MapTiler Streets v2', requiresKey: true, desc: 'Fast OpenStreetMap vector tiles (Requires MapTiler key)' }
     ]
   });
-});
-
-// API: Update Map Configuration & Keys
-app.post('/api/map-config', (req, res) => {
-  const { provider, apiKey, mapboxToken, googleKey, maptilerKey } = req.body;
-  if (!state.mapConfig) state.mapConfig = {};
-
-  if (provider) state.mapConfig.provider = provider;
-  if (apiKey !== undefined) state.mapConfig.apiKey = String(apiKey).trim();
-  if (mapboxToken !== undefined) state.mapConfig.mapboxToken = String(mapboxToken).trim();
-  if (googleKey !== undefined) state.mapConfig.googleKey = String(googleKey).trim();
-  if (maptilerKey !== undefined) state.mapConfig.maptilerKey = String(maptilerKey).trim();
-
-  // Auto-detect provider if token is supplied
-  if (state.mapConfig.mapboxToken && (!provider || provider === 'carto')) {
-    state.mapConfig.provider = 'mapbox';
-  } else if (state.mapConfig.googleKey && (!provider || provider === 'carto')) {
-    state.mapConfig.provider = 'google';
-  }
-
-  if (state.mapConfig.mapboxToken || process.env.MAPBOX_ACCESS_TOKEN) {
-    locationService.setMapboxToken(state.mapConfig.mapboxToken || process.env.MAPBOX_ACCESS_TOKEN);
-  }
-
-  persistState();
-
-  // Notify all connected clients in real time
-  io.emit('map:config_updated', state.mapConfig);
-  console.log('[MapConfig] Updated map configuration:', state.mapConfig.provider, 'hasKey:', !!(state.mapConfig.apiKey || state.mapConfig.mapboxToken || state.mapConfig.googleKey));
-
-  res.json({ success: true, mapConfig: state.mapConfig });
 });
 
 // =============================================================

@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "node tests/test_financial_engine.js && node tests/verify_e2e.js && node tests/test_rider_audit.js"
   },
   "keywords": [],
   "author": "",
