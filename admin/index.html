@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gaman Operations Center • Admin Dispatch Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#004328",
+            "primary-container": "#0d5c3a",
+            "primary-fixed": "#a9f3c5",
+            "on-primary": "#ffffff",
+            "secondary": "#855300",
+            "secondary-container": "#fea619",
+            "secondary-fixed": "#ffddb8",
+            "on-secondary": "#ffffff",
+            "background": "#faf8ff",
+            "surface": "#faf8ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f2f3ff",
+            "surface-container": "#eaedff",
+            "surface-container-high": "#e2e7ff",
+            "surface-container-highest": "#dae2fd",
+            "on-surface": "#131b2e",
+            "on-surface-variant": "#404942",
+            "outline": "#707971",
+            "outline-variant": "#bfc9c0",
+            "error": "#ba1a1a",
+            "error-container": "#ffdad6",
+            "surface-tint": "#226b47"
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #f6f8fb;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #bfc9c0;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="text-on-surface antialiased min-h-screen flex flex-col">
+
+  <!-- Shared Audio & Realtime State -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../shared/sound.js"></script>
+  <script src="../shared/state.js"></script>
+
+  <!-- Top Real-Time Ops Telemetry Bar -->
+  <header class="bg-[#101726] text-white px-6 py-3 shadow-md border-b border-white/10 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-3">
+      
+      <!-- Logo & Hub Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-primary text-on-primary flex items-center justify-center shadow">
+          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-lg tracking-tight text-white">Gaman Ops Center</span>
+            <span class="bg-primary px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider text-primary-fixed">Lilongwe HQ</span>
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-fixed"></span>
+            </span>
+          </div>
+          <span class="text-xs text-white/60">Transit Dispatch, Digital Escrow &amp; Safety Desk</span>
+        </div>
+      </div>
+
+      <!-- Live KPI Tickers -->
+      <div class="flex items-center flex-wrap gap-4 text-xs">
+        <div class="flex flex-col">
+          <span class="text-[10px] text-white/50 uppercase font-bold">Active Trip Status</span>
+          <span class="font-extrabold text-secondary-container" id="admin-active-status">IDLE (Standby)</span>
+        </div>
+
+        <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
+
+        <div class="flex flex-col">
+          <span class="text-[10px] text-white/50 uppercase font-bold">Online Drivers</span>
+          <span class="font-extrabold text-primary-fixed" id="admin-online-drivers">1 Active (Chikondi)</span>
+        </div>
+
+        <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
+
+        <div class="flex flex-col">
+          <span class="text-[10px] text-white/50 uppercase font-bold">RBM Escrow Vault</span>
+          <span class="font-extrabold text-white" id="admin-escrow-vault">MWK 181,300</span>
+        </div>
+
+        <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
+
+        <!-- Quick Simulator Trigger -->
+        <button onclick="window.mwendoStore.resetAll()" class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors">
+          <span class="material-symbols-outlined text-[16px]">restart_alt</span>
+          <span>Reset Demo</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Emergency Flash Banner (Appears dynamically upon SOS) -->
+  <div id="admin-sos-banner" class="hidden bg-error text-on-error px-6 py-2.5 shadow-lg flex items-center justify-between animate-pulse">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-outlined text-[24px]">e911_emergency</span>
+      <div>
+        <span class="font-extrabold text-sm uppercase tracking-wide">24/7 RAPID EMERGENCY TRIGGERED:</span>
+        <span class="text-xs ml-2" id="admin-sos-detail">Passenger Chisomo Banda signaled emergency assistance on Kenyatta Drive corridor!</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="tel:997" class="px-3 py-1 bg-white text-error font-extrabold text-xs rounded shadow">Dispatch Police (997)</a>
+      <button onclick="resolveAdminSOS()" class="px-3 py-1 bg-black/30 hover:bg-black/50 text-white font-bold text-xs rounded">Acknowledge &amp; Clear</button>
+    </div>
+  </div>
+
+  <!-- Main Portal Layout (Sidebar + Content) -->
+  <div class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 flex flex-col lg:flex-row gap-6">
+
+    <!-- Sidebar Navigation -->
+    <aside class="w-full lg:w-64 shrink-0 flex flex-col gap-2">
+      <div class="bg-surface-container-lowest rounded-2xl p-3 shadow-sm border border-outline-variant/30 flex flex-col gap-1">
+        <button onclick="switchAdminTab('dispatch')" id="tab-btn-dispatch" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-primary bg-primary-fixed/40 transition-colors">
+          <span class="material-symbols-outlined text-[20px]">radar</span>
+          <span>Live Fleet &amp; Dispatch</span>
+        </button>
+
+        <button onclick="switchAdminTab('trips')" id="tab-btn-trips" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">account_balance</span>
+          <span>Financial Ledger &amp; 30% Split</span>
+        </button>
+
+        <button onclick="switchAdminTab('pricing')" id="tab-btn-pricing" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">price_change</span>
+          <span>Vehicle Pricing &amp; Tariffs</span>
+        </button>
+
+        <button onclick="switchAdminTab('cash-reconciliation')" id="tab-btn-cash-reconciliation" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">payments</span>
+          <span>Cash Commission Debt</span>
+        </button>
+
+        <button onclick="switchAdminTab('drivers')" id="tab-btn-drivers" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">local_taxi</span>
+          <span>Driver Partner KYC</span>
+        </button>
+
+        <button onclick="switchAdminTab('surge')" id="tab-btn-surge" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">tune</span>
+          <span>Surge &amp; Corridor Multipliers</span>
+        </button>
+
+        <button onclick="switchAdminTab('disputes')" id="tab-btn-disputes" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">support_agent</span>
+          <span>Disputes &amp; Care Desk</span>
+        </button>
+      </div>
+
+      <!-- Quick Launch Links to Mobile Apps -->
+      <div class="bg-surface-container-lowest rounded-2xl p-3.5 shadow-sm border border-outline-variant/30 flex flex-col gap-2">
+        <span class="text-[11px] font-extrabold uppercase tracking-wider text-outline">Open Connected Apps</span>
+        
+        <a href="../rider/index.html" target="_blank" class="flex items-center justify-between px-3 py-2 rounded-xl bg-primary-fixed/30 hover:bg-primary-fixed/60 text-primary font-bold text-xs transition-colors">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px]">smartphone</span>
+            <span>Rider App</span>
+          </div>
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+        </a>
+
+        <a href="../driver/index.html" target="_blank" class="flex items-center justify-between px-3 py-2 rounded-xl bg-secondary-fixed/40 hover:bg-secondary-fixed/70 text-secondary font-bold text-xs transition-colors">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px]">directions_car</span>
+            <span>Driver App</span>
+          </div>
+          <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+        </a>
+
+        <a href="../index.html" class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-semibold text-xs transition-colors">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px]">devices</span>
+            <span>Master Simulator</span>
+          </div>
+          <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+        </a>
+      </div>
+
+      <!-- Regulatory Notice -->
+      <div class="p-3 bg-surface-container rounded-2xl text-[11px] text-on-surface-variant leading-relaxed">
+        <strong>DRTSS &amp; RBM Regulated:</strong> Operations monitored under Directorate of Road Traffic &amp; Safety Services bylaws. Digital Escrow adheres to Reserve Bank of Malawi National Payment standards.
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="flex-1 flex flex-col gap-6">
+
+      <!-- ============================================== -->
+      <!-- TAB 1: LIVE FLEET & RADAR DISPATCH             -->
+      <!-- ============================================== -->
+      <section id="tab-dispatch" class="admin-panel flex flex-col gap-4">
+        
+        <!-- Live Corridor Map & Dispatch Telemetry -->
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-[22px]">map</span>
+              <h2 class="text-base font-extrabold text-on-surface">Lilongwe Central Transit Radar</h2>
+            </div>
+            <span class="text-xs bg-primary-fixed text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">Real-Time Sync</span>
+          </div>
+
+          <!-- Radar Map Visual Container -->
+          <div class="relative w-full h-[320px] rounded-xl overflow-hidden bg-surface-container-high border border-outline-variant/30">
+            <!-- Simulated Map Canvas -->
+            <svg class="w-full h-full object-cover" viewBox="0 0 600 320">
+              <rect fill="#eaedff" width="600" height="320"/>
+              <!-- River -->
+              <path d="M-20,240 C120,220 220,280 340,210 C440,160 520,190 620,150" fill="none" stroke="#dae2fd" stroke-width="26" stroke-linecap="round"/>
+              <path d="M-20,240 C120,220 220,280 340,210 C440,160 520,190 620,150" fill="none" stroke="#bfc9c0" stroke-width="6" stroke-linecap="round"/>
+              <!-- Roads -->
+              <path d="M-10,80 L610,140" stroke="#ffffff" stroke-width="10"/>
+              <path d="M120,-10 L220,330" stroke="#ffffff" stroke-width="12"/>
+              <path d="M380,-10 L440,330" stroke="#ffffff" stroke-width="8"/>
+              <path d="M-10,220 L610,180" stroke="#ffffff" stroke-width="8"/>
+
+              <!-- Active Route -->
+              <path d="M140,80 C200,140 280,180 440,190" fill="none" stroke="#004328" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 4"/>
+
+              <!-- Driver Marker (Chikondi) -->
+              <circle cx="280" cy="160" r="14" fill="#004328"/>
+              <circle cx="280" cy="160" r="6" fill="#a9f3c5"/>
+              <text x="300" y="165" font-family="sans-serif" font-size="11" font-weight="bold" fill="#004328">Chikondi (Passo BW 4920)</text>
+
+              <!-- Passenger Marker (Chisomo) -->
+              <circle cx="140" cy="80" r="12" fill="#fea619"/>
+              <circle cx="140" cy="80" r="5" fill="#ffffff"/>
+              <text x="160" y="85" font-family="sans-serif" font-size="11" font-weight="bold" fill="#855300">Chisomo (Area 47 Sector 3)</text>
+
+              <!-- Dropoff Marker -->
+              <circle cx="440" cy="190" r="12" fill="#855300"/>
+              <text x="460" y="195" font-family="sans-serif" font-size="11" font-weight="bold" fill="#131b2e">Gateway Mall Dropoff</text>
+            </svg>
+
+            <!-- Floating Overlay Box -->
+            <div class="absolute bottom-3 left-3 bg-surface-container-lowest/90 backdrop-blur-md p-2.5 rounded-xl shadow-md border border-outline-variant/30 text-xs">
+              <span class="font-bold text-on-surface block">Active Corridor Corridor:</span>
+              <span class="text-on-surface-variant">Area 47 Sector 3 &rarr; Kaunda Rd &rarr; Gateway Mall</span>
+            </div>
+          </div>
+
+          <!-- Active Trip Details Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Passenger</span>
+              <span class="font-bold text-sm text-on-surface">Chisomo Banda</span>
+              <span class="text-[11px] text-on-surface-variant">+265 99 123 4567</span>
+            </div>
+
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Driver Assigned</span>
+              <span class="font-bold text-sm text-on-surface">Chikondi Phiri</span>
+              <span class="text-[11px] text-on-surface-variant">BW 4920 &bull; White Passo</span>
+            </div>
+
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Fare &amp; Escrow</span>
+              <span class="font-extrabold text-sm text-primary">MWK 6,200</span>
+              <span class="text-[11px] text-secondary font-bold">Airtel Money Pre-Auth</span>
+            </div>
+
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Safety PIN</span>
+              <span class="font-mono font-black text-lg text-secondary" id="admin-trip-pin">8421</span>
+              <span class="text-[10px] text-primary font-bold">Verified on Pickup</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- ============================================== -->
+      <!-- TAB 2: FINANCIAL LEDGER (30% GAMAN / 70% DRIVER)-->
+      <!-- ============================================== -->
+      <section id="tab-trips" class="admin-panel hidden flex flex-col gap-4">
+        
+        <!-- Metrics (Authoritative 30% / 70% Split) -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div class="bg-surface-container-lowest p-4 rounded-2xl shadow-sm border border-outline-variant/30 flex flex-col">
+            <span class="text-xs font-bold text-outline uppercase">Total GMV Volume</span>
+            <span class="text-2xl font-extrabold text-on-surface mt-1" id="admin-gmv-val">MWK 0</span>
+            <span class="text-xs text-primary font-bold mt-0.5">Authoritative Gross Rides</span>
+          </div>
+
+          <div class="bg-surface-container-lowest p-4 rounded-2xl shadow-sm border border-outline-variant/30 flex flex-col">
+            <span class="text-xs font-bold text-outline uppercase">Gaman Commission (30%)</span>
+            <span class="text-2xl font-extrabold text-primary mt-1" id="admin-commission-val">MWK 0</span>
+            <span class="text-xs text-on-surface-variant mt-0.5">Platform Net Revenue</span>
+          </div>
+
+          <div class="bg-surface-container-lowest p-4 rounded-2xl shadow-sm border border-outline-variant/30 flex flex-col">
+            <span class="text-xs font-bold text-outline uppercase">Driver Net Share (70%)</span>
+            <span class="text-2xl font-extrabold text-secondary mt-1" id="admin-driver-share-val">MWK 0</span>
+            <span class="text-xs text-on-surface-variant mt-0.5">Net Captain Payouts + Tips</span>
+          </div>
+
+          <div class="bg-surface-container-lowest p-4 rounded-2xl shadow-sm border border-outline-variant/30 flex flex-col">
+            <span class="text-xs font-bold text-outline uppercase">Cash Commission Debt</span>
+            <span class="text-2xl font-extrabold text-error mt-1" id="admin-cash-debt-val">MWK 0</span>
+            <span class="text-xs text-error font-bold mt-0.5">Owed by Cash Drivers</span>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant/30 overflow-hidden">
+          <div class="p-4 border-b border-outline-variant/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div>
+              <h3 class="font-bold text-base text-on-surface">Authoritative Ride Financial Ledger</h3>
+              <span class="text-xs text-on-surface-variant">Immutable Double-Entry Ledger (30% Commission / 70% Driver Split)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="exportFinancialReport()" class="px-3 py-1.5 rounded-xl bg-primary text-on-primary font-bold text-xs flex items-center gap-1 shadow-sm hover:bg-primary-container">
+                <span class="material-symbols-outlined text-[16px]">download</span>
+                <span>Export Audit CSV</span>
+              </button>
+              <button onclick="refreshFinancialLedger()" class="p-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface">
+                <span class="material-symbols-outlined text-[18px]">refresh</span>
+              </button>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-surface-container-low text-on-surface-variant uppercase font-bold text-[10px]">
+                <tr>
+                  <th class="p-3">Ride ID</th>
+                  <th class="p-3">Route</th>
+                  <th class="p-3">Method</th>
+                  <th class="p-3">Gross Fare</th>
+                  <th class="p-3">Eligible Base</th>
+                  <th class="p-3 text-primary">30% Gaman</th>
+                  <th class="p-3 text-secondary">70% Driver</th>
+                  <th class="p-3">Settlement</th>
+                </tr>
+              </thead>
+              <tbody id="admin-ledger-tbody" class="divide-y divide-outline-variant/20 text-on-surface">
+                <tr>
+                  <td colspan="8" class="p-6 text-center text-on-surface-variant">Loading real financial ledger from backend...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB: VEHICLE PRICING & TARIFF CONTROLS         -->
+      <!-- ============================================== -->
+      <section id="tab-pricing" class="admin-panel hidden flex flex-col gap-4">
+        
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-on-surface">Configurable Vehicle Category Pricing</h3>
+              <p class="text-xs text-on-surface-variant">Manage authoritative tariffs for Cars, Motorcycles (Kabaza), and Tuk-Tuks in Lilongwe.</p>
+            </div>
+            <span class="bg-primary-fixed text-primary px-3 py-1 rounded-full text-xs font-bold" id="admin-active-pricing-badge">GMN-PRICE-V1 (Active)</span>
+          </div>
+
+          <!-- Commission Split Configuration -->
+          <div class="p-3.5 bg-primary-fixed/20 border border-primary/20 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="material-symbols-outlined text-primary text-[24px]">percent</span>
+              <div>
+                <span class="font-extrabold text-xs text-primary block">Platform Commission Policy</span>
+                <span class="text-[11px] text-on-surface-variant">Applies only to completed, eligible ride fares. Tips belong 100% to drivers.</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-outline-variant/30">
+                <span class="text-xs font-bold text-primary">Gaman:</span>
+                <input type="number" id="pricing-commission-input" value="30" min="5" max="50" class="w-12 text-xs font-black text-primary border-none outline-none"/>
+                <span class="text-xs font-bold text-primary">%</span>
+              </div>
+              <div class="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-outline-variant/30">
+                <span class="text-xs font-bold text-secondary">Driver:</span>
+                <input type="number" id="pricing-driver-share-input" value="70" readonly class="w-12 text-xs font-black text-secondary border-none outline-none bg-transparent"/>
+                <span class="text-xs font-bold text-secondary">%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3 Category Rate Cards Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- Category 1: Moto (Motorcycle / Kabaza) -->
+            <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2.5 border border-outline-variant/20">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-primary text-on-primary flex items-center justify-center">
+                  <span class="material-symbols-outlined text-[18px]">two_wheeler</span>
+                </div>
+                <div>
+                  <h4 class="font-extrabold text-sm text-on-surface">Gaman Moto</h4>
+                  <span class="text-[10px] text-on-surface-variant">Motorcycle / Kabaza</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Base Fare:</span>
+                  <input type="number" id="rate-moto-base" value="800" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Price / km:</span>
+                  <input type="number" id="rate-moto-km" value="250" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Price / minute:</span>
+                  <input type="number" id="rate-moto-min" value="40" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Minimum Fare:</span>
+                  <input type="number" id="rate-moto-minimum" value="1200" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Booking Fee:</span>
+                  <input type="number" id="rate-moto-booking" value="100" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+              </div>
+              <button onclick="saveCategoryRates('moto')" class="mt-2 w-full py-1.5 bg-primary text-on-primary rounded-lg text-xs font-bold hover:bg-primary-container transition-colors">
+                Save Moto Rates
+              </button>
+            </div>
+
+            <!-- Category 2: Auto (Tuk-Tuk) -->
+            <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2.5 border border-outline-variant/20">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-secondary text-on-secondary flex items-center justify-center">
+                  <span class="material-symbols-outlined text-[18px]">electric_rickshaw</span>
+                </div>
+                <div>
+                  <h4 class="font-extrabold text-sm text-on-surface">Gaman Auto</h4>
+                  <span class="text-[10px] text-on-surface-variant">Tuk-Tuk 3-Wheeler</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Base Fare:</span>
+                  <input type="number" id="rate-auto-base" value="1400" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Price / km:</span>
+                  <input type="number" id="rate-auto-km" value="450" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Price / minute:</span>
+                  <input type="number" id="rate-auto-min" value="60" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Minimum Fare:</span>
+                  <input type="number" id="rate-auto-minimum" value="2200" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Booking Fee:</span>
+                  <input type="number" id="rate-auto-booking" value="150" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+              </div>
+              <button onclick="saveCategoryRates('auto')" class="mt-2 w-full py-1.5 bg-secondary text-on-secondary rounded-lg text-xs font-bold hover:bg-secondary-container transition-colors">
+                Save Auto Rates
+              </button>
+            </div>
+
+            <!-- Category 3: Cab (Passenger Car) -->
+            <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2.5 border border-outline-variant/20">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-[#101726] text-white flex items-center justify-center">
+                  <span class="material-symbols-outlined text-[18px]">local_taxi</span>
+                </div>
+                <div>
+                  <h4 class="font-extrabold text-sm text-on-surface">Gaman Cab</h4>
+                  <span class="text-[10px] text-on-surface-variant">Private Sedan / Hatchback</span>
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Base Fare:</span>
+                  <input type="number" id="rate-cab-base" value="2800" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Price / km:</span>
+                  <input type="number" id="rate-cab-km" value="850" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Price / minute:</span>
+                  <input type="number" id="rate-cab-min" value="120" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Minimum Fare:</span>
+                  <input type="number" id="rate-cab-minimum" value="4500" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-outline">Booking Fee:</span>
+                  <input type="number" id="rate-cab-booking" value="250" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
+                </div>
+              </div>
+              <button onclick="saveCategoryRates('cab')" class="mt-2 w-full py-1.5 bg-[#101726] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-opacity">
+                Save Cab Rates
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB: CASH COMMISSION RECONCILIATION            -->
+      <!-- ============================================== -->
+      <section id="tab-cash-reconciliation" class="admin-panel hidden flex flex-col gap-4">
+        
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-on-surface">Cash Commission Reconciliation Hub</h3>
+              <p class="text-xs text-on-surface-variant">Reconcile 30% commission debt owed by drivers on cash trips vs verified remittances.</p>
+            </div>
+            <button onclick="refreshCashReconciliation()" class="p-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface">
+              <span class="material-symbols-outlined text-[18px]">refresh</span>
+            </button>
+          </div>
+
+          <!-- Outstanding Cash Balances Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-surface-container-low text-on-surface-variant uppercase font-bold text-[10px]">
+                <tr>
+                  <th class="p-3">Captain ID</th>
+                  <th class="p-3">Captain Name</th>
+                  <th class="p-3">Cash Collected</th>
+                  <th class="p-3 text-error">30% Debt Owed</th>
+                  <th class="p-3 text-primary">Remitted &amp; Verified</th>
+                  <th class="p-3">Outstanding Net Debt</th>
+                  <th class="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody id="admin-cash-debt-tbody" class="divide-y divide-outline-variant/20 text-on-surface">
+                <tr>
+                  <td class="p-3 font-mono font-bold text-primary">DRV-MW-101</td>
+                  <td class="p-3">Chikondi Phiri</td>
+                  <td class="p-3">MWK 14,800</td>
+                  <td class="p-3 font-bold text-error">MWK 4,440</td>
+                  <td class="p-3 font-bold text-primary">MWK 0</td>
+                  <td class="p-3 font-black text-error">MWK 4,440</td>
+                  <td class="p-3"><span class="bg-secondary-fixed text-secondary px-2 py-0.5 rounded-full font-bold text-[10px]">Payment Due</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 3: DRIVER PARTNER DIRECTORY & KYC          -->
+      <!-- ============================================== -->
+      <section id="tab-drivers" class="admin-panel hidden flex flex-col gap-4">
+        
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-base text-on-surface">Registered Driver Partners (Lilongwe Fleet)</h3>
+            <span class="text-xs bg-primary-fixed text-primary px-2.5 py-0.5 rounded-full font-bold">1 Verified Active</span>
+          </div>
+
+          <!-- Driver Card -->
+          <div class="p-4 bg-surface-container-low rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-outline-variant/20">
+            <div class="flex items-center gap-3">
+              <img class="w-14 h-14 rounded-full object-cover shadow" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw" alt="Chikondi"/>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h4 class="font-extrabold text-sm text-on-surface">Chikondi Phiri</h4>
+                  <span class="bg-primary text-on-primary text-[10px] font-bold px-2 py-0.2 rounded-full">Pro Partner</span>
+                  <span class="text-xs font-bold text-secondary">★ 4.92</span>
+                </div>
+                <span class="text-xs text-on-surface-variant block mt-0.5">Toyota Passo &bull; Plate: <strong>BW 4920</strong> &bull; 1,420 Completed Trips</span>
+                <span class="text-[11px] text-primary font-bold">DRTSS Roadworthiness Certificate: VALID #MWI-2024-88</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="alert('Driver Chikondi Phiri telemetry: Live speed 54 km/h, Kenyatta Drive corridor, battery 84%.')" class="px-3 py-1.5 bg-surface-container-lowest hover:bg-surface-container text-xs font-bold rounded-lg border border-outline-variant/30">Inspect Telemetry</button>
+              <button onclick="alert('Status toggled.')" class="px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg">Verified Active</button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 4: SURGE & TARIFF CONTROLS                 -->
+      <!-- ============================================== -->
+      <section id="tab-surge" class="admin-panel hidden flex flex-col gap-4">
+        
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
+          <div>
+            <h3 class="font-bold text-base text-on-surface">Lilongwe Dynamic Surge &amp; Tariff Manager</h3>
+            <p class="text-xs text-on-surface-variant mt-0.5">Adjust demand multipliers in real-time. Changes instantly broadcast to Rider and Driver applications.</p>
+          </div>
+
+          <!-- Surge Sliders -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sm text-on-surface">Gateway Mall / Kaunda Rd</span>
+                <span class="text-sm font-extrabold text-secondary" id="label-surge-gateway">1.4x</span>
+              </div>
+              <input type="range" min="1.0" max="2.5" step="0.1" value="1.4" oninput="updateSurgeParam('Gateway Mall', this.value, 'label-surge-gateway')" class="w-full accent-secondary"/>
+              <span class="text-[11px] text-on-surface-variant">High shopping &amp; evening commute zone.</span>
+            </div>
+
+            <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sm text-on-surface">Area 3 Commercial District</span>
+                <span class="text-sm font-extrabold text-secondary" id="label-surge-area3">1.3x</span>
+              </div>
+              <input type="range" min="1.0" max="2.5" step="0.1" value="1.3" oninput="updateSurgeParam('Area 3 Commercial', this.value, 'label-surge-area3')" class="w-full accent-secondary"/>
+              <span class="text-[11px] text-on-surface-variant">Business hours &amp; banking hub traffic.</span>
+            </div>
+
+            <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sm text-on-surface">Old Town Market</span>
+                <span class="text-sm font-extrabold text-secondary" id="label-surge-oldtown">1.2x</span>
+              </div>
+              <input type="range" min="1.0" max="2.5" step="0.1" value="1.2" oninput="updateSurgeParam('Old Town Market', this.value, 'label-surge-oldtown')" class="w-full accent-secondary"/>
+              <span class="text-[11px] text-on-surface-variant">Market rush &amp; Kabaza passenger corridors.</span>
+            </div>
+
+            <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-sm text-on-surface">Area 47 Sector 3</span>
+                <span class="text-sm font-extrabold text-secondary" id="label-surge-area47">1.0x</span>
+              </div>
+              <input type="range" min="1.0" max="2.5" step="0.1" value="1.0" oninput="updateSurgeParam('Area 47 Sector 3', this.value, 'label-surge-area47')" class="w-full accent-secondary"/>
+              <span class="text-[11px] text-on-surface-variant">Residential base tariff zone.</span>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 5: DISPUTES & CUSTOMER DESK                -->
+      <!-- ============================================== -->
+      <section id="tab-disputes" class="admin-panel hidden flex flex-col gap-4">
+        
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-on-surface">Customer Disputes &amp; Support Tickets</h3>
+              <p class="text-xs text-on-surface-variant">Review passenger claims, duplicate mobile money entries, and refund requests.</p>
+            </div>
+            <span class="bg-secondary-fixed text-secondary px-2.5 py-0.5 rounded-full font-bold text-xs" id="admin-pending-ticket-count">1 Active Dispute</span>
+          </div>
+
+          <!-- Ticket Card -->
+          <div class="p-4 bg-surface-container-low rounded-xl border border-outline-variant/20 flex flex-col gap-2.5" id="ticket-card-8821">
+            <div class="flex items-start justify-between">
+              <div>
+                <span class="text-xs font-extrabold text-on-surface">Ticket #MW-8821 &bull; Chisomo Banda</span>
+                <span class="text-xs text-on-surface-variant block mt-0.5">Claim: <strong>MWK 3,200</strong> &bull; Duplicate Airtel Money Entry</span>
+              </div>
+              <span class="text-[10px] bg-secondary-fixed text-secondary px-2 py-0.5 rounded-full font-bold" id="ticket-status-label">Under Review</span>
+            </div>
+            <p class="text-xs text-on-surface-variant">Passenger entered PIN twice during network timeout on Kenyatta Drive trip. Audit verified duplicate charge AM-MW-9821401.</p>
+            <div class="flex items-center gap-2 pt-1">
+              <button onclick="resolveTicketAction('MW-8821')" id="btn-resolve-ticket" class="px-3 py-1.5 bg-primary text-on-primary rounded-lg text-xs font-bold hover:bg-primary-container transition-colors shadow-sm">
+                Approve &amp; Refund MWK 3,200 to Chisomo's Wallet
+              </button>
+              <button onclick="alert('Audit logs exported to Lilongwe Operations File.')" class="px-3 py-1.5 bg-surface-container-lowest text-on-surface rounded-lg text-xs font-semibold hover:bg-surface-container transition-colors">
+                Inspect Mobile Money Logs
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- Admin State Management Script -->
+  <script>
+    function switchAdminTab(tabName) {
+      document.querySelectorAll('.admin-panel').forEach(p => p.classList.add('hidden'));
+      const active = document.getElementById('tab-' + tabName);
+      if (active) active.classList.remove('hidden');
+
+      document.querySelectorAll('.admin-nav-btn').forEach(btn => {
+        btn.className = 'admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors';
+      });
+
+      const activeBtn = document.getElementById('tab-btn-' + tabName);
+      if (activeBtn) {
+        activeBtn.className = 'admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-primary bg-primary-fixed/40 transition-colors';
+      }
+
+      if (window.mwendoSound) window.mwendoSound.playClick();
+    }
+
+    function updateSurgeParam(zone, val, labelId) {
+      document.getElementById(labelId).innerText = val + 'x';
+      window.mwendoStore.updateSurge(zone, val);
+    }
+
+    function resolveTicketAction(ticketId) {
+      window.mwendoStore.resolveTicket(ticketId);
+      document.getElementById('ticket-status-label').innerText = 'Resolved & Refunded';
+      document.getElementById('ticket-status-label').className = 'text-[10px] bg-primary-fixed text-primary px-2 py-0.5 rounded-full font-bold';
+      document.getElementById('btn-resolve-ticket').innerText = 'Refund Settled (MWK 3,200)';
+      document.getElementById('btn-resolve-ticket').disabled = true;
+      document.getElementById('btn-resolve-ticket').className = 'px-3 py-1.5 bg-surface-container text-outline rounded-lg text-xs font-bold cursor-not-allowed';
+      document.getElementById('admin-pending-ticket-count').innerText = '0 Pending';
+      alert('Success: MWK 3,200 refunded directly to Chisomo Banda\'s Mwendo Wallet. Rider app updated live!');
+    }
+
+    function resolveAdminSOS() {
+      const banner = document.getElementById('admin-sos-banner');
+      banner.classList.add('hidden');
+      const state = window.mwendoStore.getState();
+      if (state.emergencyAlerts.length > 0) {
+        window.mwendoStore.resolveSOS(state.emergencyAlerts[0].id);
+      }
+    }
+
+    // Subscribe to State Engine
+    window.mwendoStore.subscribe((state, eventName, payload) => {
+      // Active Status
+      const statusEl = document.getElementById('admin-active-status');
+      if (statusEl) {
+        statusEl.innerText = state.activeTrip.status;
+        if (state.activeTrip.status === 'REQUESTED') {
+          statusEl.className = 'font-extrabold text-secondary animate-pulse';
+        } else if (state.activeTrip.status === 'ACCEPTED' || state.activeTrip.status === 'IN_TRANSIT') {
+          statusEl.className = 'font-extrabold text-primary-fixed';
+        } else if (state.activeTrip.status === 'COMPLETED') {
+          statusEl.className = 'font-extrabold text-primary';
+        } else {
+          statusEl.className = 'font-extrabold text-secondary-container';
+        }
+      }
+
+      // Online Drivers
+      const driverEl = document.getElementById('admin-online-drivers');
+      if (driverEl) {
+        driverEl.innerText = state.driver.status === 'ONLINE' ? '1 Active (Chikondi)' : '0 Active (Offline)';
+        driverEl.className = state.driver.status === 'ONLINE' ? 'font-extrabold text-primary-fixed' : 'font-extrabold text-outline';
+      }
+
+      // Vault
+      const vaultEl = document.getElementById('admin-escrow-vault');
+      if (vaultEl) {
+        const total = state.rider.walletBalance + state.driver.availableBalance;
+        vaultEl.innerText = 'MWK ' + total.toLocaleString();
+      }
+
+      // PIN
+      const pinEl = document.getElementById('admin-trip-pin');
+      if (pinEl) pinEl.innerText = state.activeTrip.pin;
+
+      // Handle SOS Banner
+      const sosBanner = document.getElementById('admin-sos-banner');
+      if (sosBanner) {
+        if (state.emergencyAlerts && state.emergencyAlerts.length > 0) {
+          sosBanner.classList.remove('hidden');
+          document.getElementById('admin-sos-detail').innerText = `${state.emergencyAlerts[0].source} triggered emergency assistance on ${state.emergencyAlerts[0].location}!`;
+        } else {
+          sosBanner.classList.add('hidden');
+        }
+      }
+    });
+
+    // =========================================================================
+    // GAMAN FINANCIAL LEDGER & PRICING CONTROLLER (30% SPLIT & RECONCILIATION)
+    // =========================================================================
+    async function refreshFinancialLedger() {
+      try {
+        const [repRes, ledgRes] = await Promise.all([
+          fetch('/api/admin/financial-report'),
+          fetch('/api/admin/financial-ledger')
+        ]);
+
+        if (repRes.ok) {
+          const report = await repRes.json();
+          document.getElementById('admin-gmv-val').innerText = 'MWK ' + (report.totalGMV || 0).toLocaleString();
+          document.getElementById('admin-commission-val').innerText = 'MWK ' + (report.gamanCommissionEarned || 0).toLocaleString();
+          document.getElementById('admin-driver-share-val').innerText = 'MWK ' + (report.totalDriverNetShare || 0).toLocaleString();
+          document.getElementById('admin-cash-debt-val').innerText = 'MWK ' + (report.outstandingCashCommission || 0).toLocaleString();
+        }
+
+        if (ledgRes.ok) {
+          const ledger = await ledgRes.json();
+          const breakdowns = ledger.breakdowns || [];
+          const tbody = document.getElementById('admin-ledger-tbody');
+          if (breakdowns.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-on-surface-variant font-medium">No rides settled yet. Complete a ride in the simulator to see double-entry records.</td></tr>`;
+          } else {
+            tbody.innerHTML = breakdowns.slice().reverse().map(b => `
+              <tr class="hover:bg-surface-container-low transition-colors">
+                <td class="p-3 font-mono font-bold text-primary">${b.rideId}</td>
+                <td class="p-3 max-w-[200px] truncate" title="${b.pickupAddress} -> ${b.destinationAddress}">${b.pickupAddress?.split(',')[0]} &rarr; ${b.destinationAddress?.split(',')[0]}</td>
+                <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${b.paymentMethod === 'CASH' ? 'bg-secondary-fixed text-secondary' : 'bg-primary-fixed text-primary'}">${b.paymentMethod}</span></td>
+                <td class="p-3 font-bold">MWK ${b.grossFare.toLocaleString()}</td>
+                <td class="p-3 font-medium text-on-surface-variant">MWK ${b.eligibleFare.toLocaleString()}</td>
+                <td class="p-3 font-extrabold text-primary">MWK ${b.commissionAmount.toLocaleString()} (30%)</td>
+                <td class="p-3 font-extrabold text-secondary">MWK ${b.totalDriverNetEarnings.toLocaleString()} (70%)</td>
+                <td class="p-3"><span class="bg-primary-fixed text-primary px-2 py-0.5 rounded-full font-bold text-[10px]">Posted</span></td>
+              </tr>
+            `).join('');
+          }
+        }
+      } catch (err) {
+        console.warn('[Admin] Failed to load financial report:', err);
+      }
+    }
+
+    async function loadActivePricing() {
+      try {
+        const res = await fetch('/api/pricing/active');
+        if (res.ok) {
+          const active = await res.json();
+          document.getElementById('admin-active-pricing-badge').innerText = `${active.versionId} (Active)`;
+          if (active.categories) {
+            if (active.categories.moto) {
+              document.getElementById('rate-moto-base').value = active.categories.moto.baseFare;
+              document.getElementById('rate-moto-km').value = active.categories.moto.pricePerKm;
+              document.getElementById('rate-moto-min').value = active.categories.moto.pricePerMinute;
+              document.getElementById('rate-moto-minimum').value = active.categories.moto.minimumFare;
+              document.getElementById('rate-moto-booking').value = active.categories.moto.bookingFee || 100;
+            }
+            if (active.categories.auto) {
+              document.getElementById('rate-auto-base').value = active.categories.auto.baseFare;
+              document.getElementById('rate-auto-km').value = active.categories.auto.pricePerKm;
+              document.getElementById('rate-auto-min').value = active.categories.auto.pricePerMinute;
+              document.getElementById('rate-auto-minimum').value = active.categories.auto.minimumFare;
+              document.getElementById('rate-auto-booking').value = active.categories.auto.bookingFee || 150;
+            }
+            if (active.categories.cab) {
+              document.getElementById('rate-cab-base').value = active.categories.cab.baseFare;
+              document.getElementById('rate-cab-km').value = active.categories.cab.pricePerKm;
+              document.getElementById('rate-cab-min').value = active.categories.cab.pricePerMinute;
+              document.getElementById('rate-cab-minimum').value = active.categories.cab.minimumFare;
+              document.getElementById('rate-cab-booking').value = active.categories.cab.bookingFee || 250;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Admin] Failed to load active pricing:', err);
+      }
+    }
+
+    async function saveCategoryRates(categoryId) {
+      const baseFare = parseInt(document.getElementById(`rate-${categoryId}-base`).value, 10);
+      const pricePerKm = parseInt(document.getElementById(`rate-${categoryId}-km`).value, 10);
+      const pricePerMinute = parseInt(document.getElementById(`rate-${categoryId}-min`).value, 10);
+      const minimumFare = parseInt(document.getElementById(`rate-${categoryId}-minimum`).value, 10);
+      const bookingFee = parseInt(document.getElementById(`rate-${categoryId}-booking`).value, 10);
+
+      try {
+        const res = await fetch(`/api/pricing/rates/${categoryId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ baseFare, pricePerKm, pricePerMinute, minimumFare, bookingFee, adminId: 'ADMIN_SUPER' })
+        });
+        if (res.ok) {
+          alert(`Success! Updated authoritative pricing rates for Gaman ${categoryId.toUpperCase()}. New rides will immediately quote at these rates.`);
+          if (window.mwendoSound) window.mwendoSound.playClick();
+        } else {
+          const err = await res.json();
+          alert('Error: ' + err.error);
+        }
+      } catch (e) {
+        alert('Network error saving rates: ' + e.message);
+      }
+    }
+
+    async function refreshCashReconciliation() {
+      try {
+        const res = await fetch('/api/driver/financial-summary/DRV-MW-101');
+        if (res.ok) {
+          const summary = await res.json();
+          const tbody = document.getElementById('admin-cash-debt-tbody');
+          tbody.innerHTML = `
+            <tr>
+              <td class="p-3 font-mono font-bold text-primary">DRV-MW-101</td>
+              <td class="p-3">Chikondi Phiri</td>
+              <td class="p-3">MWK ${summary.cashCollectedByDriver.toLocaleString()}</td>
+              <td class="p-3 font-bold text-error">MWK ${summary.totalCashCommissionIncurred.toLocaleString()}</td>
+              <td class="p-3 font-bold text-primary">MWK ${summary.verifiedCashRemitted.toLocaleString()}</td>
+              <td class="p-3 font-black ${summary.outstandingCashCommissionDebt > 0 ? 'text-error' : 'text-primary'}">MWK ${summary.outstandingCashCommissionDebt.toLocaleString()}</td>
+              <td class="p-3">
+                ${summary.outstandingCashCommissionDebt > 0 
+                  ? `<button onclick="verifySampleRemittance('DRV-MW-101', ${summary.outstandingCashCommissionDebt})" class="px-2.5 py-1 bg-primary text-on-primary rounded text-[10px] font-bold hover:bg-primary-container shadow-xs">Verify Remittance</button>`
+                  : `<span class="bg-primary-fixed text-primary px-2 py-0.5 rounded-full font-bold text-[10px]">Settled &bull; Zero Debt</span>`}
+              </td>
+            </tr>
+          `;
+        }
+      } catch (err) {
+        console.warn('[Admin] Cash reconciliation error:', err);
+      }
+    }
+
+    async function verifySampleRemittance(driverId, amount) {
+      const ref = prompt(`Confirm Cash Commission Remittance from Captain ${driverId}\nAmount: MWK ${amount.toLocaleString()}\nEnter Airtel/TNM Till Reference:`, 'AM-TILL-99812');
+      if (!ref) return;
+
+      try {
+        // Submit remittance
+        const submitRes = await fetch('/api/driver/cash-settlement/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driverId, amount, remittanceReference: ref, remittanceMethod: 'AIRTEL_BUSINESS_TILL' })
+        });
+        const subData = await submitRes.json();
+
+        // Verify remittance
+        await fetch('/api/admin/cash-settlement/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ settlementId: subData.settlement.settlementId, approved: true, adminId: 'ADMIN_SUPER' })
+        });
+
+        alert(`Success: Remittance verified! Captain's cash commission debt reduced by MWK ${amount.toLocaleString()}.`);
+        refreshCashReconciliation();
+        refreshFinancialLedger();
+      } catch (err) {
+        alert('Verification failed: ' + err.message);
+      }
+    }
+
+    function exportFinancialReport() {
+      fetch('/api/admin/financial-ledger')
+        .then(res => res.json())
+        .then(data => {
+          const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+          const dlAnchorElem = document.createElement('a');
+          dlAnchorElem.setAttribute("href", jsonStr);
+          dlAnchorElem.setAttribute("download", `gaman_financial_audit_${Date.now()}.json`);
+          dlAnchorElem.click();
+        });
+    }
+
+    // Initial load
+    refreshFinancialLedger();
+    loadActivePricing();
+    refreshCashReconciliation();
+</body>
+</html>

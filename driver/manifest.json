@@ -1,0 +1,16 @@
+{
+  "name": "Gaman Captain Partner • Lilongwe",
+  "short_name": "Gaman Captain",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#faf8ff",
+  "theme_color": "#004328",
+  "description": "Drive, earn and cash out instantly with Gaman Captain in Lilongwe and across Malawi.",
+  "icons": [
+    {
+      "src": "https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

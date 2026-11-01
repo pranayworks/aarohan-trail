@@ -1,0 +1,2723 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>AArohan • Smart Urban Mobility • Lilongwe</title>
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="apple-touch-icon"
+    href="https://lh3.googleusercontent.com/aida-public/AB6AXuCAdtEgPD_NOHp5KflZXPpWnxYVnuTkRAtBnG8zhECsfmSUchiOrd9vpejSZIHxMMKG9sAP-Q2fh8pLyeny0pTqLv65tJ1D5iBvDi-JUbl5a4nKwPfk_qKFi0mhTAOSVkqYsxyWyhmRWCFusBjV9-z8St82g2-K7wdegnh2POcvoU6AmPhqHsLHlj6TsPJo9BrK9BAZBK9aS663iZo-lsgtWsgfCYB7oKvBMahxbnuAuelWdu4MR1dTLw" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="AArohan" />
+  <meta name="application-name" content="AArohan" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    rel="stylesheet" />
+
+  <!-- Leaflet.js Mapping Library -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#008945",
+            "primary-dark": "#006b36",
+            "accent": "#f59e0b"
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    body {
+      min-height: max(884px, 100dvh);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+      background-color: #f8fafc;
+    }
+
+    ::-webkit-scrollbar {
+      display: none;
+    }
+
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+
+    .pt-safe {
+      padding-top: env(safe-area-inset-top, 12px);
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 antialiased flex flex-col min-h-screen select-none">
+
+  <!-- Shared Audio & Realtime State -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../shared/sound.js?v=3.0"></script>
+  <script src="../shared/state.js?v=3.0"></script>
+  <script src="../shared/i18n.js?v=3.0"></script>
+
+  <!-- Sticky Top Header (AArohan Branded) -->
+  <header
+    class="fixed top-0 w-full z-50 pt-safe bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
+    <div class="h-16 px-4 flex items-center justify-between gap-2 max-w-md mx-auto">
+
+      <!-- Brand & Location Subtitle -->
+      <div class="flex items-center gap-3">
+        <button id="header-back-btn" onclick="goBack()"
+          class="hidden w-9 h-9 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors">
+          <span class="material-symbols-outlined text-[22px]">arrow_back</span>
+        </button>
+        <div class="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-sm">
+          <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">near_me</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="font-extrabold text-xl text-slate-900 tracking-tight leading-none">AArohan</span>
+          <span class="text-[11px] font-medium text-slate-500 leading-tight mt-0.5" data-i18n="tagline">Lilongwe,
+            Malawi</span>
+        </div>
+      </div>
+
+      <!-- Quick Actions (Language Switcher, Wallet & Safety Hub) -->
+      <div class="flex items-center gap-2">
+        <!-- Language Switcher Pill (Bilingual EN / NY) -->
+        <button id="lang-toggle-btn" onclick="toggleAppLanguage()" title="Switch Language / Sinthani Chiyankhulo"
+          class="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/90 rounded-full text-emerald-900 transition-all text-xs font-bold shadow-xs active:scale-95">
+          <span class="text-xs">🇲🇼</span>
+          <span id="lang-toggle-text">NY</span>
+        </button>
+
+        <button onclick="switchView('profile')"
+          class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-full text-slate-800 transition-colors text-xs font-bold shadow-xs">
+          <span class="material-symbols-outlined text-amber-500 text-[16px]">account_balance_wallet</span>
+          <span id="header-wallet-bal">MK 45,000</span>
+        </button>
+
+        <button onclick="openSosModal()" title="Safety Hub"
+          class="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-700 transition-colors">
+          <span class="material-symbols-outlined text-[20px]">shield</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Offline Network Resilience Banner (Phase 2.D) -->
+  <div id="offline-indicator-banner"
+    class="fixed top-16 inset-x-0 z-40 hidden bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold shadow-md transition-all">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined text-[18px]">wifi_off</span>
+        <span id="offline-banner-text">Operating Offline • Actions queued safely</span>
+      </div>
+      <span class="text-[10px] font-mono opacity-80" id="offline-timestamp">Last sync: Just now</span>
+    </div>
+  </div>
+
+  <!-- Main Views Container -->
+  <main class="flex-1 flex flex-col relative w-full pt-16 pb-20 max-w-md mx-auto bg-white min-h-screen shadow-lg">
+
+    <!-- ============================================== -->
+    <!-- VIEW 1: HOME SCREEN (MATCHING USER REFERENCE)  -->
+    <!-- ============================================== -->
+    <section id="view-booking" class="view-panel flex flex-col w-full relative">
+
+      <!-- REAL LEAFLET MAP (PASTEL GOOGLE-MAPS STYLE - LILONGWE, MALAWI) -->
+      <div class="relative w-full h-[42vh] sm:h-[45vh] bg-[#f1f5f9] overflow-hidden">
+        <div id="leaflet-map" class="w-full h-full z-0"></div>
+
+        <!-- Floating Pickup Address Capsule (Matching Screenshot - Lilongwe Gateway Mall) -->
+        <div onclick="openPickupLocationModal()" class="floating-address-capsule">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0 shadow-xs ring-4 ring-emerald-100"></span>
+          <span class="truncate text-xs font-semibold text-slate-800 flex-1 leading-tight"
+            id="floating-pickup-text">Gateway Mall, Kaunda Road, Area 47, Lilongwe, Malawi</span>
+          <span class="material-symbols-outlined text-[18px] text-slate-400">chevron_right</span>
+        </div>
+
+        <!-- Map Provider & API Key Button -->
+        <button onclick="openMapConfigModal()" title="Map API Key & Layers"
+          class="absolute top-3 right-14 z-[1000] h-10 px-3 rounded-full bg-white shadow-md border border-slate-200/80 flex items-center gap-1.5 text-slate-700 hover:text-emerald-700 transition-colors active:scale-95">
+          <span class="material-symbols-outlined text-[18px] text-emerald-600">layers</span>
+          <span class="text-[11px] font-extrabold" id="active-map-provider-badge">Map API</span>
+        </button>
+
+        <!-- Recenter Location Button -->
+        <button onclick="recenterMap()"
+          class="absolute top-3 right-3 z-[1000] w-10 h-10 rounded-full bg-white shadow-md border border-slate-200/80 flex items-center justify-center text-slate-700 hover:text-emerald-600 transition-colors active:scale-95">
+          <span class="material-symbols-outlined text-[20px]">my_location</span>
+        </button>
+
+        <!-- Dynamic Demand & Surge Heatmap Floating Chip -->
+        <button id="heatmap-toggle-btn" onclick="toggleDemandHeatmap()" title="Lilongwe Dynamic Surge Heatmap"
+          class="absolute top-15 right-3 z-[1000] h-9 px-3 rounded-full bg-white/95 backdrop-blur-md shadow-md border border-amber-300 flex items-center gap-1.5 text-amber-900 hover:bg-amber-50 transition-all active:scale-95">
+          <span class="text-sm">🔥</span>
+          <span class="text-[11px] font-black" id="heatmap-btn-label" data-i18n="toggleHeatmap">Surge Map</span>
+        </button>
+      </div>
+
+      <!-- SMOOTH CURVED BOTTOM SHEET -->
+      <div id="home-bottom-sheet" class="curved-sheet px-4 pt-2 pb-6 flex flex-col relative z-20 -mt-6">
+
+        <!-- Drag Handle -->
+        <div class="w-10 h-1 rounded-full bg-slate-200 mx-auto my-2.5"></div>
+
+        <!-- Segmented Mode Tabs (Matching Reference Image Layout, Metro Removed as Instructed) -->
+        <div class="grid grid-cols-2 gap-3 mb-3.5">
+          <!-- Active Ride Tab with prominent Blue Pin Icon -->
+          <div
+            class="py-3 px-4 rounded-2xl border-2 border-slate-900 bg-white shadow-xs flex flex-col items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]">
+            <span class="material-symbols-outlined text-[24px] text-blue-600"
+              style="font-variation-settings: 'FILL' 1;">location_on</span>
+            <span class="text-xs font-bold text-slate-900" data-i18n="navRide">Ride</span>
+          </div>
+          <!-- Smooth Parcel Tab (Replacing Metro cleanly as requested) -->
+          <div onclick="switchView('parcel')"
+            class="py-3 px-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all active:scale-[0.98]">
+            <span class="material-symbols-outlined text-[24px] text-slate-700">package_2</span>
+            <span class="text-xs font-semibold text-slate-700" data-i18n="navParcel">Parcel</span>
+          </div>
+        </div>
+
+        <!-- Oval Pill Search Bar with Golden Underline Curve -->
+        <div onclick="openSearchModal()"
+          class="w-full h-13 bg-white rounded-full border border-slate-200/90 shadow-[0_2px_10px_rgba(0,0,0,0.03)] px-4 flex items-center gap-3 cursor-pointer hover:border-slate-300 transition-all active:scale-[0.99] relative overflow-hidden mb-3.5 group">
+          <span class="material-symbols-outlined text-[22px] text-slate-800">search</span>
+          <span class="text-[14px] font-semibold text-slate-800 flex-1" data-i18n="whereTo">Where do you want to go in
+            Lilongwe?</span>
+          <!-- Golden / Amber Underline Curve (Exact Rapido/Uber style from screenshot) -->
+          <div
+            class="absolute bottom-0 inset-x-12 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent">
+          </div>
+        </div>
+
+        <!-- Scheduled Trip Active Card (Appears if user pre-booked a trip) -->
+        <div id="scheduled-ride-card-container"
+          class="hidden mb-3.5 p-3.5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 shadow-sm flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <span class="material-symbols-outlined text-[22px]">calendar_clock</span>
+            </div>
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span
+                  class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full"
+                  data-i18n="scheduledNotice">Scheduled Ride Active</span>
+              </div>
+              <span class="text-xs font-black text-slate-900 truncate mt-0.5" id="scheduled-ride-card-title">Tomorrow •
+                04:30 AM</span>
+              <span class="text-[11px] text-slate-600 truncate" id="scheduled-ride-card-dest">Kamuzu International
+                Airport (LLW)</span>
+            </div>
+          </div>
+          <button onclick="cancelScheduledRide()"
+            class="text-xs font-bold text-rose-600 hover:text-rose-700 bg-white/90 hover:bg-white px-2.5 py-1.5 rounded-xl border border-rose-200 shadow-2xs transition-colors shrink-0">
+            Cancel
+          </button>
+        </div>
+
+        <!-- Recent Destinations List (Exact Match to User Reference Layout, Lilongwe Landmarks) -->
+        <div class="flex flex-col mb-4">
+
+          <!-- Item 1: EPTL Malawi (Entire Printers & Traders Limited) -->
+          <div onclick="selectDestinationFromSearch('EPTL Malawi (Entire Printers & Traders Limited)')"
+            class="py-2.5 px-1 flex items-center justify-between cursor-pointer rounded-xl hover:bg-slate-50 transition-colors group">
+            <div class="flex items-start gap-3 min-w-0 pr-2">
+              <span
+                class="material-symbols-outlined text-[20px] text-emerald-600 mt-0.5 group-hover:text-emerald-800 transition-colors">print</span>
+              <div class="flex flex-col min-w-0">
+                <span class="font-bold text-xs sm:text-sm text-slate-900 truncate">EPTL Malawi (Entire Printers &
+                  Traders Ltd)</span>
+                <span class="text-[11px] text-slate-400 truncate mt-0.5">Plot 4/122, Murray Rd, Area 4 Industrial,
+                  Lilongwe</span>
+              </div>
+            </div>
+            <button onclick="event.stopPropagation(); toggleFavorite(this)"
+              class="p-1 text-slate-400 hover:text-rose-500 transition-colors shrink-0">
+              <span class="material-symbols-outlined text-[20px]">favorite_border</span>
+            </button>
+          </div>
+          <div class="border-b border-dashed border-slate-200/80 ml-8 my-1"></div>
+
+          <!-- Item 2: Bingu National Stadium -->
+          <div onclick="selectDestinationFromSearch('Bingu National Stadium')"
+            class="py-2.5 px-1 flex items-center justify-between cursor-pointer rounded-xl hover:bg-slate-50 transition-colors group">
+            <div class="flex items-start gap-3 min-w-0 pr-2">
+              <span
+                class="material-symbols-outlined text-[20px] text-slate-400 mt-0.5 group-hover:text-slate-800 transition-colors">schedule</span>
+              <div class="flex flex-col min-w-0">
+                <span class="font-bold text-xs sm:text-sm text-slate-900 truncate">Bingu National Stadium</span>
+                <span class="text-[11px] text-slate-400 truncate mt-0.5">near Area 49, Kaunda Road, Lilongwe,
+                  Malawi</span>
+              </div>
+            </div>
+            <button onclick="event.stopPropagation(); toggleFavorite(this)"
+              class="p-1 text-slate-400 hover:text-rose-500 transition-colors shrink-0">
+              <span class="material-symbols-outlined text-[20px]">favorite_border</span>
+            </button>
+          </div>
+          <div class="border-b border-dashed border-slate-200/80 ml-8 my-1"></div>
+
+          <!-- Item 2: City Centre (Capital Hill) -->
+          <div onclick="selectDestinationFromSearch('City Centre (Capital Hill)')"
+            class="py-2.5 px-1 flex items-center justify-between cursor-pointer rounded-xl hover:bg-slate-50 transition-colors group">
+            <div class="flex items-start gap-3 min-w-0 pr-2">
+              <span
+                class="material-symbols-outlined text-[20px] text-slate-400 mt-0.5 group-hover:text-slate-800 transition-colors">schedule</span>
+              <div class="flex flex-col min-w-0">
+                <span class="font-bold text-xs sm:text-sm text-slate-900 truncate">City Centre (Capital Hill)</span>
+                <span class="text-[11px] text-slate-400 truncate mt-0.5">Independence Drive, Area 20, Capital City,
+                  Lilongwe</span>
+              </div>
+            </div>
+            <button onclick="event.stopPropagation(); toggleFavorite(this)"
+              class="p-1 text-slate-400 hover:text-rose-500 transition-colors shrink-0">
+              <span class="material-symbols-outlined text-[20px]">favorite_border</span>
+            </button>
+          </div>
+          <div class="border-b border-dashed border-slate-200/80 ml-8 my-1"></div>
+
+          <!-- Item 3: Old Town Mall & Market -->
+          <div onclick="selectDestinationFromSearch('Old Town Mall & Market')"
+            class="py-2.5 px-1 flex items-center justify-between cursor-pointer rounded-xl hover:bg-slate-50 transition-colors group">
+            <div class="flex items-start gap-3 min-w-0 pr-2">
+              <span
+                class="material-symbols-outlined text-[20px] text-slate-400 mt-0.5 group-hover:text-slate-800 transition-colors">schedule</span>
+              <div class="flex flex-col min-w-0">
+                <span class="font-bold text-xs sm:text-sm text-slate-900 truncate">Old Town Mall & Market</span>
+                <span class="text-[11px] text-slate-400 truncate mt-0.5">Kamuzu Procession Rd, Area 2, Lilongwe,
+                  Malawi</span>
+              </div>
+            </div>
+            <button onclick="event.stopPropagation(); toggleFavorite(this)"
+              class="p-1 text-slate-400 hover:text-rose-500 transition-colors shrink-0">
+              <span class="material-symbols-outlined text-[20px]">favorite_border</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- "Everything in minutes" Section -->
+        <div class="flex flex-col">
+          <span class="text-sm font-bold text-slate-900 mb-2.5">Everything in minutes</span>
+
+          <div class="flex items-stretch gap-3 overflow-x-auto no-scrollbar pb-1">
+            <!-- Card 1: AArohan Moto (Kabaza motorcycle) -->
+            <div onclick="selectVehicleQuick('AArohan Moto', 2450)"
+              class="min-w-[160px] p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/70 shadow-xs cursor-pointer hover:shadow-md hover:bg-white transition-all flex flex-col justify-between active:scale-98">
+              <div>
+                <span
+                  class="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                  <span
+                    class="w-3.5 h-3.5 rounded-full bg-emerald-800/60 inline-flex items-center justify-center text-[9px] font-bold">K</span>
+                  Starts at MK 1,200
+                </span>
+                <h4 class="font-extrabold text-base text-slate-900 mt-2.5">AArohan Moto</h4>
+                <p class="text-[11px] text-slate-500 leading-tight mt-0.5">Beat traffic &bull; Fastest</p>
+              </div>
+              <div class="flex justify-end mt-3">
+                <span class="material-symbols-outlined text-[32px] text-emerald-600">two_wheeler</span>
+              </div>
+            </div>
+
+            <!-- Card 2: AArohan Auto (Bajaj Tuk-tuk) -->
+            <div onclick="selectVehicleQuick('AArohan Auto', 4150)"
+              class="min-w-[160px] p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/70 shadow-xs cursor-pointer hover:shadow-md hover:bg-white transition-all flex flex-col justify-between active:scale-98">
+              <div>
+                <span
+                  class="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                  <span
+                    class="w-3.5 h-3.5 rounded-full bg-amber-800/60 inline-flex items-center justify-center text-[9px] font-bold">K</span>
+                  Starts at MK 2,200
+                </span>
+                <h4 class="font-extrabold text-base text-slate-900 mt-2.5">AArohan Auto</h4>
+                <p class="text-[11px] text-slate-500 leading-tight mt-0.5">Covered &bull; Up to 3</p>
+              </div>
+              <div class="flex justify-end mt-3">
+                <span class="material-symbols-outlined text-[32px] text-amber-600">electric_rickshaw</span>
+              </div>
+            </div>
+
+            <!-- Card 3: AArohan Cab -->
+            <div onclick="selectVehicleQuick('AArohan Cab', 7850)"
+              class="min-w-[160px] p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/70 shadow-xs cursor-pointer hover:shadow-md hover:bg-white transition-all flex flex-col justify-between active:scale-98">
+              <div>
+                <span
+                  class="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                  <span
+                    class="w-3.5 h-3.5 rounded-full bg-blue-800/60 inline-flex items-center justify-center text-[9px] font-bold">K</span>
+                  Starts at MK 4,500
+                </span>
+                <h4 class="font-extrabold text-base text-slate-900 mt-2.5">AArohan Cab</h4>
+                <p class="text-[11px] text-slate-500 leading-tight mt-0.5">Private saloon with AC</p>
+              </div>
+              <div class="flex justify-end mt-3">
+                <span class="material-symbols-outlined text-[32px] text-blue-600">local_taxi</span>
+              </div>
+            </div>
+
+            <!-- Card 4: Parcel Courier -->
+            <div onclick="switchView('parcel')"
+              class="min-w-[160px] p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/70 shadow-xs cursor-pointer hover:shadow-md hover:bg-white transition-all flex flex-col justify-between active:scale-98">
+              <div>
+                <span
+                  class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 shadow-xs">
+                  Instant Drop
+                </span>
+                <h4 class="font-extrabold text-base text-slate-900 mt-2.5">Parcel</h4>
+                <p class="text-[11px] text-slate-500 leading-tight mt-0.5">Fast courier delivery</p>
+              </div>
+              <div class="flex justify-end mt-3">
+                <span class="material-symbols-outlined text-[32px] text-purple-600">package_2</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SMOOTH RIDE SELECTION SHEET (APPEARS WHEN DESTINATION CLICKED) -->
+      <div id="ride-selection-sheet"
+        class="hidden curved-sheet px-4 pt-3 pb-6 flex flex-col relative z-20 -mt-6 bg-white shadow-2xl">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div class="flex flex-col min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0"></span>
+              <span class="font-extrabold text-sm text-slate-900 truncate" id="selected-destination-text">Bingu National
+                Stadium</span>
+            </div>
+            <!-- Intermediate Waypoint Stop Tag -->
+            <div id="ride-sheet-via-stop-tag"
+              class="hidden items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-lg mt-1 w-fit border border-amber-200">
+              <span class="font-bold">📍 Add Stop:</span>
+              <span id="ride-sheet-via-stop-name" class="font-extrabold text-slate-900">Crossroads Hotel</span>
+              <button onclick="removeIntermediateStop()" title="Remove stop"
+                class="text-slate-400 hover:text-rose-600 ml-1 font-bold">✕</button>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0 ml-2">
+            <button onclick="openIntermediateStopModal()" id="add-stop-sheet-btn"
+              class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors">
+              <span class="material-symbols-outlined text-[15px]">add_location_alt</span>
+              <span data-i18n="addStopBtn">+ Stop</span>
+            </button>
+            <button onclick="closeSelectedRideSheet()"
+              class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+              <span class="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Vehicle Tiers List (Malawi Kwacha) -->
+        <div class="flex flex-col gap-2 mt-3" id="tier-list">
+          <!-- Tier 1: AArohan Moto -->
+          <div onclick="selectRideTier('AArohan Moto', 2450)" id="tier-bike"
+            class="tier-card cursor-pointer p-3 rounded-2xl bg-emerald-50/60 border-2 border-emerald-600 shadow-sm flex items-center justify-between transition-all">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <span class="material-symbols-outlined text-[24px]">two_wheeler</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="font-extrabold text-sm text-slate-900" data-i18n="bookMoto">AArohan Moto</span>
+                  <span
+                    class="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded">Fastest</span>
+                </div>
+                <span class="text-[11px] text-slate-500">2 mins away &bull; Verified Captain & Helmet</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="font-black text-sm text-slate-900 block" id="price-bike">MK 2,450</span>
+              <span class="text-[10px] text-slate-400 line-through">MK 3,000</span>
+            </div>
+          </div>
+
+          <!-- Tier 2: AArohan Auto -->
+          <div onclick="selectRideTier('AArohan Auto', 4150)" id="tier-auto"
+            class="tier-card cursor-pointer p-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 flex items-center justify-between transition-all">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-11 h-11 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <span class="material-symbols-outlined text-[24px]">electric_rickshaw</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="font-extrabold text-sm text-slate-900" data-i18n="bookAuto">AArohan Auto</span>
+                  <span class="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.2 rounded">Popular</span>
+                </div>
+                <span class="text-[11px] text-slate-500">4 mins away &bull; Covered Bajaj (3 Seats)</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="font-black text-sm text-slate-900 block" id="price-auto">MK 4,150</span>
+            </div>
+          </div>
+
+          <!-- Tier 3: AArohan Cab -->
+          <div onclick="selectRideTier('AArohan Cab', 7850)" id="tier-cab"
+            class="tier-card cursor-pointer p-3 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 flex items-center justify-between transition-all">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <span class="material-symbols-outlined text-[24px]">local_taxi</span>
+              </div>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="font-extrabold text-sm text-slate-900" data-i18n="bookCab">AArohan Cab</span>
+                  <span class="bg-blue-100 text-blue-800 text-[9px] font-bold px-1.5 py-0.2 rounded">Comfort & AC</span>
+                </div>
+                <span class="text-[11px] text-slate-500">6 mins away &bull; Private Sedan</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="font-black text-sm text-slate-900 block" id="price-cab">MK 7,850</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Surge Notice Banner (Dynamic Lilongwe Heatmap Zone) -->
+        <div id="surge-alert-banner"
+          class="hidden items-center justify-between p-2.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 text-amber-950 text-xs font-bold mt-2.5">
+          <div class="flex items-center gap-2">
+            <span class="text-base">🔥</span>
+            <div>
+              <span class="font-extrabold text-amber-950 block" id="surge-alert-title">High Demand Surge (1.3x)</span>
+              <span class="text-[10px] text-amber-700 font-normal" id="surge-alert-sub">More riders than captains around
+                Area 47</span>
+            </div>
+          </div>
+          <span
+            class="bg-amber-500 text-slate-950 text-[10px] px-2 py-0.5 rounded-full font-black tracking-wider">SURGE</span>
+        </div>
+
+        <!-- Payment Method Row (Malawi Mobile Money) -->
+        <div class="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-slate-100">
+          <div onclick="cyclePaymentMethod()"
+            class="cursor-pointer bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl flex items-center gap-2 flex-1 transition-colors">
+            <div id="payment-badge"
+              class="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center text-white text-[9px] font-black">
+              AIR</div>
+            <div class="flex flex-col min-w-0">
+              <span class="text-xs font-bold text-slate-900 truncate" id="payment-name">Airtel Money</span>
+              <span class="text-[10px] text-slate-400 leading-none" id="payment-sub">099 824 1120</span>
+            </div>
+            <span class="material-symbols-outlined text-slate-400 text-[16px] ml-auto">expand_more</span>
+          </div>
+
+          <div onclick="openPromoModal()"
+            class="cursor-pointer bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors">
+            <span class="material-symbols-outlined text-amber-600 text-[16px]">local_offer</span>
+            <span class="text-xs font-bold text-amber-700">Voucher</span>
+          </div>
+        </div>
+
+        <!-- Dual CTA: Book Now or Schedule for Later -->
+        <div class="grid grid-cols-3 gap-2 mt-3">
+          <button onclick="requestRideBooking()" id="book-cta-btn"
+            class="col-span-2 h-13 bg-slate-900 text-white rounded-2xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg hover:bg-slate-800 active:scale-[0.99] transition-all">
+            <span class="material-symbols-outlined text-[18px] text-emerald-400">bolt</span>
+            <span id="book-cta-text" class="truncate" data-i18n="rideNow">Book AArohan Moto &bull; MK 2,450</span>
+          </button>
+          <button onclick="openScheduleModal()" id="schedule-cta-btn"
+            class="col-span-1 h-13 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-2xl font-extrabold text-xs flex flex-col items-center justify-center leading-tight shadow-sm active:scale-[0.99] transition-all">
+            <span class="material-symbols-outlined text-[18px] text-emerald-700">schedule</span>
+            <span data-i18n="scheduleLater">Schedule</span>
+          </button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 2: DISPATCHING RADAR (LIVE COUNTDOWN)     -->
+    <!-- ============================================== -->
+    <section id="view-dispatching"
+      class="view-panel hidden flex-col items-center justify-center w-full px-6 py-8 text-center min-h-[75vh]">
+
+      <!-- Concentric Radar Animation with Rotating Scanner Beam -->
+      <div class="relative w-64 h-64 flex items-center justify-center mb-5">
+        <div class="radar-scanner-sweep"></div>
+        <div class="radar-ring"></div>
+        <div class="radar-ring"></div>
+        <div class="radar-ring"></div>
+        <div class="radar-ring"></div>
+        <div
+          class="w-20 h-20 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-2xl z-10 relative border-2 border-emerald-400/50">
+          <span class="material-symbols-outlined text-[36px] text-emerald-400"
+            id="dispatch-vehicle-icon">two_wheeler</span>
+        </div>
+      </div>
+
+      <!-- Live Radar Searching Countdown Badge -->
+      <div
+        class="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200/90 text-emerald-900 px-4 py-1.5 rounded-full text-xs font-extrabold tracking-wide mb-2 shadow-xs">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+        <span>SEARCHING CAPTAINS:</span>
+        <span id="dispatch-countdown-timer" class="font-mono text-sm font-black text-emerald-700">00:45</span>
+      </div>
+
+      <h2 class="text-xl font-black text-slate-900" id="dispatch-status-title">Broadcasting to Lilongwe Captains...</h2>
+      <p class="text-xs text-slate-500 max-w-xs mt-1.5 leading-relaxed" id="dispatch-status-sub">
+        Scanning verified captains around Gateway Mall, Area 47 & Kaunda Road corridor.
+      </p>
+
+      <!-- Search Progress Bar -->
+      <div class="w-full max-w-xs bg-slate-100 rounded-full h-1.5 overflow-hidden my-3">
+        <div id="dispatch-progress-bar" class="bg-emerald-600 h-full w-1/4 transition-all duration-1000"></div>
+      </div>
+
+      <!-- Real-Time Radar Listening Indicator -->
+      <div
+        class="inline-flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-xs text-[11px] font-bold text-slate-700">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span id="dispatch-captains-count">4 Captains active nearby &bull; WebSocket Live</span>
+      </div>
+
+      <!-- Trip Summary Card -->
+      <div
+        class="w-full max-w-xs bg-slate-50/90 rounded-2xl p-4 mt-4 text-left border border-slate-200/80 flex flex-col gap-2 shadow-xs">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] text-slate-400 font-bold uppercase">Requested Vehicle</span>
+          <span class="text-xs font-black text-slate-900" id="dispatch-summary">Bike Lift &bull; MK 1,500</span>
+        </div>
+        <div class="flex items-center gap-2 pt-2 border-t border-slate-200/60">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-xs font-semibold text-slate-700 truncate" id="dispatch-destination-sub">Bingu National
+            Stadium</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="mt-5 flex flex-col items-center gap-2 w-full max-w-xs">
+        <button onclick="cancelDispatch()"
+          class="w-full py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:text-red-500 hover:border-red-300 transition-colors text-xs font-bold shadow-xs">
+          Cancel Request
+        </button>
+
+        <button onclick="simulateDriverAcceptNow()"
+          class="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold border border-slate-200 flex items-center justify-center gap-1.5 active:scale-95 transition-all">
+          <span class="material-symbols-outlined text-[15px] text-amber-500">bolt</span>
+          <span>Simulate Driver Accept (Testing Mode)</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 3: ACTIVE RIDE TRACKING                   -->
+    <!-- ============================================== -->
+    <section id="view-tracking" class="view-panel hidden flex flex-col w-full relative">
+
+      <!-- Real Interactive Tracking Map -->
+      <div class="relative w-full h-[40vh] sm:h-[43vh] bg-[#f1f5f9] overflow-hidden">
+        <div id="tracking-leaflet-map" class="w-full h-full z-0"></div>
+
+        <!-- Floating Live Status Header -->
+        <div class="absolute top-3 inset-x-4 flex items-center justify-between z-[1000]">
+          <div
+            class="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-md border border-slate-200/60">
+            <span class="relative flex h-2.5 w-2.5">
+              <span
+                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span class="text-xs font-bold text-slate-800" id="tracking-live-tag">Live &bull; Kaunda Rd, Lilongwe</span>
+          </div>
+
+          <button onclick="openSosModal()"
+            class="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3.5 py-1.5 rounded-full shadow-lg active:scale-95 transition-all font-bold text-xs">
+            <span class="material-symbols-outlined text-[16px]">shield</span>
+            <span>SOS</span>
+          </button>
+        </div>
+
+        <!-- Floating Turn-by-Turn Guidance Banner -->
+        <div id="turn-by-turn-card"
+          class="turn-by-turn-pill absolute top-14 inset-x-4 z-[1000] bg-slate-900/95 backdrop-blur-md text-white px-3.5 py-2.5 rounded-2xl shadow-xl flex items-center justify-between border border-slate-700/60">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[20px]" id="turn-direction-icon">turn_right</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="font-black text-xs text-white" id="turn-instruction-text">Turn right onto Kaunda Road</span>
+              <span class="text-[10px] text-emerald-400 font-semibold" id="turn-dist-text">In 350 meters &bull; Captain
+                approaching</span>
+            </div>
+          </div>
+          <span class="text-[10px] bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded-md font-bold"
+            id="turn-speed-badge">42 km/h</span>
+        </div>
+      </div>
+
+      <!-- Live Tracking Bottom Card -->
+      <div class="px-4 -mt-8 relative z-20 flex flex-col gap-3 pb-8">
+
+        <!-- Night Safety Shield & Route Deviation Watchdog Banner -->
+        <div id="tracking-safety-shield-banner"
+          class="bg-slate-900 rounded-3xl p-3.5 shadow-xl border border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div
+              class="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+              <span class="material-symbols-outlined text-[20px]">security</span>
+            </div>
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-xs font-black text-white" data-i18n="safetyShield">Night Shield Active</span>
+                <span
+                  class="bg-emerald-950 text-emerald-400 border border-emerald-800 text-[9px] font-bold px-1.5 py-0.2 rounded">Encrypted
+                  Audio</span>
+              </div>
+              <span class="text-[10px] text-slate-400 truncate mt-0.5" data-i18n="audioShieldActive">Route Watchdog:
+                Corridor monitored live</span>
+            </div>
+          </div>
+          <button onclick="triggerRouteDeviationAlert(true)" title="Test Route Deviation Watchdog"
+            class="shrink-0 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-extrabold rounded-xl border border-amber-500/30 transition-all active:scale-95 flex items-center gap-1">
+            <span class="material-symbols-outlined text-[13px] text-amber-400">warning</span>
+            <span>Test Detour</span>
+          </button>
+        </div>
+
+        <!-- ETA & Safety PIN -->
+        <div class="bg-white rounded-3xl p-4 shadow-xl border border-slate-100 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+              <span class="material-symbols-outlined text-[26px]">two_wheeler</span>
+            </div>
+            <div>
+              <span class="text-[10px] text-emerald-700 uppercase font-bold tracking-wider block"
+                id="tracking-status-title">Captain Arriving</span>
+              <h2 class="text-base font-extrabold text-slate-900" id="tracking-eta-time">Arriving in 2 mins</h2>
+            </div>
+          </div>
+          <div class="text-right bg-slate-100 px-3.5 py-2 rounded-2xl">
+            <span class="text-[9px] text-slate-400 uppercase font-bold block">Safety PIN</span>
+            <span class="text-xl font-black text-slate-900 tracking-wider" id="tracking-pin-display">8421</span>
+          </div>
+        </div>
+
+        <!-- Captain Profile Card -->
+        <div class="bg-white rounded-3xl p-4 shadow-xl border border-slate-100 flex flex-col gap-3">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center gap-3">
+              <img class="w-12 h-12 rounded-full object-cover shadow-sm ring-2 ring-emerald-500/20"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw"
+                alt="Captain" />
+              <div>
+                <h4 class="font-extrabold text-sm text-slate-900" id="tracking-driver-name">Blessings Phiri</h4>
+                <div class="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5" id="tracking-driver-stats">
+                  <span class="text-amber-500 font-bold flex items-center gap-0.5">
+                    <span class="material-symbols-outlined text-[14px]">star</span> <span
+                      id="tracking-driver-rating">4.95</span>
+                  </span>
+                  <span>&bull;</span>
+                  <span id="tracking-driver-rides">1,840 rides</span>
+                </div>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-mono font-black text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl"
+                id="tracking-driver-plate">LL 4920 B</span>
+              <span class="text-[10px] text-slate-400 block mt-1" id="tracking-driver-car">Red Boxer 150</span>
+            </div>
+          </div>
+
+          <!-- Quick Actions Grid -->
+          <div class="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+            <button onclick="openCallScreen()"
+              class="py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-800 transition-colors">
+              <span class="material-symbols-outlined text-[18px] text-slate-700">call</span>
+              <span class="text-[10px] font-bold mt-0.5">Call</span>
+            </button>
+            <button onclick="openChatDrawer()"
+              class="py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-800 transition-colors relative">
+              <span class="material-symbols-outlined text-[18px] text-slate-700">chat</span>
+              <span class="text-[10px] font-bold mt-0.5">Chat</span>
+              <span class="absolute top-1.5 right-4 w-2 h-2 rounded-full bg-emerald-500"></span>
+            </button>
+            <button onclick="shareTripDetails()"
+              class="py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-800 transition-colors">
+              <span class="material-symbols-outlined text-[18px] text-slate-700">share</span>
+              <span class="text-[10px] font-bold mt-0.5">Share</span>
+            </button>
+            <button onclick="triggerFakeSafetyCall()"
+              class="py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-800 transition-colors">
+              <span class="material-symbols-outlined text-[18px] text-amber-500">ring_volume</span>
+              <span class="text-[10px] font-bold mt-0.5">Safety Call</span>
+            </button>
+          </div>
+
+          <!-- Arrived State PIN Verification Action -->
+          <button onclick="startRiderTransitNow()" id="tracking-start-transit-btn"
+            class="hidden w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-98">
+            <span class="material-symbols-outlined text-[18px]">verified</span>
+            <span>Captain Verified PIN &bull; Start Ride</span>
+          </button>
+
+          <!-- Simulation Fast-Forward (Development Helper) -->
+          <button onclick="simulateCompleteTrip()" id="tracking-complete-btn"
+            class="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-colors">
+            <span class="material-symbols-outlined text-[16px]">sports_score</span>
+            <span>Simulate Arrived at Destination</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 4: TRIP RECEIPT & RATING                  -->
+    <!-- ============================================== -->
+    <section id="view-receipt" class="view-panel hidden flex flex-col w-full px-4 py-8">
+      <div class="flex flex-col items-center text-center">
+
+        <div class="w-16 h-16 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg mb-2">
+          <span class="material-symbols-outlined text-[32px]">task_alt</span>
+        </div>
+        <span
+          class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-full mb-1">
+          Trip Completed
+        </span>
+        <h2 class="text-xl font-black text-slate-900">Arrived at Destination!</h2>
+        <p class="text-xs text-slate-500 mt-0.5" id="receipt-destination-name">Bingu National Stadium, Area 49, Lilongwe
+        </p>
+
+        <!-- Fare Summary Card -->
+        <div
+          class="mt-4 w-full max-w-sm px-6 py-4 rounded-3xl bg-white shadow-md border border-slate-100 flex flex-col items-center">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Paid</span>
+          <span class="text-3xl font-black text-slate-900 mt-0.5" id="receipt-fare-display">MK 1,500</span>
+
+          <!-- Escrow Confirmation Badge -->
+          <div class="escrow-verified-card w-full p-3 rounded-2xl flex items-center gap-3 mt-3 text-left">
+            <div
+              class="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <span class="material-symbols-outlined text-[20px]">verified_user</span>
+            </div>
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-emerald-950" id="receipt-escrow-title">Airtel Money Escrow
+                  Verified</span>
+                <span
+                  class="bg-emerald-600 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase">Settled</span>
+              </div>
+              <span class="text-[10px] text-emerald-800 font-medium leading-tight mt-0.5" id="receipt-escrow-sub">Ref:
+                MW-AIR-99281-OK &bull; Auto-released upon dropoff</span>
+            </div>
+          </div>
+
+          <!-- Itemized Fare Breakdown Accordion -->
+          <div class="w-full mt-3 pt-3 border-t border-slate-100 flex flex-col gap-1.5 text-xs">
+            <div class="flex justify-between text-slate-500 text-[11px]">
+              <span>Base Transit Fare</span>
+              <span class="font-bold text-slate-800" id="receipt-base-breakdown">MK 1,000</span>
+            </div>
+            <div class="flex justify-between text-slate-500 text-[11px]">
+              <span>Distance & Fuel Corridor</span>
+              <span class="font-bold text-slate-800" id="receipt-dist-breakdown">MK 400</span>
+            </div>
+            <div class="flex justify-between text-slate-500 text-[11px]">
+              <span>AArohan Safety & Escrow Protection</span>
+              <span class="font-bold text-slate-800">MK 100</span>
+            </div>
+            <div class="flex justify-between text-emerald-700 text-[11px] font-semibold">
+              <span>Captain Tip</span>
+              <span class="font-black" id="receipt-tip-breakdown">MK 0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive 5-Star Driver Rating -->
+        <div
+          class="mt-4 w-full max-w-sm bg-white rounded-3xl p-4 shadow-sm border border-slate-100 flex flex-col items-center">
+          <span class="text-xs font-bold text-slate-800">Rate Captain Blessings Phiri</span>
+
+          <div class="flex items-center gap-2 my-2 text-amber-400">
+            <span onclick="setRating(1)" class="material-symbols-outlined rating-star" id="star-1"
+              style="font-variation-settings: 'FILL' 1;">star</span>
+            <span onclick="setRating(2)" class="material-symbols-outlined rating-star" id="star-2"
+              style="font-variation-settings: 'FILL' 1;">star</span>
+            <span onclick="setRating(3)" class="material-symbols-outlined rating-star" id="star-3"
+              style="font-variation-settings: 'FILL' 1;">star</span>
+            <span onclick="setRating(4)" class="material-symbols-outlined rating-star" id="star-4"
+              style="font-variation-settings: 'FILL' 1;">star</span>
+            <span onclick="setRating(5)" class="material-symbols-outlined rating-star" id="star-5"
+              style="font-variation-settings: 'FILL' 1;">star</span>
+          </div>
+
+          <!-- Compliment Chips -->
+          <div class="flex flex-wrap items-center justify-center gap-1.5 mt-1">
+            <button onclick="toggleCompliment(this)"
+              class="compliment-chip px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700 border border-slate-200">⛑️
+              Clean Helmet</button>
+            <button onclick="toggleCompliment(this)"
+              class="compliment-chip px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700 border border-slate-200">⚡
+              Smooth Ride</button>
+            <button onclick="toggleCompliment(this)"
+              class="compliment-chip px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700 border border-slate-200">🤝
+              Polite</button>
+            <button onclick="toggleCompliment(this)"
+              class="compliment-chip px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700 border border-slate-200">📍
+              Fast Route</button>
+          </div>
+
+          <!-- Tip Selector -->
+          <div class="w-full mt-3 pt-3 border-t border-slate-100">
+            <span class="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Add a Tip for Captain</span>
+            <div class="grid grid-cols-4 gap-1.5">
+              <button onclick="selectTip(0, this)"
+                class="tip-btn selected py-1 rounded-xl bg-slate-900 text-white text-[11px] font-bold border border-slate-900">None</button>
+              <button onclick="selectTip(500, this)"
+                class="tip-btn py-1 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">+MK
+                500</button>
+              <button onclick="selectTip(1000, this)"
+                class="tip-btn py-1 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">+MK
+                1,000</button>
+              <button onclick="selectTip(2000, this)"
+                class="tip-btn py-1 rounded-xl bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">+MK
+                2,000</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Book Another Ride Button -->
+        <button onclick="resetAndBookAnother()"
+          class="mt-5 w-full max-w-sm py-3.5 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-extrabold text-sm shadow-xl active:scale-98 transition-all">
+          Book Another Ride
+        </button>
+
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 5: RENTALS (OWNLY SELF-DRIVE)             -->
+    <!-- ============================================== -->
+    <section id="view-rentals" class="view-panel hidden flex flex-col w-full px-4 py-4 gap-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-black text-slate-900">AArohan Rentals &bull; Ownly</h2>
+          <p class="text-xs text-slate-500">Rent self-drive scooters & vehicles by the hour or day in Lilongwe.</p>
+        </div>
+        <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-[24px]">key</span>
+        </div>
+      </div>
+
+      <!-- Quick Lilongwe Depots Filter -->
+      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+        <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-900 text-white shrink-0">All Depots</span>
+        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 shrink-0">📍 Gateway
+          Mall</span>
+        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 shrink-0">📍 City
+          Centre</span>
+        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 shrink-0">📍 Old
+          Town</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mt-1">
+        <!-- Rental 1: Honda Ace 125 -->
+        <div
+          class="p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <div class="flex justify-between items-start">
+              <span
+                class="text-[9px] font-black bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full uppercase tracking-wider">Hourly
+                / Daily</span>
+              <span class="material-symbols-outlined text-emerald-600 text-[24px]">two_wheeler</span>
+            </div>
+            <h4 class="font-extrabold text-sm text-slate-900 mt-2">Honda Ace 125</h4>
+            <p class="text-[10px] text-slate-400 mt-0.5">2 helmets, full tank & insurance</p>
+            <div class="mt-2.5">
+              <span class="text-xs text-emerald-700 font-black block">MK 3,000 / hr</span>
+              <span class="text-[10px] text-slate-400">or MK 18,000 / day</span>
+            </div>
+          </div>
+          <button onclick="openRentalModal('Honda Ace 125', 3000, 18000)"
+            class="mt-3 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold rounded-xl shadow-xs active:scale-95 transition-all">Rent
+            Scooter</button>
+        </div>
+
+        <!-- Rental 2: Bajaj RE Compact Auto -->
+        <div
+          class="p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <div class="flex justify-between items-start">
+              <span
+                class="text-[9px] font-black bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full uppercase tracking-wider">Self
+                Drive</span>
+              <span class="material-symbols-outlined text-amber-600 text-[24px]">electric_rickshaw</span>
+            </div>
+            <h4 class="font-extrabold text-sm text-slate-900 mt-2">Bajaj RE Compact</h4>
+            <p class="text-[10px] text-slate-400 mt-0.5">Weather-proof &bull; 3 passenger</p>
+            <div class="mt-2.5">
+              <span class="text-xs text-amber-700 font-black block">MK 5,000 / hr</span>
+              <span class="text-[10px] text-slate-400">or MK 30,000 / day</span>
+            </div>
+          </div>
+          <button onclick="openRentalModal('Bajaj RE Compact Auto', 5000, 30000)"
+            class="mt-3 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold rounded-xl shadow-xs active:scale-95 transition-all">Rent
+            Auto</button>
+        </div>
+
+        <!-- Rental 3: Toyota Vitz 1.3 -->
+        <div
+          class="p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <div class="flex justify-between items-start">
+              <span
+                class="text-[9px] font-black bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full uppercase tracking-wider">Daily
+                Sedan</span>
+              <span class="material-symbols-outlined text-blue-600 text-[24px]">directions_car</span>
+            </div>
+            <h4 class="font-extrabold text-sm text-slate-900 mt-2">Toyota Vitz 1.3</h4>
+            <p class="text-[10px] text-slate-400 mt-0.5">AC &bull; Automatic &bull; 5 Seats</p>
+            <div class="mt-2.5">
+              <span class="text-xs text-blue-700 font-black block">MK 7,500 / hr</span>
+              <span class="text-[10px] text-slate-400">or MK 38,000 / day</span>
+            </div>
+          </div>
+          <button onclick="openRentalModal('Toyota Vitz 1.3 Auto', 7500, 38000)"
+            class="mt-3 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold rounded-xl shadow-xs active:scale-95 transition-all">Rent
+            Sedan</button>
+        </div>
+
+        <!-- Rental 4: Toyota Fortuner 4x4 -->
+        <div
+          class="p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between hover:shadow-md transition-shadow">
+          <div>
+            <div class="flex justify-between items-start">
+              <span
+                class="text-[9px] font-black bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full uppercase tracking-wider">4x4
+                SUV</span>
+              <span class="material-symbols-outlined text-purple-600 text-[24px]">airport_shuttle</span>
+            </div>
+            <h4 class="font-extrabold text-sm text-slate-900 mt-2">Toyota Fortuner 4x4</h4>
+            <p class="text-[10px] text-slate-400 mt-0.5">Safari & rough terrain ready</p>
+            <div class="mt-2.5">
+              <span class="text-xs text-purple-700 font-black block">MK 15,000 / hr</span>
+              <span class="text-[10px] text-slate-400">or MK 85,000 / day</span>
+            </div>
+          </div>
+          <button onclick="openRentalModal('Toyota Fortuner 4x4', 15000, 85000)"
+            class="mt-3 w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold rounded-xl shadow-xs active:scale-95 transition-all">Rent
+            4x4 SUV</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 6: PARCEL COURIER (INSTANT DISPATCH)      -->
+    <!-- ============================================== -->
+    <section id="view-parcel" class="view-panel hidden flex flex-col w-full px-4 py-4 gap-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-black text-slate-900">AArohan Parcel Delivery</h2>
+          <p class="text-xs text-slate-500">Fast courier for documents, packages & food across Lilongwe.</p>
+        </div>
+        <div class="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-[24px]">package_2</span>
+        </div>
+      </div>
+
+      <!-- Package Category Selector -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Package Category</label>
+        <div class="grid grid-cols-4 gap-2">
+          <button type="button" onclick="selectParcelCategory('doc', this)"
+            class="parcel-cat-btn selected p-2 rounded-2xl border-2 border-purple-600 bg-purple-50/60 flex flex-col items-center gap-1 text-center">
+            <span class="material-symbols-outlined text-[20px] text-purple-600">description</span>
+            <span class="text-[10px] font-bold text-slate-900">Documents</span>
+          </button>
+          <button type="button" onclick="selectParcelCategory('small', this)"
+            class="parcel-cat-btn p-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col items-center gap-1 text-center">
+            <span class="material-symbols-outlined text-[20px] text-slate-600">inventory_2</span>
+            <span class="text-[10px] font-bold text-slate-700">Small Box</span>
+          </button>
+          <button type="button" onclick="selectParcelCategory('food', this)"
+            class="parcel-cat-btn p-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col items-center gap-1 text-center">
+            <span class="material-symbols-outlined text-[20px] text-slate-600">lunch_dining</span>
+            <span class="text-[10px] font-bold text-slate-700">Food / Cafe</span>
+          </button>
+          <button type="button" onclick="selectParcelCategory('gadget', this)"
+            class="parcel-cat-btn p-2 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col items-center gap-1 text-center">
+            <span class="material-symbols-outlined text-[20px] text-slate-600">devices</span>
+            <span class="text-[10px] font-bold text-slate-700">Electronics</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Address Inputs -->
+      <div class="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm flex flex-col gap-3 mt-1">
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Pickup Location in Lilongwe</label>
+          <div class="flex items-center gap-2 mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+            <input id="parcel-pickup-input" type="text" value="Gateway Mall, Kaunda Road, Area 47"
+              class="bg-transparent text-xs font-bold text-slate-900 outline-none flex-1" />
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Recipient Delivery Address</label>
+          <div class="flex items-center gap-2 mt-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+            <span class="w-2 h-2 rounded-full bg-purple-600"></span>
+            <input id="parcel-dest-input" type="text" placeholder="e.g. EPTL Printing, Murray Rd, Area 4..."
+              value="EPTL Malawi, Plot 4/122, Area 4 Industrial"
+              class="bg-transparent text-xs font-bold text-slate-900 outline-none flex-1" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Receiver Name</label>
+            <input id="parcel-receiver-name" type="text" placeholder="e.g. Peter Banda"
+              value="Peter Banda (EPTL Front Desk)"
+              class="w-full h-10 px-3 bg-slate-50 rounded-xl text-xs font-semibold border border-slate-200 outline-none mt-1" />
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Receiver Phone</label>
+            <input id="parcel-receiver-phone" type="text" placeholder="e.g. +265 99 223 3445" value="+265 99 223 3445"
+              class="w-full h-10 px-3 bg-slate-50 rounded-xl text-xs font-semibold border border-slate-200 outline-none mt-1 font-mono" />
+          </div>
+        </div>
+
+        <!-- Service Tier -->
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <div onclick="selectParcelSpeed('express')" id="parcel-speed-express"
+            class="p-3 rounded-2xl border-2 border-purple-600 bg-purple-50/60 cursor-pointer flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black text-slate-900">⚡ Express</span>
+              <span class="text-[10px] bg-purple-600 text-white font-bold px-1.5 py-0.2 rounded">~20m</span>
+            </div>
+            <span class="text-xs font-extrabold text-purple-900 mt-2">MK 2,500</span>
+          </div>
+          <div onclick="selectParcelSpeed('standard')" id="parcel-speed-standard"
+            class="p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black text-slate-900">Standard</span>
+              <span class="text-[10px] text-slate-400 font-bold">~45m</span>
+            </div>
+            <span class="text-xs font-extrabold text-slate-800 mt-2">MK 1,800</span>
+          </div>
+        </div>
+
+        <button onclick="submitParcelBooking()"
+          class="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-xs shadow-md mt-1 transition-all active:scale-98 flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[18px] text-purple-400">send</span>
+          <span id="parcel-submit-btn-text">Dispatch Parcel Courier &bull; MK 2,500</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 7: TRAVEL & INTERCITY                     -->
+    <!-- ============================================== -->
+    <section id="view-travel" class="view-panel hidden flex flex-col w-full px-4 py-4 gap-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-black text-slate-900">AArohan Intercity Travel</h2>
+          <p class="text-xs text-slate-500">Comfortable outstation cabs & shuttles across Malawi.</p>
+        </div>
+        <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
+          <span class="material-symbols-outlined text-[24px]">luggage</span>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-2.5 mt-1">
+        <!-- Corridor 1: Blantyre -->
+        <div onclick="openIntercityModal('Blantyre City Centre', 310, 45000, 20000)"
+          class="p-4 bg-white rounded-3xl border border-slate-200 flex items-center justify-between shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] group">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center transition-colors">
+              <span class="material-symbols-outlined text-[22px]">domain</span>
+            </div>
+            <div>
+              <h4 class="font-bold text-xs sm:text-sm text-slate-900">Lilongwe &rarr; Blantyre</h4>
+              <span class="text-[11px] text-slate-400">310 km &bull; ~4.5 hrs &bull; M1 Highway</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="font-black text-xs sm:text-sm text-emerald-700 block">MK 45,000</span>
+            <span class="text-[10px] text-slate-400">Shuttle from MK 20,000</span>
+          </div>
+        </div>
+
+        <!-- Corridor 2: Mzuzu -->
+        <div onclick="openIntercityModal('Mzuzu Clock Tower', 360, 60000, 25000)"
+          class="p-4 bg-white rounded-3xl border border-slate-200 flex items-center justify-between shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] group">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white flex items-center justify-center transition-colors">
+              <span class="material-symbols-outlined text-[22px]">terrain</span>
+            </div>
+            <div>
+              <h4 class="font-bold text-xs sm:text-sm text-slate-900">Lilongwe &rarr; Mzuzu</h4>
+              <span class="text-[11px] text-slate-400">360 km &bull; ~5 hrs &bull; Northern Corridor</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="font-black text-xs sm:text-sm text-emerald-700 block">MK 60,000</span>
+            <span class="text-[10px] text-slate-400">Shuttle from MK 25,000</span>
+          </div>
+        </div>
+
+        <!-- Corridor 3: Salima / Lake Malawi -->
+        <div onclick="openIntercityModal('Salima Lakeshore (Senga Bay)', 100, 25000, 12000)"
+          class="p-4 bg-white rounded-3xl border border-slate-200 flex items-center justify-between shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] group">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white flex items-center justify-center transition-colors">
+              <span class="material-symbols-outlined text-[22px]">beach_access</span>
+            </div>
+            <div>
+              <h4 class="font-bold text-xs sm:text-sm text-slate-900">Lilongwe &rarr; Salima Beach</h4>
+              <span class="text-[11px] text-slate-400">100 km &bull; ~1.5 hrs &bull; Lake Malawi Resorts</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="font-black text-xs sm:text-sm text-emerald-700 block">MK 25,000</span>
+            <span class="text-[10px] text-slate-400">Shuttle from MK 12,000</span>
+          </div>
+        </div>
+
+        <!-- Corridor 4: Kasungu -->
+        <div onclick="openIntercityModal('Kasungu Boma', 130, 30000, 15000)"
+          class="p-4 bg-white rounded-3xl border border-slate-200 flex items-center justify-between shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-[0.99] group">
+          <div class="flex items-center gap-3">
+            <div
+              class="w-11 h-11 rounded-2xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white flex items-center justify-center transition-colors">
+              <span class="material-symbols-outlined text-[22px]">agriculture</span>
+            </div>
+            <div>
+              <h4 class="font-bold text-xs sm:text-sm text-slate-900">Lilongwe &rarr; Kasungu</h4>
+              <span class="text-[11px] text-slate-400">130 km &bull; ~1.8 hrs &bull; Central Plains</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="font-black text-xs sm:text-sm text-emerald-700 block">MK 30,000</span>
+            <span class="text-[10px] text-slate-400">Shuttle from MK 15,000</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 8: PROFILE & WALLET                       -->
+    <!-- ============================================== -->
+    <section id="view-profile" class="view-panel hidden flex flex-col w-full px-4 py-4 gap-3">
+      <!-- Rider Card -->
+      <div class="flex items-center justify-between bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
+        <div class="flex items-center gap-3">
+          <div
+            class="w-13 h-13 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-base shadow-sm ring-2 ring-emerald-500/30"
+            id="profile-rider-avatar">
+            CB
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <h3 class="font-black text-sm text-slate-900" id="profile-rider-name">Chisomo Banda</h3>
+              <span
+                class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
+            </div>
+            <span class="text-xs text-slate-400 font-medium" id="profile-rider-sub">+265 99 123 4567 &bull; 4.90 ★
+              Lilongwe</span>
+          </div>
+        </div>
+        <button onclick="openProfileEditModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-colors">
+          <span class="material-symbols-outlined text-[18px]">edit</span>
+        </button>
+      </div>
+
+      <!-- Wallet Card -->
+      <div
+        class="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white rounded-3xl p-5 shadow-xl flex flex-col gap-2 relative overflow-hidden border border-emerald-900/30">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span class="font-bold uppercase tracking-wider text-[10px]">AArohan Kwacha Wallet</span>
+          <span
+            class="text-emerald-400 font-bold flex items-center gap-1 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800/40 text-[10px]">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Instant Escrow
+          </span>
+        </div>
+        <div class="flex items-baseline gap-1 mt-1">
+          <span class="text-3xl font-black text-white" id="wallet-main-balance">MK 38,500</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <button onclick="openWalletTopUpModal()"
+            class="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-black text-center shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px]">add_circle</span>
+            <span>Top Up (Airtel/TNM)</span>
+          </button>
+          <button onclick="openP2PTransferModal()"
+            class="py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold text-center transition-all active:scale-98 flex items-center justify-center gap-1.5 border border-white/10">
+            <span class="material-symbols-outlined text-[16px]">send_money</span>
+            <span>Send Kwacha</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Saved Places Shortcut -->
+      <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/90 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-900">Saved Places in Lilongwe</span>
+          <button onclick="openPickupLocationModal()" class="text-[11px] font-bold text-emerald-700 hover:underline">+
+            Add Place</button>
+        </div>
+        <div class="flex items-center gap-2 pt-1 overflow-x-auto no-scrollbar">
+          <div onclick="selectDestinationFromSearch('Gateway Mall, Kaunda Road, Area 47')"
+            class="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 cursor-pointer shrink-0">
+            <span class="material-symbols-outlined text-slate-700 text-[18px]">home</span>
+            <div class="flex flex-col">
+              <span class="text-[11px] font-bold text-slate-900">Home</span>
+              <span class="text-[9px] text-slate-400">Area 47 Sector 3</span>
+            </div>
+          </div>
+          <div onclick="selectDestinationFromSearch('City Centre (Capital Hill)')"
+            class="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 cursor-pointer shrink-0">
+            <span class="material-symbols-outlined text-slate-700 text-[18px]">work</span>
+            <div class="flex flex-col">
+              <span class="text-[11px] font-bold text-slate-900">Work</span>
+              <span class="text-[9px] text-slate-400">Capital Hill, Area 20</span>
+            </div>
+          </div>
+          <div onclick="selectDestinationFromSearch('EPTL Malawi (Entire Printers & Traders Limited)')"
+            class="px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center gap-2 cursor-pointer shrink-0">
+            <span class="material-symbols-outlined text-emerald-600 text-[18px]">print</span>
+            <div class="flex flex-col">
+              <span class="text-[11px] font-bold text-slate-900">EPTL Printing</span>
+              <span class="text-[9px] text-slate-400">Area 4 Industrial</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map Provider & API Key Settings Card -->
+      <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/90 flex flex-col gap-2.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[22px]">map</span>
+            </div>
+            <div>
+              <h4 class="font-extrabold text-xs text-slate-900">Map API & Navigation Tiles</h4>
+              <span class="text-[11px] text-slate-400">Mapbox, Google Maps, or Carto</span>
+            </div>
+          </div>
+          <button onclick="openMapConfigModal()"
+            class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs active:scale-95 transition-all">
+            Configure
+          </button>
+        </div>
+        <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+          <span class="text-slate-500">Active Provider:</span>
+          <span class="font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full"
+            id="profile-map-provider-badge">CartoDB Voyager (Free)</span>
+        </div>
+      </div>
+
+      <!-- Transactions -->
+      <div class="flex flex-col gap-2 mt-1">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Recent Transactions</span>
+        <div id="wallet-tx-list" class="flex flex-col gap-2"></div>
+      </div>
+    </section>
+
+
+  </main>
+
+  <!-- ============================================== -->
+  <!-- MODAL: SEARCH AUTOCOMPLETE (FULL-SCREEN OVERLAY)-->
+  <!-- ============================================== -->
+  <div id="search-modal"
+    class="fixed inset-0 z-[100] bg-white hidden flex-col w-full max-w-md mx-auto h-screen overflow-hidden animate-in fade-in duration-150">
+
+    <!-- Full-Screen Top Header Bar -->
+    <div class="px-4 pt-safe pt-3 pb-3 border-b border-slate-100 bg-white flex flex-col gap-3 shadow-xs">
+      <div class="flex items-center justify-between">
+        <button onclick="closeSearchModal()"
+          class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
+          <span class="material-symbols-outlined text-[24px]">arrow_back</span>
+        </button>
+        <span class="font-extrabold text-base text-slate-900">Where to in Lilongwe?</span>
+        <button onclick="clearSearchInput()"
+          class="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Clear</button>
+      </div>
+
+      <!-- Route Inputs Box (Uber / Rapido dual box) -->
+      <div class="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 flex flex-col gap-2">
+        <!-- Pickup Display -->
+        <div class="flex items-center gap-3">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0 ring-4 ring-emerald-100"></span>
+          <div class="flex-1 min-w-0">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pickup</span>
+            <span class="text-xs font-bold text-slate-800 truncate block" id="search-pickup-display">Gateway Mall,
+              Kaunda Road, Area 47</span>
+          </div>
+        <!-- Intermediate Stop (Via Waypoint) -->
+        <div id="search-via-container" class="hidden flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 ring-4 ring-amber-100"></span>
+            <div class="min-w-0">
+              <span class="text-[9px] font-bold text-amber-600 uppercase tracking-wider block" data-i18n="viaStopLabel">Intermediate Stop</span>
+              <span class="text-xs font-bold text-slate-900 truncate block" id="search-via-name-display">Via: Crossroads Hotel</span>
+            </div>
+          </div>
+          <button onclick="removeIntermediateStop()" class="text-slate-400 hover:text-red-500 p-1 active:scale-95 transition-all">
+            <span class="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+
+        <div class="border-t border-slate-200/60 ml-5 my-0.5"></div>
+
+        <!-- Destination Search Input -->
+        <div class="flex items-center gap-3">
+          <span class="w-2.5 h-2.5 rounded-sm bg-slate-900 shrink-0 ring-4 ring-slate-200"></span>
+          <div class="flex-1 relative flex items-center">
+            <input id="location-search-input" type="text"
+              placeholder="Type Area 10, Area 18, Area 49, Lumbadzi, EPTL..."
+              class="w-full bg-transparent text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none pr-6"
+              autocomplete="off" autocorrect="off" />
+            <button onclick="clearSearchInput()" id="clear-search-btn"
+              class="hidden absolute right-0 text-slate-400 hover:text-slate-600">
+              <span class="material-symbols-outlined text-[16px]">cancel</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Chips: Area 10, Area 18, Area 49, Lumbadzi, EPTL -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 pb-0.5">
+        <button onclick="quickFilterSearch('EPTL Malawi')"
+          class="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-bold shrink-0 flex items-center gap-1 active:scale-95">🖨️
+          EPTL Printing</button>
+        <button onclick="quickFilterSearch('Area 10')"
+          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🌳
+          Area 10</button>
+        <button onclick="quickFilterSearch('Area 18')"
+          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">⛽
+          Area 18</button>
+        <button onclick="quickFilterSearch('Area 49')"
+          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏟️
+          Area 49</button>
+        <button onclick="quickFilterSearch('Lumbadzi')"
+          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">✈️
+          Lumbadzi</button>
+        <button onclick="quickFilterSearch('City Centre')"
+          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏛️
+          City Centre</button>
+        <button onclick="quickFilterSearch('Old Town')"
+          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🛍️
+          Old Town</button>
+        <button onclick="quickFilterSearch('Kamuzu Hospital')"
+          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏥
+          Kamuzu Hospital</button>
+      </div>
+    </div>
+
+    <!-- Live Results List -->
+    <div class="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 pb-safe" id="search-results-list"></div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: IN-APP CHAT                             -->
+  <!-- ============================================== -->
+  <div id="chat-modal"
+    class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div
+      class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-4 shadow-2xl flex flex-col gap-3 h-[500px]">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          <h4 class="font-extrabold text-xs text-slate-900">Captain Blessings Phiri</h4>
+        </div>
+        <button onclick="closeChatDrawer()"
+          class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+          <span class="material-symbols-outlined text-[16px]">close</span>
+        </button>
+      </div>
+
+      <div id="chat-messages-container" class="flex-1 overflow-y-auto flex flex-col gap-2 p-1"></div>
+
+      <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 border-t border-slate-100">
+        <button onclick="sendCannedChat('📍 I am at Gateway Mall main entrance')"
+          class="whitespace-nowrap px-2.5 py-1 bg-slate-100 rounded-full text-[11px] font-semibold">📍 At main
+          entrance</button>
+        <button onclick="sendCannedChat('🧥 Wearing blue jacket')"
+          class="whitespace-nowrap px-2.5 py-1 bg-slate-100 rounded-full text-[11px] font-semibold">🧥 Blue
+          jacket</button>
+        <button onclick="sendCannedChat('⏳ Coming out in 1 min')"
+          class="whitespace-nowrap px-2.5 py-1 bg-slate-100 rounded-full text-[11px] font-semibold">⏳ 1 min</button>
+      </div>
+
+      <div class="flex items-center gap-1.5">
+        <input id="chat-custom-input" type="text" placeholder="Type note to Captain Blessings..."
+          class="flex-1 h-10 bg-slate-50 rounded-xl px-3 text-xs border border-slate-200 outline-none" />
+        <button onclick="sendCustomChat()"
+          class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+          <span class="material-symbols-outlined text-[18px]">send</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: IN-APP MASKED CALL                      -->
+  <!-- ============================================== -->
+  <div id="call-modal"
+    class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md hidden flex flex-col items-center justify-between p-8 text-white">
+    <div class="flex flex-col items-center gap-2 pt-8">
+      <span class="text-xs text-slate-400 uppercase tracking-widest font-extrabold" id="call-status-label">Calling
+        Captain Blessings...</span>
+      <div
+        class="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center text-white mt-4 border-2 border-white/20">
+        <span class="material-symbols-outlined text-[40px]">person</span>
+      </div>
+      <h3 class="text-xl font-black mt-2">Blessings Phiri</h3>
+      <span class="text-xs text-slate-400">Masked Transit Line &bull; Red Boxer 150 (LL 4920 B)</span>
+      <span class="text-2xl font-mono font-bold mt-2 text-emerald-400" id="call-timer-label">00:00</span>
+    </div>
+
+    <div class="flex items-center gap-6 pb-12">
+      <button onclick="toggleCallMute()" id="btn-call-mute"
+        class="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white">
+        <span class="material-symbols-outlined text-[24px]">mic_off</span>
+      </button>
+      <button onclick="endCallScreen()"
+        class="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center text-white shadow-xl active:scale-95">
+        <span class="material-symbols-outlined text-[28px]">call_end</span>
+      </button>
+      <button onclick="toggleCallSpeaker()" id="btn-call-speaker"
+        class="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-white">
+        <span class="material-symbols-outlined text-[24px]">volume_up</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: FAKE SAFETY CALL                        -->
+  <!-- ============================================== -->
+  <div id="fake-call-modal"
+    class="fixed inset-0 z-50 bg-[#001f3f]/95 backdrop-blur-md hidden flex flex-col items-center justify-between p-8 text-white">
+    <div class="flex flex-col items-center gap-2 pt-12">
+      <span class="text-xs font-bold text-white/70 uppercase tracking-widest">Incoming Call</span>
+      <div
+        class="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center phone-ringing mt-4 border-2 border-white/30">
+        <span class="material-symbols-outlined text-[40px] text-white">person</span>
+      </div>
+      <h3 class="text-2xl font-black mt-3">Family (Home)</h3>
+      <span class="text-xs text-white/60">+265 99 824 1120 &bull; Mobile</span>
+    </div>
+
+    <div class="w-full max-w-xs flex items-center justify-around pb-12">
+      <button onclick="dismissFakeCall()" class="flex flex-col items-center gap-1">
+        <div class="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center text-white shadow-lg">
+          <span class="material-symbols-outlined text-[28px]">call_end</span>
+        </div>
+        <span class="text-xs text-white/80 font-bold">Decline</span>
+      </button>
+
+      <button onclick="answerFakeCall()" class="flex flex-col items-center gap-1">
+        <div
+          class="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg animate-bounce">
+          <span class="material-symbols-outlined text-[28px]">call</span>
+        </div>
+        <span class="text-xs text-white/80 font-bold">Answer</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: RAPID SOS                               -->
+  <!-- ============================================== -->
+  <div id="sos-modal"
+    class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1.5 text-red-600">
+          <span class="material-symbols-outlined text-[24px]">warning</span>
+          <h3 class="font-extrabold text-base text-slate-900">Emergency Response</h3>
+        </div>
+        <button onclick="closeSosModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+      <p class="text-xs text-slate-500">Your live location at Gateway Mall, Kaunda Road will immediately transmit to
+        Malawi Police (997) and AArohan 24/7 Security Desk.</p>
+      <div class="flex flex-col gap-2 mt-1">
+        <a href="tel:997"
+          class="w-full h-12 bg-red-600 text-white rounded-xl flex items-center justify-center gap-2 font-bold text-xs shadow">
+          <span class="material-symbols-outlined text-[20px]">call</span>
+          <span>Call Police (997)</span>
+        </a>
+        <button onclick="confirmSosAlert()"
+          class="w-full h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center gap-2 font-bold text-xs shadow">
+          <span class="material-symbols-outlined text-[20px]">support_agent</span>
+          <span>Alert AArohan Security Desk</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: SHARE TRIP WITH TRUSTED CONTACT         -->
+  <!-- ============================================== -->
+  <div id="share-trip-modal"
+    class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">share_location</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">Share Live Trip</h3>
+            <span class="text-[10px] text-slate-400">Trusted contact tracking link</span>
+          </div>
+        </div>
+        <button onclick="closeShareTripModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-600">Send this secure link so your family or friends can track your live GPS, captain
+        info, and vehicle registration in real time.</p>
+
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 flex items-center gap-2">
+        <input id="share-trip-url-input" type="text" readonly
+          class="text-xs font-mono bg-transparent flex-1 outline-none text-slate-700" value="" />
+        <button onclick="copyTripShareUrl()"
+          class="px-2.5 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-lg hover:bg-slate-800 active:scale-95 transition-all">Copy</button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 mt-1">
+        <a id="share-sms-link" href="#"
+          class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs shadow-xs transition-colors">
+          <span class="material-symbols-outlined text-[16px]">sms</span>
+          <span>Send SMS</span>
+        </a>
+        <a id="share-whatsapp-link" href="#" target="_blank"
+          class="h-10 bg-[#25D366] hover:opacity-90 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs shadow-xs transition-colors">
+          <span class="material-symbols-outlined text-[16px]">chat</span>
+          <span>WhatsApp</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: PICKUP LOCATION SELECTOR                -->
+  <!-- ============================================== -->
+  <div id="pickup-modal"
+    class="fixed inset-0 z-[115] bg-black/50 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div
+      class="bg-white w-full max-w-md mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5 max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">my_location</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">Choose Lilongwe Pickup Location</h3>
+            <span class="text-[10px] text-slate-400">Select landmark or enter custom address</span>
+          </div>
+        </div>
+        <button onclick="closePickupLocationModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <button onclick="useCurrentGpsPickup()"
+        class="w-full py-2.5 px-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-xs flex items-center justify-between active:scale-98 transition-all">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-ping"></span>
+          <span>Use Live Device GPS Pin</span>
+        </div>
+        <span
+          class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-extrabold">Accurate</span>
+      </button>
+
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Custom Pickup Street or
+          Landmark</label>
+        <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+          <span class="material-symbols-outlined text-[18px] text-slate-400">search</span>
+          <input id="pickup-custom-input" type="text" placeholder="Type area, street or building..."
+            class="bg-transparent text-xs font-bold text-slate-900 outline-none flex-1" />
+          <button onclick="applyCustomPickup()"
+            class="px-2.5 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-lg hover:bg-slate-800">Set</button>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-1.5 pt-1">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Popular Lilongwe Pickup Spots</span>
+
+        <div onclick="selectPickupLandmark('Gateway Mall, Kaunda Road, Area 47', -13.9722, 33.7667)"
+          class="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 cursor-pointer flex items-center justify-between group">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[18px] text-emerald-600">storefront</span>
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-900 group-hover:text-emerald-800">Gateway Mall (Main
+                Entrance)</span>
+              <span class="text-[10px] text-slate-400">Kaunda Road, Area 47 Sector 3</span>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-slate-300 text-[16px]">chevron_right</span>
+        </div>
+
+        <div onclick="selectPickupLandmark('Bingu National Stadium, Area 49', -13.9482, 33.7431)"
+          class="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 cursor-pointer flex items-center justify-between group">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[18px] text-slate-500">stadium</span>
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-900 group-hover:text-emerald-800">Bingu National Stadium</span>
+              <span class="text-[10px] text-slate-400">Kaunda Rd, near Area 49 Gulliver</span>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-slate-300 text-[16px]">chevron_right</span>
+        </div>
+
+        <div onclick="selectPickupLandmark('City Centre, Capital Hill', -13.9620, 33.7880)"
+          class="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 cursor-pointer flex items-center justify-between group">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[18px] text-slate-500">account_balance</span>
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-900 group-hover:text-emerald-800">City Centre (Capital
+                Hill)</span>
+              <span class="text-[10px] text-slate-400">Independence Drive, Area 20</span>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-slate-300 text-[16px]">chevron_right</span>
+        </div>
+
+        <div onclick="selectPickupLandmark('Old Town Mall, Kamuzu Procession Rd', -13.9840, 33.7720)"
+          class="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 cursor-pointer flex items-center justify-between group">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[18px] text-slate-500">shopping_bag</span>
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-900 group-hover:text-emerald-800">Old Town Mall & Market</span>
+              <span class="text-[10px] text-slate-400">Kamuzu Procession Rd, Area 2</span>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-slate-300 text-[16px]">chevron_right</span>
+        </div>
+
+        <div onclick="selectPickupLandmark('EPTL Malawi, Area 4 Industrial', -13.9933, 33.6777)"
+          class="p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 cursor-pointer flex items-center justify-between group">
+          <div class="flex items-center gap-2.5">
+            <span class="material-symbols-outlined text-[18px] text-emerald-600">print</span>
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-900 group-hover:text-emerald-800">EPTL Malawi Printing</span>
+              <span class="text-[10px] text-slate-400">Plot 4/122, Murray Rd, Area 4 Industrial</span>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-slate-300 text-[16px]">chevron_right</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: PROMO VOUCHERS                          -->
+  <!-- ============================================== -->
+  <div id="voucher-modal"
+    class="fixed inset-0 z-[115] bg-black/50 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">local_offer</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">AArohan Vouchers & Discounts</h3>
+            <span class="text-[10px] text-slate-400">Apply discounts to your Lilongwe ride</span>
+          </div>
+        </div>
+        <button onclick="closePromoModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+        <input id="voucher-code-input" type="text" placeholder="Enter coupon code..."
+          class="bg-transparent text-xs font-black uppercase text-slate-900 outline-none flex-1 font-mono tracking-wider" />
+        <button onclick="applyCustomVoucher()"
+          class="px-3 py-1.5 bg-slate-900 text-white text-[11px] font-bold rounded-lg hover:bg-slate-800 active:scale-95 transition-all">Apply</button>
+      </div>
+
+      <div class="flex flex-col gap-2 pt-1">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Available Lilongwe Offers</span>
+
+        <div onclick="applyPromoCode('AAROHAN500')"
+          class="p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between cursor-pointer hover:bg-emerald-100/70 transition-colors">
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-black text-xs text-emerald-950 font-mono">AAROHAN500</span>
+              <span class="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded">Save MK 500</span>
+            </div>
+            <span class="text-[10px] text-emerald-800 mt-0.5 block">Flat MK 500 off any Moto, Auto, or Cab ride</span>
+          </div>
+          <button class="px-2.5 py-1 bg-emerald-700 text-white text-[10px] font-bold rounded-lg shadow-xs">Use</button>
+        </div>
+
+        <div onclick="applyPromoCode('CHITIPIKABAZA')"
+          class="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center justify-between cursor-pointer hover:bg-amber-100/70 transition-colors">
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-black text-xs text-amber-950 font-mono">CHITIPIKABAZA</span>
+              <span class="text-[9px] bg-amber-600 text-white font-bold px-1.5 py-0.2 rounded">Save MK 750</span>
+            </div>
+            <span class="text-[10px] text-amber-800 mt-0.5 block">Special discount on AArohan Moto rides</span>
+          </div>
+          <button class="px-2.5 py-1 bg-amber-700 text-white text-[10px] font-bold rounded-lg shadow-xs">Use</button>
+        </div>
+
+        <div onclick="applyPromoCode('FIRSTLILONGWE')"
+          class="p-3 rounded-2xl bg-purple-50/70 border border-purple-200 flex items-center justify-between cursor-pointer hover:bg-purple-100/70 transition-colors">
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-black text-xs text-purple-950 font-mono">FIRSTLILONGWE</span>
+              <span class="text-[9px] bg-purple-600 text-white font-bold px-1.5 py-0.2 rounded">20% OFF</span>
+            </div>
+            <span class="text-[10px] text-purple-800 mt-0.5 block">First trip welcome discount in Lilongwe</span>
+          </div>
+          <button class="px-2.5 py-1 bg-purple-700 text-white text-[10px] font-bold rounded-lg shadow-xs">Use</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: WALLET TOP UP (AIRTEL / TNM)            -->
+  <!-- ============================================== -->
+  <div id="wallet-topup-modal"
+    class="fixed inset-0 z-[125] bg-black/60 backdrop-blur-md hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">Top Up AArohan Wallet</h3>
+            <span class="text-[10px] text-slate-400">Instant Mobile Money Escrow Rails</span>
+          </div>
+        </div>
+        <button onclick="closeWalletTopUpModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <!-- Provider Choice -->
+      <div class="grid grid-cols-2 gap-2">
+        <div onclick="selectTopUpProvider('airtel', this)" id="topup-prov-airtel"
+          class="p-3 rounded-2xl border-2 border-red-600 bg-red-50/40 cursor-pointer flex items-center gap-2.5">
+          <div
+            class="w-7 h-7 rounded-full bg-red-600 text-white font-black text-[9px] flex items-center justify-center">
+            AIR</div>
+          <div class="flex flex-col">
+            <span class="text-xs font-bold text-slate-900">Airtel Money</span>
+            <span class="text-[9px] text-slate-400">099 824 1120</span>
+          </div>
+        </div>
+        <div onclick="selectTopUpProvider('tnm', this)" id="topup-prov-tnm"
+          class="p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer flex items-center gap-2.5">
+          <div
+            class="w-7 h-7 rounded-full bg-emerald-700 text-white font-black text-[9px] flex items-center justify-center">
+            TNM</div>
+          <div class="flex flex-col">
+            <span class="text-xs font-bold text-slate-900">TNM Mpamba</span>
+            <span class="text-[9px] text-slate-400">088 765 4321</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Amount Grid -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Select Top Up Amount</label>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button onclick="setTopUpAmount(5000, this)"
+            class="topup-amt-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100">5k</button>
+          <button onclick="setTopUpAmount(10000, this)"
+            class="topup-amt-btn py-2 rounded-xl border-2 border-slate-900 bg-slate-900 text-xs font-black text-white selected">10k</button>
+          <button onclick="setTopUpAmount(25000, this)"
+            class="topup-amt-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100">25k</button>
+          <button onclick="setTopUpAmount(50000, this)"
+            class="topup-amt-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-800 hover:bg-slate-100">50k</button>
+        </div>
+      </div>
+
+      <!-- Custom Amount Input -->
+      <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+        <span class="text-xs font-black text-slate-500">MK</span>
+        <input id="topup-amount-input" type="number" value="10000"
+          class="bg-transparent text-sm font-black text-slate-900 outline-none flex-1 font-mono" />
+      </div>
+
+      <button onclick="executeWalletTopUpAction()"
+        class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 mt-1">
+        <span class="material-symbols-outlined text-[18px] text-emerald-400">bolt</span>
+        <span id="topup-submit-btn-text">Authorize Top Up &bull; MK 10,000</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: P2P KWACHA TRANSFER                     -->
+  <!-- ============================================== -->
+  <div id="p2p-modal"
+    class="fixed inset-0 z-[125] bg-black/60 backdrop-blur-md hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">send_money</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">Send AArohan Kwacha</h3>
+            <span class="text-[10px] text-slate-400">Zero fee P2P transfer to any Malawi number</span>
+          </div>
+        </div>
+        <button onclick="closeP2PTransferModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recipient Malawi Mobile
+          Number</label>
+        <input id="p2p-phone-input" type="text" placeholder="+265 99 554 1122" value="+265 99 554 1122"
+          class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none mt-1 font-mono" />
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Amount to Send (MK)</label>
+        <input id="p2p-amount-input" type="number" placeholder="5000" value="5000"
+          class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-900 outline-none mt-1 font-mono" />
+      </div>
+
+      <button onclick="executeP2PTransferAction()"
+        class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 mt-1">
+        <span class="material-symbols-outlined text-[18px] text-emerald-400">send</span>
+        <span>Send Instant Kwacha</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: RENTAL DETAILS & RESERVATION            -->
+  <!-- ============================================== -->
+  <div id="rental-modal"
+    class="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[22px]">car_rental</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900" id="rental-modal-veh-name">Honda Ace 125</h3>
+            <span class="text-[10px] text-slate-400">AArohan Ownly Self-Drive</span>
+          </div>
+        </div>
+        <button onclick="closeRentalModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <!-- Duration Selection -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rental Duration</label>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button onclick="selectRentalDuration(2, 'hours', this)"
+            class="rental-dur-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700">2
+            Hrs</button>
+          <button onclick="selectRentalDuration(4, 'hours', this)"
+            class="rental-dur-btn py-2 rounded-xl border-2 border-slate-900 bg-slate-900 text-[11px] font-bold text-white selected">4
+            Hrs</button>
+          <button onclick="selectRentalDuration(1, 'days', this)"
+            class="rental-dur-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700">1
+            Day</button>
+          <button onclick="selectRentalDuration(3, 'days', this)"
+            class="rental-dur-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700">3
+            Days</button>
+        </div>
+      </div>
+
+      <!-- Lilongwe Depot -->
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pickup & Return Depot</label>
+        <select id="rental-depot-select"
+          class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none mt-1">
+          <option value="Gateway Mall Hub">📍 Gateway Mall Hub (Area 47 Sector 3)</option>
+          <option value="City Centre Hub">📍 City Centre Hub (Capital Hill, Area 20)</option>
+          <option value="Old Town Hub">📍 Old Town Hub (Kamuzu Procession Rd, Area 2)</option>
+        </select>
+      </div>
+
+      <!-- Summary Card -->
+      <div class="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+        <div>
+          <span class="text-[10px] text-slate-400 font-bold block">Total Rental Fare</span>
+          <span class="text-base font-black text-slate-900" id="rental-total-fare">MK 12,000</span>
+        </div>
+        <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">Fuel & Helmets
+          Included</span>
+      </div>
+
+      <button onclick="confirmRentalReservationAction()"
+        class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-[18px] text-emerald-400">check_circle</span>
+        <span>Confirm Rental & Lock Escrow</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: INTERCITY TRAVEL RESERVATION            -->
+  <!-- ============================================== -->
+  <div id="intercity-modal"
+    class="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-2xl bg-blue-100 text-blue-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[22px]">luggage</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900" id="intercity-modal-route">Lilongwe &rarr; Blantyre</h3>
+            <span class="text-[10px] text-slate-400" id="intercity-modal-dist">310 km &bull; M1 Highway Corridor</span>
+          </div>
+        </div>
+        <button onclick="closeIntercityModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <!-- Departure Slot -->
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Departure Slot</label>
+        <div class="grid grid-cols-3 gap-1.5 mt-1">
+          <button onclick="selectDepartureSlot('07:00', this)"
+            class="slot-btn selected py-2 rounded-xl border-2 border-slate-900 bg-slate-900 text-white text-[11px] font-bold">07:00
+            AM</button>
+          <button onclick="selectDepartureSlot('11:30', this)"
+            class="slot-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-[11px] font-bold">11:30
+            AM</button>
+          <button onclick="selectDepartureSlot('16:00', this)"
+            class="slot-btn py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 text-[11px] font-bold">04:00
+            PM</button>
+        </div>
+      </div>
+
+      <!-- Vehicle Mode -->
+      <div class="grid grid-cols-2 gap-2">
+        <div onclick="selectIntercityMode('sedan')" id="mode-sedan"
+          class="p-3 rounded-2xl border-2 border-blue-600 bg-blue-50/60 cursor-pointer flex flex-col justify-between">
+          <span class="text-xs font-black text-slate-900">Private Sedan</span>
+          <span class="text-[10px] text-slate-500">AC &bull; Up to 4 pax</span>
+          <span class="text-xs font-black text-blue-900 mt-2" id="intercity-sedan-price">MK 45,000</span>
+        </div>
+        <div onclick="selectIntercityMode('shuttle')" id="mode-shuttle"
+          class="p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer flex flex-col justify-between">
+          <span class="text-xs font-black text-slate-900">Express Shuttle</span>
+          <span class="text-[10px] text-slate-500">Per Passenger Seat</span>
+          <span class="text-xs font-black text-slate-800 mt-2" id="intercity-shuttle-price">MK 20,000</span>
+        </div>
+      </div>
+
+      <!-- Passenger Name & Phone -->
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Passenger Name</label>
+          <input id="intercity-pass-name" type="text" value="Chisomo Banda"
+            class="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none mt-1" />
+        </div>
+        <div>
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Phone Number</label>
+          <input id="intercity-pass-phone" type="text" value="+265 99 123 4567"
+            class="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none mt-1 font-mono" />
+        </div>
+      </div>
+
+      <button onclick="confirmIntercityReservationAction()"
+        class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-2">
+        <span class="material-symbols-outlined text-[18px] text-emerald-400">airplane_ticket</span>
+        <span id="intercity-submit-btn-text">Book Intercity Journey &bull; MK 45,000</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: PROFILE EDIT                            -->
+  <!-- ============================================== -->
+  <div id="profile-edit-modal"
+    class="fixed inset-0 z-[120] bg-black/60 backdrop-blur-md hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">person</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">Edit Rider Profile</h3>
+            <span class="text-[10px] text-slate-400">Lilongwe Urban Mobility Account</span>
+          </div>
+        </div>
+        <button onclick="closeProfileEditModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Full Name</label>
+        <input id="edit-profile-name" type="text" value="Chisomo Banda"
+          class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none mt-1" />
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mobile Number (Malawi)</label>
+        <input id="edit-profile-phone" type="text" value="+265 99 123 4567"
+          class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none mt-1 font-mono" />
+      </div>
+
+      <div>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Emergency Contact Phone (997
+          Alert)</label>
+        <input id="edit-profile-ice" type="text" value="+265 99 824 1120"
+          class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none mt-1 font-mono" />
+      </div>
+
+      <button onclick="saveProfileEditAction()"
+        class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 mt-1">
+        <span class="material-symbols-outlined text-[18px] text-emerald-400">check</span>
+        <span>Save Profile Updates</span>
+      </button>
+    </div>
+  </div>
+
+
+  <!-- ============================================== -->
+  <!-- MODAL: MOBILE MONEY USSD SIMULATOR (AIRTEL/TNM)-->
+  <!-- ============================================== -->
+  <div id="momo-ussd-modal"
+    class="fixed inset-0 z-[120] bg-slate-950/70 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-slate-200/80 flex flex-col gap-4">
+
+      <!-- Provider Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2.5">
+          <div id="ussd-badge-icon"
+            class="w-10 h-10 rounded-2xl bg-red-600 text-white flex items-center justify-center font-black text-sm shadow-sm">
+            AIR
+          </div>
+          <div class="flex flex-col">
+            <h3 id="ussd-provider-title" class="font-black text-base text-slate-900 leading-tight">Airtel Money Push
+              USSD</h3>
+            <span class="text-[11px] font-semibold text-slate-400">Lilongwe Instant Escrow Rail</span>
+          </div>
+        </div>
+        <button onclick="cancelUssdModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <!-- Transaction Card -->
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-2">
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-500 font-medium">Merchant:</span>
+          <span class="font-extrabold text-slate-900">AArohan Mobility Ltd</span>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-500 font-medium">Payee Number:</span>
+          <span id="ussd-phone-display" class="font-mono font-bold text-slate-800">+265 99 123 4567</span>
+        </div>
+        <div class="flex justify-between items-center text-xs">
+          <span class="text-slate-500 font-medium">Corridor:</span>
+          <span id="ussd-corridor-display" class="font-medium text-slate-800 truncate">Lilongwe Area 47 &rarr;
+            Chitipi</span>
+        </div>
+        <div class="h-px bg-slate-200 my-1"></div>
+        <div class="flex justify-between items-baseline">
+          <span class="text-xs font-bold text-slate-600">Total Authorisation:</span>
+          <span id="ussd-fare-amount" class="text-lg font-black text-slate-950">MK 4,750</span>
+        </div>
+      </div>
+
+      <!-- PIN Input Simulation -->
+      <div class="flex flex-col gap-1.5" id="ussd-pin-section">
+        <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex justify-between">
+          <span>Enter 4-Digit Mobile Money PIN</span>
+          <span class="text-emerald-600 font-semibold lowercase">sandbox PIN: 1234</span>
+        </label>
+        <div class="relative">
+          <input id="ussd-pin-input" type="password" maxlength="4" placeholder="••••"
+            class="w-full h-12 text-center text-2xl tracking-[1em] font-mono font-black bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-all" />
+        </div>
+        <p class="text-[10px] text-slate-400 text-center mt-0.5">Authorised funds will be held in secure escrow and
+          released to captain upon trip drop-off.</p>
+      </div>
+
+      <!-- Spinner Section -->
+      <div id="ussd-processing-section" class="hidden flex flex-col items-center justify-center py-4 gap-2 text-center">
+        <span class="w-9 h-9 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+        <span id="ussd-processing-label" class="text-xs font-bold text-slate-800">Verifying PIN with Airtel Africa
+          Gateway...</span>
+        <span class="text-[10px] text-slate-400">Communicating with Lilongwe Mobile Money Webhook Rail</span>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex items-center gap-2 pt-1" id="ussd-action-buttons">
+        <button onclick="cancelUssdModal()"
+          class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors">
+          Cancel
+        </button>
+        <button onclick="submitUssdAuthPin()" id="ussd-submit-btn"
+          class="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-1.5">
+          <span class="material-symbols-outlined text-[16px] text-emerald-400">lock</span>
+          <span>Authorize MK</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: INTERMEDIATE WAYPOINT (MULTI-STOP RIDE) -->
+  <!-- ============================================== -->
+  <div id="waypoint-modal"
+    class="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5 max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">add_location_alt</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900">Add Intermediate Stop</h3>
+            <span class="text-[10px] text-slate-400">Via stop along your route (+MK 500)</span>
+          </div>
+        </div>
+        <button onclick="closeIntermediateStopModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Popular Lilongwe En-Route Stops</span>
+
+        <div onclick="selectWaypoint('Crossroads Hotel')"
+          class="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between cursor-pointer hover:bg-amber-100/70 active:scale-[0.99] transition-all">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[18px]">hotel</span>
+            </div>
+            <div>
+              <span class="font-extrabold text-xs text-slate-900 block">Crossroads Hotel</span>
+              <span class="text-[10px] text-slate-500 block">Kaunda Rd / M1 Roundabout</span>
+            </div>
+          </div>
+          <span class="text-xs font-black text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-lg">+MK 500</span>
+        </div>
+
+        <div onclick="selectWaypoint('Shoprite Lilongwe')"
+          class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100 active:scale-[0.99] transition-all">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[18px]">shopping_cart</span>
+            </div>
+            <div>
+              <span class="font-extrabold text-xs text-slate-900 block">Shoprite Lilongwe</span>
+              <span class="text-[10px] text-slate-500 block">Area 4 Commercial Complex</span>
+            </div>
+          </div>
+          <span class="text-xs font-black text-slate-700 bg-slate-200/70 px-2 py-0.5 rounded-lg">+MK 500</span>
+        </div>
+
+        <div onclick="selectWaypoint('City Centre (Capital Hill)')"
+          class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100 active:scale-[0.99] transition-all">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[18px]">account_balance</span>
+            </div>
+            <div>
+              <span class="font-extrabold text-xs text-slate-900 block">Capital Hill Office Gate</span>
+              <span class="text-[10px] text-slate-500 block">Area 20 Government Complex</span>
+            </div>
+          </div>
+          <span class="text-xs font-black text-slate-700 bg-slate-200/70 px-2 py-0.5 rounded-lg">+MK 500</span>
+        </div>
+
+        <div onclick="selectWaypoint('Old Town Mall & Market')"
+          class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100 active:scale-[0.99] transition-all">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[18px]">storefront</span>
+            </div>
+            <div>
+              <span class="font-extrabold text-xs text-slate-900 block">Old Town Mall & Market</span>
+              <span class="text-[10px] text-slate-500 block">Kamuzu Procession Rd, Area 2</span>
+            </div>
+          </div>
+          <span class="text-xs font-black text-slate-700 bg-slate-200/70 px-2 py-0.5 rounded-lg">+MK 500</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: SCHEDULE RIDE FOR LATER (PRE-BOOKING)   -->
+  <!-- ============================================== -->
+  <div id="schedule-ride-modal"
+    class="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-3.5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">calendar_clock</span>
+          </div>
+          <div>
+            <h3 class="font-black text-sm text-slate-900" data-i18n="scheduleModalTitle">Schedule Lilongwe Ride</h3>
+            <span class="text-[10px] text-slate-400" data-i18n="scheduleModalSub">Pre-book for airport, meetings or late commutes</span>
+          </div>
+        </div>
+        <button onclick="closeScheduleModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <!-- Quick Preset Commutes -->
+      <div class="flex flex-col gap-1.5">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quick Presets</span>
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="selectSchedulePreset('airport')"
+            class="p-2.5 rounded-2xl border border-purple-200 bg-purple-50 hover:bg-purple-100/70 flex flex-col items-center gap-1 active:scale-95 transition-all">
+            <span class="text-base">✈️</span>
+            <span class="text-[10px] font-black text-purple-950">Airport LLW</span>
+            <span class="text-[8px] font-bold text-purple-700 bg-purple-200/60 px-1 rounded">04:30 AM</span>
+          </button>
+          <button onclick="selectSchedulePreset('capital')"
+            class="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex flex-col items-center gap-1 active:scale-95 transition-all">
+            <span class="text-base">🏛️</span>
+            <span class="text-[10px] font-black text-slate-900">Capital Hill</span>
+            <span class="text-[8px] font-bold text-slate-600 bg-slate-200/60 px-1 rounded">07:15 AM</span>
+          </button>
+          <button onclick="selectSchedulePreset('night')"
+            class="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex flex-col items-center gap-1 active:scale-95 transition-all">
+            <span class="text-base">🌙</span>
+            <span class="text-[10px] font-black text-slate-900">Late Shift</span>
+            <span class="text-[8px] font-bold text-slate-600 bg-slate-200/60 px-1 rounded">10:30 PM</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Date & Time Pickers -->
+      <div class="grid grid-cols-2 gap-2 pt-1">
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="selectDate">Pickup Date</label>
+          <input id="schedule-date-input" type="date"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-purple-600 transition-colors" />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider" data-i18n="selectTime">Pickup Time</label>
+          <input id="schedule-time-input" type="time"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none focus:border-purple-600 transition-colors" />
+        </div>
+      </div>
+
+      <!-- Flight / Driver Notes -->
+      <div class="flex flex-col gap-1">
+        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Flight # or Gate Notes</label>
+        <input id="schedule-notes-input" type="text" placeholder="e.g. Ethiopian ET877 • Arrive 15 min early"
+          class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none focus:border-purple-600 transition-colors" />
+      </div>
+
+      <div class="p-3 bg-purple-50/70 border border-purple-200/60 rounded-2xl flex items-center gap-2.5">
+        <span class="material-symbols-outlined text-purple-700 text-[20px] shrink-0">alarm_on</span>
+        <span class="text-[10px] text-purple-900 leading-tight">
+          Captain is reserved in advance. You will receive an SMS reminder 30 minutes before departure.
+        </span>
+      </div>
+
+      <button onclick="confirmScheduledRide()"
+        class="w-full py-3.5 bg-purple-700 text-white rounded-2xl font-black text-xs shadow-md shadow-purple-600/25 hover:bg-purple-800 active:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
+        data-i18n="confirmSchedule">
+        <span class="material-symbols-outlined text-[18px]">event_available</span>
+        Confirm Scheduled Ride
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: MAP PROVIDER & API KEY CONFIGURATION    -->
+  <!-- ============================================== -->
+  <div id="map-config-modal"
+    class="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
+    <div
+      class="bg-white w-full max-w-md mx-auto rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[20px]">map</span>
+          </div>
+          <div>
+            <h3 class="font-black text-base text-slate-900">Map API & Tile Provider</h3>
+            <span class="text-[11px] text-slate-400">Configure Mapbox, Google Maps, or Carto</span>
+          </div>
+        </div>
+        <button onclick="closeMapConfigModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[18px]">close</span>
+        </button>
+      </div>
+
+      <!-- Provider Choice Grid -->
+      <div>
+        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Select Map
+          Provider</label>
+        <div class="grid grid-cols-2 gap-2">
+          <!-- CartoDB -->
+          <button onclick="selectMapProviderUI('carto')" id="map-provider-btn-carto"
+            class="provider-choice-btn p-3 rounded-2xl border-2 border-emerald-600 bg-emerald-50/50 flex flex-col gap-1 text-left transition-all">
+            <div class="flex items-center justify-between">
+              <span class="font-extrabold text-xs text-slate-900">CartoDB Voyager</span>
+              <span class="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded">FREE</span>
+            </div>
+            <span class="text-[10px] text-slate-500">Pastel styling, zero key required</span>
+          </button>
+
+          <!-- Mapbox -->
+          <button onclick="selectMapProviderUI('mapbox')" id="map-provider-btn-mapbox"
+            class="provider-choice-btn p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col gap-1 text-left transition-all">
+            <div class="flex items-center justify-between">
+              <span class="font-extrabold text-xs text-slate-900">Mapbox</span>
+              <span class="bg-blue-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded">PRO</span>
+            </div>
+            <span class="text-[10px] text-slate-500">Vector streets & navigation tiles</span>
+          </button>
+
+          <!-- Google Maps -->
+          <button onclick="selectMapProviderUI('google')" id="map-provider-btn-google"
+            class="provider-choice-btn p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col gap-1 text-left transition-all">
+            <div class="flex items-center justify-between">
+              <span class="font-extrabold text-xs text-slate-900">Google Maps</span>
+              <span class="bg-red-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded">KEY</span>
+            </div>
+            <span class="text-[10px] text-slate-500">Official Google roadmap tiles</span>
+          </button>
+
+          <!-- MapTiler -->
+          <button onclick="selectMapProviderUI('maptiler')" id="map-provider-btn-maptiler"
+            class="provider-choice-btn p-3 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 flex flex-col gap-1 text-left transition-all">
+            <div class="flex items-center justify-between">
+              <span class="font-extrabold text-xs text-slate-900">MapTiler</span>
+              <span class="bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded">KEY</span>
+            </div>
+            <span class="text-[10px] text-slate-500">Fast OpenStreetMap vector tiles</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- API Key Input Field -->
+      <div id="map-key-input-container" class="flex flex-col gap-1.5 pt-1">
+        <div class="flex items-center justify-between">
+          <label id="map-key-input-label" class="text-[11px] font-bold text-slate-700 uppercase">Map API Key /
+            Token</label>
+          <button type="button" onclick="pasteKeyFromClipboard()"
+            class="text-[10px] font-bold text-emerald-700 hover:underline">Paste Key</button>
+        </div>
+        <div class="relative">
+          <input id="map-api-key-input" type="password" placeholder="Enter API key or access token..."
+            class="w-full h-11 bg-slate-50 rounded-xl px-3.5 pr-10 text-xs font-mono font-semibold border border-slate-200 outline-none focus:ring-2 focus:ring-emerald-600" />
+          <button type="button" onclick="toggleApiKeyVisibility()"
+            class="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700">
+            <span class="material-symbols-outlined text-[20px]" id="api-key-eye-icon">visibility</span>
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-0.5 leading-normal" id="map-key-help-text">
+          CartoDB Voyager pastel tiles require <b>no key</b> and are optimized for Lilongwe, Malawi.
+        </p>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex flex-col gap-2 pt-2 border-t border-slate-100">
+        <button onclick="saveMapConfigFromUI()"
+          class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-extrabold text-xs shadow-md active:scale-98 transition-all flex items-center justify-center gap-1.5">
+          <span class="material-symbols-outlined text-[18px] text-emerald-400">check_circle</span>
+          <span>Save & Apply Map Key</span>
+        </button>
+
+        <button onclick="resetMapConfigDefault()"
+          class="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-semibold">
+          Reset to Default Free Map (CartoDB)
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom Navigation Bar (Matching Reference Image) -->
+  <nav
+    class="fixed bottom-0 w-full z-50 pb-safe bg-white/95 backdrop-blur-xl border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+    <div class="flex justify-around items-center h-16 max-w-md mx-auto px-2">
+
+      <button onclick="switchView('booking')" id="nav-rides"
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-900 font-bold transition-all">
+        <span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">near_me</span>
+        <span class="text-[10px]">Ride</span>
+      </button>
+
+      <button onclick="switchView('rentals')" id="nav-rentals"
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
+        <span class="material-symbols-outlined text-[22px]">car_rental</span>
+        <span class="text-[10px]">Ownly</span>
+      </button>
+
+      <button onclick="switchView('parcel')" id="nav-parcel"
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
+        <span class="material-symbols-outlined text-[22px]">package_2</span>
+        <span class="text-[10px]">Parcel</span>
+      </button>
+
+      <button onclick="switchView('travel')" id="nav-travel"
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
+        <span class="material-symbols-outlined text-[22px]">luggage</span>
+        <span class="text-[10px]">Travel</span>
+      </button>
+
+      <button onclick="switchView('profile')" id="nav-profile"
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
+        <span class="material-symbols-outlined text-[22px]">person</span>
+        <span class="text-[10px]">Profile</span>
+      </button>
+
+    </div>
+  </nav>
+
+  <!-- Business Logic Controller -->
+  <script src="./app.js?v=3.0"></script>
+
+  <script>
+    // Navigation UI Handlers
+    function switchView(viewName) {
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+      const active = document.getElementById('view-' + viewName);
+      if (active) {
+        active.classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.classList.remove('text-slate-900', 'font-bold');
+        btn.classList.add('text-slate-400');
+        const icon = btn.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.fontVariationSettings = "'FILL' 0";
+      });
+
+      const navKey = viewName === 'booking' ? 'nav-rides' : 'nav-' + viewName;
+      const navBtn = document.getElementById(navKey);
+      if (navBtn) {
+        navBtn.classList.remove('text-slate-400');
+        navBtn.classList.add('text-slate-900', 'font-bold');
+        const icon = navBtn.querySelector('.material-symbols-outlined');
+        if (icon) icon.style.fontVariationSettings = "'FILL' 1";
+      }
+
+      const backBtn = document.getElementById('header-back-btn');
+      if (backBtn) {
+        if (viewName === 'booking') {
+          backBtn.classList.add('hidden');
+        } else {
+          backBtn.classList.remove('hidden');
+        }
+      }
+
+      if (viewName === 'booking' && window.map) {
+        setTimeout(() => window.map.invalidateSize(), 150);
+      }
+      if (viewName === 'tracking') {
+        if (typeof window.initTrackingMap === 'function') {
+          setTimeout(() => window.initTrackingMap(), 100);
+        }
+      }
+
+      if (window.mwendoSound) window.mwendoSound.playClick();
+    }
+    window.switchView = switchView;
+
+    function goBack() {
+      switchView('booking');
+    }
+
+    function openPromoModal() {
+      const modal = document.getElementById('voucher-modal');
+      if (modal) modal.classList.remove('hidden');
+      if (window.aarohanSound) window.aarohanSound.playClick();
+    }
+    function closePromoModal() {
+      const modal = document.getElementById('voucher-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function topUpWallet() {
+      openWalletTopUpModal();
+    }
+
+    function openWalletTopUpModal() {
+      const modal = document.getElementById('wallet-topup-modal');
+      if (modal) modal.classList.remove('hidden');
+      if (window.aarohanSound) window.aarohanSound.playClick();
+    }
+    function closeWalletTopUpModal() {
+      const modal = document.getElementById('wallet-topup-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function openP2PTransferModal() {
+      const modal = document.getElementById('p2p-modal');
+      if (modal) modal.classList.remove('hidden');
+      if (window.aarohanSound) window.aarohanSound.playClick();
+    }
+    function closeP2PTransferModal() {
+      const modal = document.getElementById('p2p-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function openProfileEditModal() {
+      const modal = document.getElementById('profile-edit-modal');
+      if (modal) modal.classList.remove('hidden');
+      if (window.aarohanSound) window.aarohanSound.playClick();
+    }
+    function closeProfileEditModal() {
+      const modal = document.getElementById('profile-edit-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function openPickupLocationModal() {
+      const modal = document.getElementById('pickup-modal');
+      if (modal) modal.classList.remove('hidden');
+      if (window.aarohanSound) window.aarohanSound.playClick();
+    }
+    function closePickupLocationModal() {
+      const modal = document.getElementById('pickup-modal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function openSosModal() {
+      document.getElementById('sos-modal').classList.remove('hidden');
+    }
+    function closeSosModal() {
+      document.getElementById('sos-modal').classList.add('hidden');
+    }
+    function confirmSosAlert() {
+      if (window.mwendoStore) {
+        window.mwendoStore.triggerSOS('RIDER', 'Passenger in Lilongwe triggered emergency alert');
+      }
+      if (typeof window.showToast === 'function') {
+        window.showToast('🚨 AArohan Security Desk & Police (997) notified with live GPS');
+      }
+      closeSosModal();
+    }
+
+    // --- Search Helpers ---
+    function clearSearchInput() {
+      const input = document.getElementById('location-search-input');
+      const clearBtn = document.getElementById('clear-search-btn');
+      if (input) {
+        input.value = '';
+        input.focus();
+        input.dispatchEvent(new Event('input'));
+      }
+      if (clearBtn) clearBtn.classList.add('hidden');
+    }
+    window.clearSearchInput = clearSearchInput;
+
+    function quickFilterSearch(query) {
+      const input = document.getElementById('location-search-input');
+      const clearBtn = document.getElementById('clear-search-btn');
+      if (input) {
+        input.value = query;
+        input.focus();
+        input.dispatchEvent(new Event('input'));
+      }
+      if (clearBtn) clearBtn.classList.remove('hidden');
+      if (window.aarohanSound) window.aarohanSound.playClick();
+    }
+    window.quickFilterSearch = quickFilterSearch;
+
+    // --- PWA Mobile Service Worker Registration ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          console.log('AArohan Service Worker registered with scope:', reg.scope);
+        }).catch((err) => {
+          console.warn('AArohan Service Worker registration failed:', err);
+        });
+      });
+    }
+
+    // --- PWA Native "Add to Home Screen" Prompt ---
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const installBanner = document.getElementById('pwa-install-banner');
+      if (installBanner) installBanner.classList.remove('hidden');
+    });
+
+    window.promptPwaInstall = function () {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        deferredInstallPrompt.userChoice.then((choice) => {
+          if (choice.outcome === 'accepted') {
+            console.log('User installed AArohan PWA');
+          }
+          deferredInstallPrompt = null;
+          const installBanner = document.getElementById('pwa-install-banner');
+          if (installBanner) installBanner.classList.add('hidden');
+        });
+      } else {
+        if (typeof window.showToast === 'function') {
+          window.showToast('Tap Share / Menu &bull; "Add to Home Screen" to install AArohan');
+        }
+      }
+    };
+  </script>
+
+</body>
+
+</html>

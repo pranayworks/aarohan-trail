@@ -1,0 +1,25 @@
+{
+  "name": "AArohan • Real-Time Lilongwe Mobility",
+  "short_name": "AArohan",
+  "description": "Real-time ride-hailing for Lilongwe, Malawi: AArohan Moto, AArohan Auto, and AArohan Cab.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#004328",
+  "icons": [
+    {
+      "src": "https://lh3.googleusercontent.com/aida-public/AB6AXuCAdtEgPD_NOHp5KflZXPpWnxYVnuTkRAtBnG8zhECsfmSUchiOrd9vpejSZIHxMMKG9sAP-Q2fh8pLyeny0pTqLv65tJ1D5iBvDi-JUbl5a4nKwPfk_qKFi0mhTAOSVkqYsxyWyhmRWCFusBjV9-z8St82g2-K7wdegnh2POcvoU6AmPhqHsLHlj6TsPJo9BrK9BAZBK9aS663iZo-lsgtWsgfCYB7oKvBMahxbnuAuelWdu4MR1dTLw",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://lh3.googleusercontent.com/aida-public/AB6AXuCAdtEgPD_NOHp5KflZXPpWnxYVnuTkRAtBnG8zhECsfmSUchiOrd9vpejSZIHxMMKG9sAP-Q2fh8pLyeny0pTqLv65tJ1D5iBvDi-JUbl5a4nKwPfk_qKFi0mhTAOSVkqYsxyWyhmRWCFusBjV9-z8St82g2-K7wdegnh2POcvoU6AmPhqHsLHlj6TsPJo9BrK9BAZBK9aS663iZo-lsgtWsgfCYB7oKvBMahxbnuAuelWdu4MR1dTLw",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

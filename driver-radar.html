@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "surface-bright": "#faf8ff", "tertiary-fixed": "#ffdad6", "inverse-surface": "#283044", "on-tertiary-fixed-variant": "#93000b", "on-primary-fixed": "#002111", "tertiary-container": "#a5000e", "background": "#faf8ff", "surface-dim": "#d2d9f4", "primary": "#004328", "error-container": "#ffdad6", "surface-container-highest": "#dae2fd", "inverse-on-surface": "#eef0ff", "on-surface-variant": "#404942", "outline": "#707971", "primary-fixed": "#a9f3c5", "inverse-primary": "#8ed6aa", "surface": "#faf8ff", "secondary": "#855300", "on-surface": "#131b2e", "surface-tint": "#226b47", "on-tertiary-container": "#ffaea5", "surface-container-low": "#f2f3ff", "tertiary-fixed-dim": "#ffb4ab", "on-tertiary-fixed": "#410002", "secondary-container": "#fea619", "surface-container-high": "#e2e7ff", "on-background": "#131b2e", "on-primary-container": "#8ad2a7", "outline-variant": "#bfc9c0", "surface-container": "#eaedff", "tertiary": "#790008", "on-secondary-fixed": "#2a1700", "on-primary-fixed-variant": "#005232", "on-error-container": "#93000a", "error": "#ba1a1a", "secondary-fixed": "#ffddb8", "on-secondary-fixed-variant": "#653e00", "on-secondary-container": "#684000", "on-primary": "#ffffff", "on-secondary": "#ffffff", "on-error": "#ffffff", "surface-variant": "#dae2fd", "primary-fixed-dim": "#8ed6aa", "primary-container": "#0d5c3a", "secondary-fixed-dim": "#ffb95f", "surface-container-lowest": "#ffffff", "on-tertiary": "#ffffff" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-lg": "1.5rem", "margin": "1rem", "gutter-desktop": "2rem", "gutter": "1rem", "margin-tablet": "2rem", "space-xs": "0.25rem", "margin-desktop": "3rem", "space-sm": "0.5rem", "space-md": "1rem", "gutter-tablet": "1.5rem", "space-xl": "2rem" }, fontFamily: { "label-sm": ["Plus Jakarta Sans"], "headline-lg-mobile": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "display-mobile": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "display": ["Plus Jakarta Sans"], "body-md": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"] }, fontSize: { "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "800" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "0em", "fontWeight": "700" }], "display-mobile": ["30px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "700" }], "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400" }], "headline-sm": ["18px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "600" }], "display": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }], "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "500" }], "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "700" }] } } } };</script><style>
+
+    body {
+
+      min-height: max(884px, 100dvh);
+
+    }
+
+  </style>
+
+  </head><body class="bg-surface text-on-surface font-body-md text-body-md flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-gutter flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm"><button class="h-11 px-space-sm bg-surface-container-lowest rounded-full flex items-center gap-space-xs shadow-[0_1px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-transform"><span class="relative flex h-2.5 w-2.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary-container"></span></span><span class="font-label-sm text-label-sm text-primary-container tracking-wider uppercase">ONLINE</span><span class="material-symbols-outlined text-[16px] text-on-surface-variant">expand_more</span></button><div class="h-11 px-space-sm bg-surface-container-low rounded-full flex items-center gap-space-xs"><span class="material-symbols-outlined text-[18px] text-secondary">payments</span><div class="flex flex-col"><span class="font-label-sm text-[9px] text-on-surface-variant leading-none uppercase">Today</span><span class="font-label-md text-label-md text-on-surface font-bold leading-tight">MWK 42,500</span></div></div></div><div class="flex items-center gap-space-xs"><button class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] active:scale-95 transition-transform relative"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-error"></span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface pb-24"><div class="flex flex-col w-full relative select-none">
+
+<!-- Map Canvas Container (Lilongwe City GIS Radar Simulation) -->
+
+<div class="relative w-full h-[480px] overflow-hidden bg-surface-container-high">
+
+<!-- Map Vector Graphic -->
+
+<svg class="absolute inset-0 w-full h-full object-cover" viewbox="0 0 400 480" xmlns="http://www.w3.org/2000/svg">
+
+<defs>
+
+<radialgradient cx="50%" cy="50%" id="surgeArea3" r="50%">
+
+<stop offset="0%" stop-color="#fea619" stop-opacity="0.45"></stop>
+
+<stop offset="70%" stop-color="#fea619" stop-opacity="0.15"></stop>
+
+<stop offset="100%" stop-color="#fea619" stop-opacity="0"></stop>
+
+</radialgradient>
+
+<radialgradient cx="50%" cy="50%" id="surgeGateway" r="50%">
+
+<stop offset="0%" stop-color="#a5000e" stop-opacity="0.38"></stop>
+
+<stop offset="60%" stop-color="#a5000e" stop-opacity="0.12"></stop>
+
+<stop offset="100%" stop-color="#a5000e" stop-opacity="0"></stop>
+
+</radialgradient>
+
+<radialgradient cx="50%" cy="50%" id="radarScan" r="50%">
+
+<stop offset="0%" stop-color="#0d5c3a" stop-opacity="0.25"></stop>
+
+<stop offset="100%" stop-color="#0d5c3a" stop-opacity="0.0"></stop>
+
+</radialgradient>
+
+</defs>
+
+<!-- Land mass & background tint -->
+
+<rect fill="#eaedff" height="480" width="400"></rect>
+
+<!-- Lilongwe River Ribbon -->
+
+<path d="M-20,380 C80,360 120,410 210,350 C290,300 320,310 420,270" fill="none" stroke="#dae2fd" stroke-linecap="round" stroke-width="22"></path>
+
+<path d="M-20,380 C80,360 120,410 210,350 C290,300 320,310 420,270" fill="none" stroke="#bfc9c0" stroke-linecap="round" stroke-width="6"></path>
+
+<!-- Road Network Base Layers -->
+
+<!-- Kaunda Road & M1 Arterials -->
+
+<path d="M-10,120 L410,210" stroke="#ffffff" stroke-width="9"></path>
+
+<path d="M80,-20 L150,500" stroke="#ffffff" stroke-width="12"></path>
+
+<path d="M220,-10 L280,500" stroke="#ffffff" stroke-width="8"></path>
+
+<path d="M-10,310 L410,260" stroke="#ffffff" stroke-width="7"></path>
+
+<!-- Secondary grid lines -->
+
+<path d="M30,80 C120,130 140,240 180,320" fill="none" stroke="#f2f3ff" stroke-width="5"></path>
+
+<path d="M120,60 L380,80" stroke="#ffffff" stroke-width="5"></path>
+
+<path d="M160,200 L390,360" stroke="#ffffff" stroke-width="5"></path>
+
+<path d="M20,240 L160,220" stroke="#ffffff" stroke-width="4"></path>
+
+<!-- Surge Heatmap Blobs -->
+
+<circle cx="95" cy="190" fill="url(#surgeArea3)" r="75"></circle>
+
+<circle cx="285" cy="160" fill="url(#surgeGateway)" r="95"></circle>
+
+<circle cx="130" cy="360" fill="url(#surgeArea3)" r="65"></circle>
+
+<!-- Surge Pulse Animations -->
+
+<circle cx="285" cy="160" fill="none" opacity="0.6" r="50" stroke="#fea619" stroke-width="2">
+
+<animate attributename="r" dur="2.4s" repeatcount="indefinite" values="35;85"></animate>
+
+<animate attributename="opacity" dur="2.4s" repeatcount="indefinite" values="0.8;0"></animate>
+
+</circle>
+
+<!-- Active Driver Position (User) with Radar Ping -->
+
+<circle cx="205" cy="225" fill="url(#radarScan)" r="45"></circle>
+
+<circle cx="205" cy="225" fill="none" opacity="0.7" r="28" stroke="#0d5c3a" stroke-width="1.5">
+
+<animate attributename="r" dur="1.8s" repeatcount="indefinite" values="10;50"></animate>
+
+<animate attributename="opacity" dur="1.8s" repeatcount="indefinite" values="0.9;0"></animate>
+
+</circle>
+
+<!-- Driver Vehicle Marker -->
+
+<circle cx="205" cy="225" fill="#004328" r="14"></circle>
+
+<circle cx="205" cy="225" fill="#a9f3c5" r="6"></circle>
+
+<!-- Proposed Route Polyline to Pickup -->
+
+<path d="M205,225 Q235,210 250,195 T285,160" fill="none" stroke="#004328" stroke-dasharray="6,4" stroke-linecap="round" stroke-width="4"></path>
+
+<!-- Pickup Marker at Gateway Mall -->
+
+<circle cx="285" cy="160" fill="#855300" r="11"></circle>
+
+<circle cx="285" cy="160" fill="#ffffff" r="5"></circle>
+
+</svg>
+
+<!-- Surge Zone Map Labels -->
+
+<!-- Gateway Mall Surge Badge -->
+
+<div class="absolute top-[138px] right-[24px] flex items-center gap-space-xs bg-surface-container-lowest px-2 py-1 rounded-full shadow-md pointer-events-none">
+
+<span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
+
+<span class="font-label-sm text-label-sm text-on-surface">Gateway Mall</span>
+
+<span class="font-label-sm text-label-sm text-on-secondary-container bg-secondary-fixed px-1.5 py-0.5 rounded-full font-bold">+1.4x</span>
+
+</div>
+
+<!-- Area 3 Surge Badge -->
+
+<div class="absolute top-[175px] left-[28px] flex items-center gap-space-xs bg-surface-container-lowest px-2 py-1 rounded-full shadow-md pointer-events-none">
+
+<span class="font-label-sm text-label-sm text-on-surface">Area 3 Commercial</span>
+
+<span class="font-label-sm text-label-sm text-on-secondary-container bg-secondary-fixed px-1.5 py-0.5 rounded-full font-bold">+1.3x</span>
+
+</div>
+
+<!-- Old Town Market Badge -->
+
+<div class="absolute top-[340px] left-[70px] flex items-center gap-space-xs bg-surface-container-lowest px-2 py-1 rounded-full shadow-md pointer-events-none">
+
+<span class="font-label-sm text-label-sm text-on-surface">Old Town Market</span>
+
+<span class="font-label-sm text-label-sm text-primary font-bold">+1.2x</span>
+
+</div>
+
+<!-- Floating Top Live Metrics & Status Card -->
+
+<div class="absolute top-3 left-4 right-4 z-20">
+
+<div class="w-full bg-surface-container-lowest rounded-xl p-3 shadow-md flex flex-col gap-2.5">
+
+<div class="flex items-center justify-between">
+
+<div class="flex items-center gap-2">
+
+<span class="relative flex h-3 w-3">
+
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed-dim opacity-80"></span>
+
+<span class="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+
+</span>
+
+<div class="flex flex-col">
+
+<span class="font-label-sm text-label-sm text-primary font-extrabold tracking-wider uppercase leading-none">RADAR ACTIVE • ONLINE</span>
+
+<span class="font-body-sm text-[11px] text-on-surface-variant leading-tight">Lilongwe Central Sector</span>
+
+</div>
+
+</div>
+
+<div class="flex items-center gap-1 bg-surface-container-low px-2 py-1 rounded-full">
+
+<span class="material-symbols-outlined text-[14px] text-secondary-container" style="font-variation-settings: 'FILL' 1;">star</span>
+
+<span class="font-label-sm text-label-sm text-on-surface">4.95</span>
+
+</div>
+
+</div>
+
+<div class="grid grid-cols-3 gap-2 pt-1 bg-surface-container-low/70 rounded-lg p-2">
+
+<div class="flex flex-col items-center justify-center">
+
+<span class="font-label-sm text-[10px] text-on-surface-variant uppercase">Completed</span>
+
+<span class="font-headline-sm text-headline-sm text-on-surface font-extrabold">8 Trips</span>
+
+</div>
+
+<div class="flex flex-col items-center justify-center bg-surface-container-lowest rounded-md shadow-sm py-0.5">
+
+<span class="font-label-sm text-[10px] text-primary uppercase font-bold">Earnings</span>
+
+<span class="font-label-md text-label-md text-primary font-extrabold">MWK 48.2k</span>
+
+</div>
+
+<div class="flex flex-col items-center justify-center">
+
+<span class="font-label-sm text-[10px] text-on-surface-variant uppercase">Acceptance</span>
+
+<span class="font-headline-sm text-headline-sm text-on-surface font-extrabold">96%</span>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Floating Utility Pill Action Buttons on Map -->
+
+<div class="absolute right-4 bottom-5 flex flex-col gap-2.5 z-20">
+
+<!-- Heatmap Toggle -->
+
+<button aria-label="Toggle Heatmap" class="w-11 h-11 rounded-full bg-surface-container-lowest text-on-surface shadow-md flex items-center justify-center active:scale-90 transition-transform" type="button">
+
+<span class="material-symbols-outlined text-[20px] text-secondary">local_fire_department</span>
+
+</button>
+
+<!-- Fuel Station Locator -->
+
+<button aria-label="Locate Fuel Station" class="w-11 h-11 rounded-full bg-surface-container-lowest text-on-surface shadow-md flex items-center justify-center active:scale-90 transition-transform" type="button">
+
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant">local_gas_station</span>
+
+</button>
+
+<!-- Quick SOS Badge Button -->
+
+<button aria-label="Emergency SOS" class="w-11 h-11 rounded-full bg-tertiary-container text-on-primary shadow-lg flex items-center justify-center active:scale-90 transition-transform" type="button">
+
+<span class="material-symbols-outlined text-[20px]">e911_emergency</span>
+
+</button>
+
+</div>
+
+</div>
+
+<!-- Incoming Ride Request Bottom Sheet Card -->
+
+<div class="relative w-full -mt-3 z-30 bg-surface-container-lowest rounded-t-3xl shadow-2xl px-4 pt-3 pb-6 flex flex-col gap-3">
+
+<!-- Drag Handle Indicator -->
+
+<div class="w-12 h-1 bg-outline-variant/60 rounded-full mx-auto mb-1"></div>
+
+<!-- Header Tier & Guaranteed Fare -->
+
+<div class="flex items-center justify-between gap-2">
+
+<!-- Circular Animated Countdown Timer -->
+
+<div class="relative w-12 h-12 flex-shrink-0 flex items-center justify-center">
+
+<svg class="w-12 h-12 transform -rotate-90" viewbox="0 0 48 48">
+
+<circle cx="24" cy="24" fill="none" r="20" stroke="#eaedff" stroke-width="4"></circle>
+
+<circle class="transition-all duration-1000 ease-linear" cx="24" cy="24" fill="none" id="countdown-circle" r="20" stroke="#0d5c3a" stroke-dasharray="125.6" stroke-dashoffset="0" stroke-linecap="round" stroke-width="4"></circle>
+
+</svg>
+
+<span class="absolute font-headline-sm text-headline-sm text-primary font-extrabold" id="countdown-text">15</span>
+
+</div>
+
+<div class="flex flex-col flex-grow min-w-0">
+
+<div class="flex items-center gap-1.5 flex-wrap">
+
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed px-2 py-0.5 rounded-full font-bold">Mwendo City (Taxi)</span>
+
+<span class="font-label-sm text-[10px] text-secondary font-bold bg-secondary-fixed px-1.5 py-0.5 rounded-full">Surge +1.4x</span>
+
+</div>
+
+<span class="font-body-sm text-[11px] text-on-surface-variant truncate">Net guaranteed earnings (15% fee deducted)</span>
+
+</div>
+
+<!-- Prominent Net Price -->
+
+<div class="flex flex-col items-end flex-shrink-0">
+
+<span class="font-display-mobile text-display-mobile text-on-surface font-extrabold tracking-tight">MWK 6,200</span>
+
+<span class="font-label-sm text-[10px] text-primary uppercase font-bold tracking-wider">Fast-Payout</span>
+
+</div>
+
+</div>
+
+<!-- Rider Profile Row -->
+
+<div class="flex items-center justify-between bg-surface-container-low p-2.5 rounded-xl">
+
+<div class="flex items-center gap-2.5">
+
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-primary font-headline-sm font-bold shadow-sm">
+
+          CB
+
+        </div>
+
+<div class="flex flex-col">
+
+<div class="flex items-center gap-1.5">
+
+<span class="font-label-lg text-label-lg text-on-surface font-bold">Chisomo Banda</span>
+
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">verified</span>
+
+</div>
+
+<div class="flex items-center gap-1 text-on-surface-variant">
+
+<span class="material-symbols-outlined text-[13px] text-secondary-container" style="font-variation-settings: 'FILL' 1;">star</span>
+
+<span class="font-label-sm text-label-sm text-on-surface font-bold">4.9</span>
+
+<span class="text-[10px]">•</span>
+
+<span class="font-body-sm text-[11px]">24 trips with Mwendo</span>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="flex items-center gap-1.5">
+
+<div class="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant shadow-sm">
+
+<span class="material-symbols-outlined text-[18px]">chat</span>
+
+</div>
+
+<div class="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-primary font-bold shadow-sm">
+
+<span class="material-symbols-outlined text-[18px]">call</span>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Interconnected Route Card (Pickup & Dropoff) -->
+
+<div class="bg-surface-container-low rounded-xl p-3 flex flex-col gap-2.5 relative">
+
+<!-- Pickup Row -->
+
+<div class="flex items-start gap-2.5 relative">
+
+<div class="flex flex-col items-center mt-0.5">
+
+<div class="w-3.5 h-3.5 rounded-full bg-primary flex items-center justify-center">
+
+<div class="w-1.5 h-1.5 rounded-full bg-primary-fixed"></div>
+
+</div>
+
+<!-- Connecting Route Line -->
+
+<div class="w-0.5 h-7 bg-outline-variant my-0.5"></div>
+
+</div>
+
+<div class="flex flex-col flex-1 min-w-0">
+
+<div class="flex items-center justify-between">
+
+<span class="font-label-sm text-[10px] text-primary uppercase font-bold tracking-wider">Pickup • 1.2 km away</span>
+
+<span class="font-label-sm text-[11px] text-on-surface bg-surface-container-lowest px-1.5 py-0.5 rounded shadow-sm font-semibold">4 mins</span>
+
+</div>
+
+<span class="font-label-lg text-label-lg text-on-surface font-bold truncate">Gateway Mall, Main Entrance</span>
+
+<span class="font-body-sm text-[11px] text-on-surface-variant truncate">Opposite Reserve Bank Booth, Lilongwe</span>
+
+</div>
+
+</div>
+
+<!-- Dropoff Row -->
+
+<div class="flex items-start gap-2.5">
+
+<div class="flex flex-col items-center mt-0.5">
+
+<div class="w-3.5 h-3.5 rounded bg-secondary flex items-center justify-center">
+
+<div class="w-1.5 h-1.5 rounded-sm bg-secondary-fixed"></div>
+
+</div>
+
+</div>
+
+<div class="flex flex-col flex-1 min-w-0">
+
+<div class="flex items-center justify-between">
+
+<span class="font-label-sm text-[10px] text-secondary uppercase font-bold tracking-wider">Destination • 6.8 km trip</span>
+
+<span class="font-label-sm text-[11px] text-on-surface bg-surface-container-lowest px-1.5 py-0.5 rounded shadow-sm font-semibold">18 mins</span>
+
+</div>
+
+<span class="font-label-lg text-label-lg text-on-surface font-bold truncate">Area 47 Sector 3, Kaunda Road</span>
+
+<span class="font-body-sm text-[11px] text-on-surface-variant truncate">Near Bwandiro Market Junction</span>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Payment Guarantee & Details Pill -->
+
+<div class="flex items-center gap-2 bg-primary-fixed/25 px-3 py-2 rounded-xl">
+
+<div class="w-6 h-6 rounded-full bg-tertiary-container flex items-center justify-center flex-shrink-0 text-on-primary">
+
+<span class="material-symbols-outlined text-[14px]">cell_tower</span>
+
+</div>
+
+<div class="flex flex-col min-w-0 flex-1">
+
+<div class="flex items-center gap-1.5">
+
+<span class="font-label-sm text-label-sm text-on-surface font-bold">Airtel Money Digital Escrow</span>
+
+<span class="font-label-sm text-[9px] text-primary bg-primary-fixed px-1 rounded font-bold uppercase">Pre-authorized</span>
+
+</div>
+
+<span class="font-body-sm text-[11px] text-on-surface-variant truncate">No physical cash to collect. Instant auto-settlement.</span>
+
+</div>
+
+</div>
+
+<!-- Action Buttons -->
+
+<div class="flex flex-col gap-2 mt-1">
+
+<!-- Primary Accept CTA -->
+
+<button class="w-full h-14 bg-primary text-on-primary rounded-xl flex items-center justify-between px-5 active:scale-[0.98] transition-transform shadow-lg" id="accept-trip-btn" type="button">
+
+<div class="flex items-center gap-2">
+
+<span class="material-symbols-outlined text-[24px]">electric_bolt</span>
+
+<span class="font-label-lg text-label-lg uppercase tracking-wider font-extrabold">ACCEPT TRIP</span>
+
+</div>
+
+<span class="font-label-lg text-label-lg bg-primary-container px-2.5 py-1 rounded-lg font-mono" id="btn-timer-label">15s</span>
+
+</button>
+
+<!-- Secondary Decline Option -->
+
+<button class="w-full py-2.5 text-center text-on-surface-variant active:text-error transition-colors font-label-md text-label-md" id="decline-trip-btn" type="button">
+
+        Decline this request
+
+      </button>
+
+</div>
+
+</div>
+
+</div>
+
+<script>
+
+  (function() {
+
+    let timeLeft = 15;
+
+    const totalTime = 15;
+
+    const circumference = 2 * Math.PI * 20; // 125.6
+
+    const timerCircle = document.getElementById('countdown-circle');
+
+    const timerText = document.getElementById('countdown-text');
+
+    const btnTimer = document.getElementById('btn-timer-label');
+
+    const acceptBtn = document.getElementById('accept-trip-btn');
+
+    const declineBtn = document.getElementById('decline-trip-btn');
+
+
+
+    const interval = setInterval(() => {
+
+      timeLeft--;
+
+      if (timeLeft <= 0) {
+
+        clearInterval(interval);
+
+        if (timerText) timerText.textContent = '0';
+
+        if (btnTimer) btnTimer.textContent = '0s';
+
+        if (timerCircle) timerCircle.style.strokeDashoffset = circumference;
+
+        return;
+
+      }
+
+
+
+      if (timerText) timerText.textContent = timeLeft;
+
+      if (btnTimer) btnTimer.textContent = timeLeft + 's';
+
+      if (timerCircle) {
+
+        const offset = circumference - (timeLeft / totalTime) * circumference;
+
+        timerCircle.style.strokeDashoffset = offset;
+
+      }
+
+    }, 1000);
+
+
+
+    if (acceptBtn) {
+
+      acceptBtn.addEventListener('click', () => {
+
+        clearInterval(interval);
+
+        acceptBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">refresh</span><span class="font-label-lg text-label-lg uppercase">Trip Accepted! Launching Navigation...</span>';
+        setTimeout(() => { window.location.href = 'driver-navigation.html'; }, 1000);
+
+        acceptBtn.classList.replace('bg-primary', 'bg-primary-container');
+
+      });
+
+    }
+
+
+
+    if (declineBtn) {
+
+      declineBtn.addEventListener('click', () => {
+
+        clearInterval(interval);
+
+        declineBtn.textContent = 'Trip Declined. Scanning for next dispatch...';
+
+        declineBtn.classList.add('text-error');
+
+      });
+
+    }
+
+  })();
+
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/80 backdrop-blur-xl shadow-[0_-2px_12px_rgba(0,0,0,0.05)]" data-active-classes="text-primary font-bold"><div class="flex items-center justify-around h-20 px-space-sm"><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-space-xs transition-colors text-primary font-bold" data-path="dispatch-radar" href="driver-radar.html"><span class="material-symbols-outlined text-[24px]">radar</span><span class="font-label-sm text-label-sm">Radar</span></a><a class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-space-xs text-on-surface-variant transition-colors" data-path="driver-earnings" href="driver-earnings.html"><span class="material-symbols-outlined text-[24px]">account_balance_wallet</span><span class="font-label-sm text-label-sm">Earnings</span></a><a class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-space-xs text-on-surface-variant transition-colors" data-path="trip-history" href="trip-receipt.html"><span class="material-symbols-outlined text-[24px]">history</span><span class="font-label-sm text-label-sm">Trips</span></a><a class="flex flex-col items-center justify-center min-w-[56px] h-12 gap-space-xs text-on-surface-variant transition-colors" data-path="partner-profile" href="support-safety.html"><span class="material-symbols-outlined text-[24px]">shield_person</span><span class="font-label-sm text-label-sm">Support</span></a></div></nav>
+<!-- Mwendo Quick Navigation Hub -->
+<div id="mwendo-floating-hub" class="fixed top-2 right-2 z-[9999] select-none font-sans">
+  <div class="relative">
+    <button id="mwendo-hub-btn" type="button" class="flex items-center gap-1.5 px-3 py-1.5 bg-inverse-surface/90 hover:bg-inverse-surface text-inverse-on-surface rounded-full shadow-lg backdrop-blur-md text-xs font-semibold transition-all active:scale-95 border border-white/20">
+      <span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
+      <span>Mwendo Hub</span>
+      <span class="material-symbols-outlined text-[14px]">expand_more</span>
+    </button>
+    <div id="mwendo-hub-menu" class="hidden absolute right-0 mt-2 w-64 bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 p-2 text-on-surface flex flex-col gap-1 z-50">
+      <div class="px-2 py-1 text-[11px] font-bold text-outline uppercase tracking-wider">Rider Experience</div>
+      <a href="rider-booking.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">local_taxi</span>
+        <span>1. Rider Booking & Map</span>
+      </a>
+      <a href="ride-tracking.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">navigation</span>
+        <span>2. Active Ride Tracking</span>
+      </a>
+      <a href="trip-receipt.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">receipt_long</span>
+        <span>3. Trip Receipt & Review</span>
+      </a>
+      <a href="wallet-payments.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">account_balance_wallet</span>
+        <span>4. Wallet & Payments</span>
+      </a>
+      
+      <div class="px-2 pt-2 pb-1 text-[11px] font-bold text-outline uppercase tracking-wider border-t border-outline-variant/30 mt-1">Driver Partner Experience</div>
+      <a href="driver-radar.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-secondary">radar</span>
+        <span>5. Dispatch Radar & Request</span>
+      </a>
+      <a href="driver-navigation.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-secondary">near_me</span>
+        <span>6. Driver Navigation & Slide</span>
+      </a>
+      <a href="driver-earnings.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-secondary">payments</span>
+        <span>7. Earnings & Instant Cashout</span>
+      </a>
+      
+      <div class="px-2 pt-2 pb-1 text-[11px] font-bold text-outline uppercase tracking-wider border-t border-outline-variant/30 mt-1">Safety & Portal</div>
+      <a href="support-safety.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-error">shield</span>
+        <span>8. Safety & 24/7 Care</span>
+      </a>
+      <a href="index.html" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs mt-1 text-center shadow">
+        <span class="material-symbols-outlined text-[16px]">devices</span>
+        <span>Launch Master Super App</span>
+      </a>
+    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    const hubBtn = document.getElementById('mwendo-hub-btn');
+    const hubMenu = document.getElementById('mwendo-hub-menu');
+    if (hubBtn && hubMenu) {
+      hubBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hubMenu.classList.toggle('hidden');
+      });
+      document.addEventListener('click', () => {
+        hubMenu.classList.add('hidden');
+      });
+      hubMenu.addEventListener('click', (e) => e.stopPropagation());
+    }
+  })();
+</script>
+
+</body></html>

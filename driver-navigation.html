@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "surface-bright": "#faf8ff", "tertiary-fixed": "#ffdad6", "inverse-surface": "#283044", "on-tertiary-fixed-variant": "#93000b", "on-primary-fixed": "#002111", "tertiary-container": "#a5000e", "background": "#faf8ff", "surface-dim": "#d2d9f4", "primary": "#004328", "error-container": "#ffdad6", "surface-container-highest": "#dae2fd", "inverse-on-surface": "#eef0ff", "on-surface-variant": "#404942", "outline": "#707971", "primary-fixed": "#a9f3c5", "inverse-primary": "#8ed6aa", "surface": "#faf8ff", "secondary": "#855300", "on-surface": "#131b2e", "surface-tint": "#226b47", "on-tertiary-container": "#ffaea5", "surface-container-low": "#f2f3ff", "tertiary-fixed-dim": "#ffb4ab", "on-tertiary-fixed": "#410002", "secondary-container": "#fea619", "surface-container-high": "#e2e7ff", "on-background": "#131b2e", "on-primary-container": "#8ad2a7", "outline-variant": "#bfc9c0", "surface-container": "#eaedff", "tertiary": "#790008", "on-secondary-fixed": "#2a1700", "on-primary-fixed-variant": "#005232", "on-error-container": "#93000a", "error": "#ba1a1a", "secondary-fixed": "#ffddb8", "on-secondary-fixed-variant": "#653e00", "on-secondary-container": "#684000", "on-primary": "#ffffff", "on-secondary": "#ffffff", "on-error": "#ffffff", "surface-variant": "#dae2fd", "primary-fixed-dim": "#8ed6aa", "primary-container": "#0d5c3a", "secondary-fixed-dim": "#ffb95f", "surface-container-lowest": "#ffffff", "on-tertiary": "#ffffff" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-lg": "1.5rem", "margin": "1rem", "gutter-desktop": "2rem", "gutter": "1rem", "margin-tablet": "2rem", "space-xs": "0.25rem", "margin-desktop": "3rem", "space-sm": "0.5rem", "space-md": "1rem", "gutter-tablet": "1.5rem", "space-xl": "2rem" }, fontFamily: { "label-sm": ["Plus Jakarta Sans"], "headline-lg-mobile": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "display-mobile": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "display": ["Plus Jakarta Sans"], "body-md": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"] }, fontSize: { "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "800" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "0em", "fontWeight": "700" }], "display-mobile": ["30px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "700" }], "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400" }], "headline-sm": ["18px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "600" }], "display": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }], "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "500" }], "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "700" }] } } } };</script><style>
+
+    body {
+
+      min-height: max(884px, 100dvh);
+
+    }
+
+  </style>
+
+  </head><body class="bg-surface text-on-surface font-body-md text-body-md flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-gutter flex items-center justify-between"><div class="flex items-center gap-space-sm"><button class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-container-high transition-colors active:scale-95" onclick="window.location.href='driver-radar.html'"><span class="material-symbols-outlined text-[24px]">arrow_back</span></button><h1 class="font-headline-sm text-headline-sm text-on-surface truncate">Active Ride Navigation</h1></div><div class="flex items-center gap-space-sm"><button class="h-11 px-space-md rounded-full bg-error text-on-error flex items-center gap-space-xs shadow-[0_4px_12px_rgba(186,26,26,0.3)] active:scale-95 transition-transform"><span class="material-symbols-outlined text-[18px]">emergency</span><span class="font-label-sm text-label-sm uppercase">SOS</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface"><div class="flex flex-col w-full relative">
+
+<!-- Dynamic GPS Live Map Container -->
+
+<div class="relative w-full h-[480px] overflow-hidden bg-surface-container">
+
+<div class="w-full h-full bg-cover bg-center" data-location="Gateway Mall Kaunda Road Lilongwe Area 47 Malawi" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBokS_WsKfgPa-bRql1y1dHeTJ5uDYOt6CHAAbXENkXKf9eqPTCLh9VEyWn21r4ucBcb1URVsiuccbx8AmiHsoihOTXpxYHJDjkr2U2-2UJtJgUNZEIXEAwke2MDWwW9u_jwoyOZnhyArU-weHmkXyXJbkwCtLvM9CZe_EKg8LjdK9ConNZORLlZvGNXtsL9P1w6YvqGhHh_jkb_Y20lwuBwGaCqRSojF2d0M8mxdK0yOB9J8NDNZOpFw')"></div>
+
+<!-- Map Route Overlay (Tactile Simulated GPS path) -->
+
+<div class="absolute inset-0 pointer-events-none flex flex-col justify-between p-margin">
+
+<!-- Ambient GPS Speed Badge & Signal Indicator -->
+
+<div class="flex items-center justify-between w-full pt-space-xs">
+
+<div class="bg-surface-container-lowest/95 backdrop-blur-md px-space-md py-space-xs rounded-full shadow-md flex items-center gap-space-xs">
+
+<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
+
+<span class="font-label-md text-label-md text-on-surface">GPS Live • 54 km/h</span>
+
+</div>
+
+<div class="bg-surface-container-lowest/95 backdrop-blur-md w-10 h-10 rounded-full shadow-md flex items-center justify-center text-primary">
+
+<span class="material-symbols-outlined text-[20px]">explore</span>
+
+</div>
+
+</div>
+
+<!-- Live Vehicle Location Pulse Marker (Lilongwe navigation point) -->
+
+<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex flex-col items-center">
+
+<div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center animate-ping absolute"></div>
+
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary shadow-lg flex items-center justify-center z-10">
+
+<span class="material-symbols-outlined text-[24px]">navigation</span>
+
+</div>
+
+<div class="mt-space-xs bg-inverse-surface/90 text-inverse-on-surface px-space-sm py-0.5 rounded-full shadow-sm">
+
+<span class="font-label-sm text-label-sm tracking-wide">Kaunda Rd</span>
+
+</div>
+
+</div>
+
+<!-- Recenter & Audio Guidance Controls Floating Action -->
+
+<div class="flex flex-col gap-space-sm self-end mb-4">
+
+<button aria-label="Toggle voice guidance" class="w-11 h-11 rounded-full bg-surface-container-lowest text-on-surface shadow-md flex items-center justify-center active:scale-95 transition-transform" id="voiceToggleBtn">
+
+<span class="material-symbols-outlined text-[20px]">volume_up</span>
+
+</button>
+
+<button aria-label="Recenter map" class="w-11 h-11 rounded-full bg-surface-container-lowest text-on-surface shadow-md flex items-center justify-center active:scale-95 transition-transform">
+
+<span class="material-symbols-outlined text-[20px]">my_location</span>
+
+</button>
+
+</div>
+
+</div>
+
+<!-- Prominent Top Turn-by-Turn Navigation Instruction Banner -->
+
+<div class="absolute top-margin left-margin right-margin z-20">
+
+<div class="bg-primary text-on-primary rounded-xl p-space-md shadow-xl flex flex-col gap-space-sm">
+
+<div class="flex items-center justify-between">
+
+<div class="flex items-center gap-space-md min-w-0">
+
+<div class="w-12 h-12 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center shrink-0">
+
+<span class="material-symbols-outlined text-[32px]">turn_right</span>
+
+</div>
+
+<div class="flex flex-col min-w-0">
+
+<span class="font-headline-lg-mobile text-headline-lg-mobile leading-none">In 350m</span>
+
+<span class="font-label-lg text-label-lg text-on-primary/90 truncate">Turn Right onto Kenyatta Drive</span>
+
+</div>
+
+</div>
+
+<!-- Speed Limit Warning Pill -->
+
+<div class="shrink-0 flex flex-col items-center justify-center w-11 h-11 rounded-full bg-surface-container-lowest text-error font-headline-sm text-headline-sm shadow-inner">
+
+<span>60</span>
+
+</div>
+
+</div>
+
+<!-- Trip Distance, Remaining Minutes & ETA strip -->
+
+<div class="flex items-center justify-between pt-space-xs bg-primary-container/40 rounded-lg px-space-md py-space-xs text-on-primary">
+
+<div class="flex items-center gap-space-xs">
+
+<span class="material-symbols-outlined text-[16px] text-primary-fixed">straighten</span>
+
+<span class="font-label-md text-label-md">5.2 km</span>
+
+</div>
+
+<span class="text-primary-fixed">•</span>
+
+<div class="flex items-center gap-space-xs">
+
+<span class="material-symbols-outlined text-[16px] text-primary-fixed">schedule</span>
+
+<span class="font-label-md text-label-md">12 mins</span>
+
+</div>
+
+<span class="text-primary-fixed">•</span>
+
+<div class="flex items-center gap-space-xs">
+
+<span class="material-symbols-outlined text-[16px] text-primary-fixed">flag</span>
+
+<span class="font-label-md text-label-md">ETA 14:38</span>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+<!-- Rider & Trip Fulfillment Bottom Sheet Card -->
+
+<div class="w-full bg-surface-container-lowest rounded-t-xl -mt-6 relative z-30 shadow-[0_-8px_24px_rgba(15,23,42,0.1)] p-gutter flex flex-col gap-space-md">
+
+<!-- Visual Sheet Grab Indicator -->
+
+<div class="w-12 h-1 bg-surface-container-highest rounded-full self-center"></div>
+
+<!-- Active Stage & Security PIN Verification Banner -->
+
+<div class="flex items-center justify-between gap-space-sm">
+
+<div class="bg-primary-fixed text-on-primary-fixed px-space-md py-1 rounded-full flex items-center gap-space-xs">
+
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Heading to Destination</span>
+
+</div>
+
+<div class="bg-secondary-fixed text-on-secondary-fixed px-space-md py-1 rounded-full flex items-center gap-space-xs">
+
+<span class="material-symbols-outlined text-[16px]">verified</span>
+
+<span class="font-label-sm text-label-sm tracking-wide">PIN Verified: 8421</span>
+
+</div>
+
+</div>
+
+<!-- Rider Profile & Communication Cluster -->
+
+<div class="flex items-center justify-between bg-surface-container-low p-space-md rounded-xl">
+
+<div class="flex items-center gap-space-md min-w-0">
+
+<div class="relative shrink-0">
+
+<img class="w-12 h-12 rounded-full object-cover shadow-sm" data-alt="Chisomo Banda smiling portrait African commuter in Lilongwe wearing warm yellow jacket natural sunny light friendly approachable look" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxkBwnyNF1T9T9RpBoYladpIki4F7pV7aH2RE1YE8wCiiwfuDeLqBi6BsJFdr_jIvaoJciaI9VvXjHZ_yEMELce4NPR2NnVJ5CMlgJoxULyamHvmEMR-1C-ADPy9c-GGTYP8BLYhJFaugpaNYa5Rg8qtRV4eApSX5xbORIwEANa9OZQlwf6tG2YZpbOK42z-iV30hqJ5mKDvuR7Hq19K3ClgUM1CGZpLuUkvL9Bx9YxsyKS6WedOEU5Q"/>
+
+<div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-sm">
+
+<span class="material-symbols-outlined text-[12px]">check</span>
+
+</div>
+
+</div>
+
+<div class="flex flex-col min-w-0">
+
+<div class="flex items-center gap-space-xs">
+
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Chisomo Banda</h2>
+
+<div class="flex items-center text-secondary">
+
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">star</span>
+
+<span class="font-label-sm text-label-sm ml-0.5">4.9</span>
+
+</div>
+
+</div>
+
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Mwendo Regular Passenger</span>
+
+</div>
+
+</div>
+
+<!-- Action Touchpoints (Airtel Call & In-App Chat) -->
+
+<div class="flex items-center gap-space-sm shrink-0">
+
+<a aria-label="Call passenger" class="w-11 h-11 rounded-full bg-surface-container-highest text-primary flex items-center justify-center active:scale-95 transition-transform" href="tel:+265999014298">
+
+<span class="material-symbols-outlined text-[20px]">phone</span>
+
+</a>
+
+<button aria-label="Message passenger" class="w-11 h-11 rounded-full bg-surface-container-highest text-primary flex items-center justify-center active:scale-95 transition-transform" id="chatToggleBtn">
+
+<span class="material-symbols-outlined text-[20px]">chat</span>
+
+</button>
+
+</div>
+
+</div>
+
+<!-- Destination Landmark Note -->
+
+<div class="flex items-start gap-space-sm bg-surface-container-low p-space-md rounded-xl">
+
+<span class="material-symbols-outlined text-secondary text-[22px] mt-0.5 shrink-0">pin_drop</span>
+
+<div class="flex flex-col min-w-0">
+
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Destination Note</span>
+
+<p class="font-body-md text-body-md text-on-surface font-semibold truncate">Dropoff at Gate 4, Sector 3</p>
+
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Directly adjacent to Green Pharmacy, Area 47</p>
+
+</div>
+
+</div>
+
+<!-- Live Fare Meter Card with Airtel Money Settlement -->
+
+<div class="bg-surface-container-high rounded-xl p-space-md flex flex-col gap-space-xs">
+
+<div class="flex items-center justify-between">
+
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wide">Guaranteed Fare</span>
+
+<div class="flex items-center gap-space-xs bg-tertiary-fixed text-on-tertiary-fixed-variant px-space-sm py-0.5 rounded-full">
+
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+
+<span class="font-label-sm text-label-sm">Airtel Money Pre-Auth</span>
+
+</div>
+
+</div>
+
+<div class="flex items-baseline justify-between">
+
+<span class="font-display-mobile text-display-mobile text-on-surface font-extrabold tracking-tight">MWK 6,200</span>
+
+<span class="font-label-md text-label-md text-primary font-bold">Fixed Rate</span>
+
+</div>
+
+</div>
+
+<!-- Driver Safety & Police Toolkit Strip -->
+
+<div class="grid grid-cols-3 gap-space-sm">
+
+<button class="flex flex-col items-center justify-center p-space-sm bg-surface-container-low rounded-xl active:bg-surface-container-high transition-colors">
+
+<span class="material-symbols-outlined text-primary text-[22px]">shield</span>
+
+<span class="font-label-sm text-label-sm text-on-surface mt-1 text-center">Safety Kit</span>
+
+</button>
+
+<button class="flex flex-col items-center justify-center p-space-sm bg-surface-container-low rounded-xl active:bg-surface-container-high transition-colors">
+
+<span class="material-symbols-outlined text-primary text-[22px]">share_location</span>
+
+<span class="font-label-sm text-label-sm text-on-surface mt-1 text-center">Share Route</span>
+
+</button>
+
+<a class="flex flex-col items-center justify-center p-space-sm bg-error-container text-on-error-container rounded-xl active:scale-95 transition-transform" href="tel:997">
+
+<span class="material-symbols-outlined text-error text-[22px]">local_police</span>
+
+<span class="font-label-sm text-label-sm font-bold mt-1 text-center">Police 997</span>
+
+</a>
+
+</div>
+
+<!-- Tactile Interactive Slide-To-Complete Trip Widget -->
+
+<div class="relative w-full h-14 bg-surface-container-highest rounded-xl p-1 overflow-hidden select-none" id="sliderContainer">
+
+<div class="absolute left-0 top-0 bottom-0 bg-primary w-14 rounded-xl transition-all duration-75" id="sliderProgress"></div>
+
+<div class="relative w-full h-full flex items-center justify-center pointer-events-none">
+
+<span class="font-label-lg text-label-lg text-on-surface tracking-wider font-extrabold pl-8" id="sliderLabel">
+
+          SLIDE TO COMPLETE TRIP &gt;&gt;
+
+        </span>
+
+</div>
+
+<!-- Tactile Draggable Knob -->
+
+<div class="absolute left-1 top-1 bottom-1 w-12 bg-primary rounded-lg text-on-primary flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing active:scale-95 transition-transform touch-none" id="sliderKnob">
+
+<span class="material-symbols-outlined text-[26px]">chevron_right</span>
+
+</div>
+
+</div>
+
+<!-- Safety Micro-Copy -->
+
+<div class="flex items-center justify-center gap-space-xs pb-safe">
+
+<span class="material-symbols-outlined text-outline text-[16px]">verified_user</span>
+
+<span class="font-body-sm text-body-sm text-on-surface-variant">Mwendo Trip Protection Active • Lilongwe Dispatch 24/7</span>
+
+</div>
+
+</div>
+
+<!-- Interactive Slide-to-complete and UX micro-interaction script -->
+
+<script>
+
+    (function initNavigationInteractions() {
+
+      const knob = document.getElementById('sliderKnob');
+
+      const container = document.getElementById('sliderContainer');
+
+      const progress = document.getElementById('sliderProgress');
+
+      const label = document.getElementById('sliderLabel');
+
+      const voiceBtn = document.getElementById('voiceToggleBtn');
+
+
+
+      if (voiceBtn) {
+
+        let isMuted = false;
+
+        voiceBtn.addEventListener('click', () => {
+
+          isMuted = !isMuted;
+
+          voiceBtn.innerHTML = `<span class="material-symbols-outlined text-[20px]">${isMuted ? 'volume_off' : 'volume_up'}</span>`;
+
+          voiceBtn.classList.toggle('text-error', isMuted);
+
+        });
+
+      }
+
+
+
+      if (!knob || !container) return;
+
+
+
+      let isDragging = false;
+
+      let startX = 0;
+
+      let currentX = 0;
+
+
+
+      const getMaxSlide = () => container.clientWidth - knob.clientWidth - 8;
+
+
+
+      const onStart = (clientX) => {
+
+        isDragging = true;
+
+        startX = clientX - (currentX || 0);
+
+      };
+
+
+
+      const onMove = (clientX) => {
+
+        if (!isDragging) return;
+
+        const max = getMaxSlide();
+
+        let newX = clientX - startX;
+
+        if (newX < 0) newX = 0;
+
+        if (newX > max) newX = max;
+
+        currentX = newX;
+
+
+
+        knob.style.transform = `translateX(${newX}px)`;
+
+        if (progress) progress.style.width = `${newX + 48}px`;
+
+
+
+        if (newX > max * 0.85) {
+
+          label.textContent = "RELEASE TO FINISH";
+
+          label.classList.add("text-on-primary");
+
+        } else {
+
+          label.textContent = "SLIDE TO COMPLETE TRIP >>";
+
+          label.classList.remove("text-on-primary");
+
+        }
+
+      };
+
+
+
+      const onEnd = () => {
+
+        if (!isDragging) return;
+
+        isDragging = false;
+
+        const max = getMaxSlide();
+
+
+
+        if (currentX >= max * 0.9) {
+
+          knob.style.transform = `translateX(${max}px)`;
+
+          if (progress) progress.style.width = `100%`;
+
+          label.textContent = "TRIP COMPLETED ✓";
+
+          label.classList.add("text-on-primary");
+
+          knob.innerHTML = '<span class="material-symbols-outlined text-[24px]">done</span>';
+
+          setTimeout(() => {
+
+            alert("Trip completed successfully! Total MWK 6,200 credited to driver Airtel Money wallet.");
+          setTimeout(() => { window.location.href = 'driver-earnings.html'; }, 600);
+
+          }, 250);
+
+        } else {
+
+          currentX = 0;
+
+          knob.style.transform = `translateX(0px)`;
+
+          if (progress) progress.style.width = `48px`;
+
+          label.textContent = "SLIDE TO COMPLETE TRIP >>";
+
+          label.classList.remove("text-on-primary");
+
+        }
+
+      };
+
+
+
+      // Mouse Listeners
+
+      knob.addEventListener('mousedown', (e) => onStart(e.clientX));
+
+      window.addEventListener('mousemove', (e) => onMove(e.clientX));
+
+      window.addEventListener('mouseup', onEnd);
+
+
+
+      // Touch Listeners
+
+      knob.addEventListener('touchstart', (e) => {
+
+        if (e.touches.length > 0) onStart(e.touches[0].clientX);
+
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+
+        if (e.touches.length > 0) onMove(e.touches[0].clientX);
+
+      }, { passive: true });
+
+      window.addEventListener('touchend', onEnd);
+
+    })();
+
+  </script>
+
+</div></main>
+<!-- Mwendo Quick Navigation Hub -->
+<div id="mwendo-floating-hub" class="fixed top-2 right-2 z-[9999] select-none font-sans">
+  <div class="relative">
+    <button id="mwendo-hub-btn" type="button" class="flex items-center gap-1.5 px-3 py-1.5 bg-inverse-surface/90 hover:bg-inverse-surface text-inverse-on-surface rounded-full shadow-lg backdrop-blur-md text-xs font-semibold transition-all active:scale-95 border border-white/20">
+      <span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
+      <span>Mwendo Hub</span>
+      <span class="material-symbols-outlined text-[14px]">expand_more</span>
+    </button>
+    <div id="mwendo-hub-menu" class="hidden absolute right-0 mt-2 w-64 bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 p-2 text-on-surface flex flex-col gap-1 z-50">
+      <div class="px-2 py-1 text-[11px] font-bold text-outline uppercase tracking-wider">Rider Experience</div>
+      <a href="rider-booking.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">local_taxi</span>
+        <span>1. Rider Booking & Map</span>
+      </a>
+      <a href="ride-tracking.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">navigation</span>
+        <span>2. Active Ride Tracking</span>
+      </a>
+      <a href="trip-receipt.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">receipt_long</span>
+        <span>3. Trip Receipt & Review</span>
+      </a>
+      <a href="wallet-payments.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-primary">account_balance_wallet</span>
+        <span>4. Wallet & Payments</span>
+      </a>
+      
+      <div class="px-2 pt-2 pb-1 text-[11px] font-bold text-outline uppercase tracking-wider border-t border-outline-variant/30 mt-1">Driver Partner Experience</div>
+      <a href="driver-radar.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-secondary">radar</span>
+        <span>5. Dispatch Radar & Request</span>
+      </a>
+      <a href="driver-navigation.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-secondary">near_me</span>
+        <span>6. Driver Navigation & Slide</span>
+      </a>
+      <a href="driver-earnings.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-secondary">payments</span>
+        <span>7. Earnings & Instant Cashout</span>
+      </a>
+      
+      <div class="px-2 pt-2 pb-1 text-[11px] font-bold text-outline uppercase tracking-wider border-t border-outline-variant/30 mt-1">Safety & Portal</div>
+      <a href="support-safety.html" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-surface-container transition-colors text-xs font-medium">
+        <span class="material-symbols-outlined text-[16px] text-error">shield</span>
+        <span>8. Safety & 24/7 Care</span>
+      </a>
+      <a href="index.html" class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-on-primary font-bold text-xs mt-1 text-center shadow">
+        <span class="material-symbols-outlined text-[16px]">devices</span>
+        <span>Launch Master Super App</span>
+      </a>
+    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    const hubBtn = document.getElementById('mwendo-hub-btn');
+    const hubMenu = document.getElementById('mwendo-hub-menu');
+    if (hubBtn && hubMenu) {
+      hubBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hubMenu.classList.toggle('hidden');
+      });
+      document.addEventListener('click', () => {
+        hubMenu.classList.add('hidden');
+      });
+      hubMenu.addEventListener('click', (e) => e.stopPropagation());
+    }
+  })();
+</script>
+
+</body></html>

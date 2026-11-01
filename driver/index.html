@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <meta name="theme-color" content="#004328"/>
+  <title>Gaman Captain Partner • Lilongwe</title>
+  <link rel="manifest" href="./manifest.json"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#004328",
+            "primary-container": "#0d5c3a",
+            "primary-fixed": "#a9f3c5",
+            "on-primary": "#ffffff",
+            "secondary": "#855300",
+            "secondary-container": "#fea619",
+            "secondary-fixed": "#ffddb8",
+            "on-secondary": "#ffffff",
+            "background": "#faf8ff",
+            "surface": "#faf8ff",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#f2f3ff",
+            "surface-container": "#eaedff",
+            "surface-container-high": "#e2e7ff",
+            "surface-container-highest": "#dae2fd",
+            "on-surface": "#131b2e",
+            "on-surface-variant": "#404942",
+            "outline": "#707971",
+            "outline-variant": "#bfc9c0",
+            "error": "#ba1a1a",
+            "error-container": "#ffdad6",
+            "surface-tint": "#226b47"
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      min-height: max(884px, 100dvh);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    ::-webkit-scrollbar { display: none; }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
+    .pt-safe { padding-top: env(safe-area-inset-top, 12px); }
+  </style>
+</head>
+<body class="bg-surface text-on-surface antialiased flex flex-col min-h-screen select-none">
+
+  <!-- Shared Audio & Realtime State -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="../shared/sound.js"></script>
+  <script src="../shared/state.js"></script>
+
+  <!-- Sticky Top Header -->
+  <header class="fixed top-0 w-full z-50 pt-safe bg-surface/90 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm">
+    <div class="h-16 px-4 flex items-center justify-between gap-2">
+      
+      <!-- Online Status Switcher -->
+      <div class="flex items-center gap-2">
+        <button onclick="toggleOnlineStatus()" id="driver-status-btn" class="h-10 px-3 bg-surface-container-lowest rounded-full flex items-center gap-1.5 shadow-sm active:scale-95 transition-all border border-outline-variant/30">
+          <span class="relative flex h-2.5 w-2.5">
+            <span id="ping-ring" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed opacity-75"></span>
+            <span id="ping-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+          </span>
+          <span id="status-label" class="text-xs font-black text-primary tracking-wider uppercase">ONLINE</span>
+        </button>
+
+        <!-- Today Earnings Counter -->
+        <div onclick="switchDriverView('earnings')" class="cursor-pointer h-10 px-3 bg-surface-container-low hover:bg-surface-container rounded-full flex items-center gap-1.5 transition-colors">
+          <span class="material-symbols-outlined text-[16px] text-secondary">payments</span>
+          <div class="flex flex-col">
+            <span class="text-[9px] text-on-surface-variant leading-none uppercase font-bold">Today</span>
+            <span class="text-xs font-extrabold text-on-surface leading-tight" id="header-today-earnings">MWK 42,500</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Profile & Notifications -->
+      <div class="flex items-center gap-1.5">
+        <button onclick="simulateTestRequest()" title="Simulate Ride Request" class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary text-xs font-bold hover:bg-surface-container-high transition-colors">
+          <span class="material-symbols-outlined text-[20px]">add_alert</span>
+        </button>
+
+        <button onclick="switchDriverView('profile')" class="relative">
+          <img class="w-9 h-9 rounded-full object-cover shadow-sm ring-2 ring-primary" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw" alt="Chikondi"/>
+          <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-white"></span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main View Area -->
+  <main class="flex-1 flex flex-col relative w-full pt-16 pb-20 bg-surface">
+
+    <!-- ============================================== -->
+    <!-- VIEW 1: DRIVER RADAR & DISPATCH                -->
+    <!-- ============================================== -->
+    <section id="view-radar" class="driver-view flex flex-col w-full relative">
+      
+      <!-- Lilongwe GIS Radar Canvas -->
+      <div class="relative w-full h-[460px] overflow-hidden bg-surface-container-high">
+        
+        <!-- SVG Map Vector Representation with Surge Heatmaps -->
+        <svg class="absolute inset-0 w-full h-full object-cover" viewBox="0 0 400 460">
+          <defs>
+            <radialGradient id="surgeArea3" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#fea619" stop-opacity="0.45"/>
+              <stop offset="70%" stop-color="#fea619" stop-opacity="0.15"/>
+              <stop offset="100%" stop-color="#fea619" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="surgeGateway" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a5000e" stop-opacity="0.4"/>
+              <stop offset="60%" stop-color="#a5000e" stop-opacity="0.15"/>
+              <stop offset="100%" stop-color="#a5000e" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="radarScan" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#004328" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#004328" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+
+          <!-- Landmass & Lilongwe River -->
+          <rect fill="#eaedff" width="400" height="460"/>
+          <path d="M-20,380 C80,360 120,410 210,350 C290,300 320,310 420,270" fill="none" stroke="#dae2fd" stroke-width="22" stroke-linecap="round"/>
+          <path d="M-20,380 C80,360 120,410 210,350 C290,300 320,310 420,270" fill="none" stroke="#bfc9c0" stroke-width="6" stroke-linecap="round"/>
+
+          <!-- Primary Arterials (Kaunda Rd, Kenyatta Dr, M1) -->
+          <path d="M-10,120 L410,210" stroke="#ffffff" stroke-width="9"/>
+          <path d="M80,-20 L150,480" stroke="#ffffff" stroke-width="12"/>
+          <path d="M220,-10 L280,480" stroke="#ffffff" stroke-width="8"/>
+          <path d="M-10,310 L410,260" stroke="#ffffff" stroke-width="7"/>
+
+          <!-- Secondary Grid Roads -->
+          <path d="M30,80 C120,130 140,240 180,320" fill="none" stroke="#f2f3ff" stroke-width="5"/>
+          <path d="M120,60 L380,80" stroke="#ffffff" stroke-width="5"/>
+          <path d="M160,200 L390,360" stroke="#ffffff" stroke-width="5"/>
+
+          <!-- Surge Heatmap Blobs -->
+          <circle cx="95" cy="190" r="75" fill="url(#surgeArea3)"/>
+          <circle cx="285" cy="160" r="95" fill="url(#surgeGateway)"/>
+          <circle cx="130" cy="360" r="65" fill="url(#surgeArea3)"/>
+
+          <!-- Animated Pulse Wave for High Demand -->
+          <circle cx="285" cy="160" r="50" fill="none" stroke="#fea619" stroke-width="2" opacity="0.6">
+            <animate attributeName="r" values="35;85" dur="2.4s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.8;0" dur="2.4s" repeatCount="indefinite"/>
+          </circle>
+
+          <!-- Driver Vehicle Position (Chikondi) with Radar Ping -->
+          <circle cx="205" cy="225" r="45" fill="url(#radarScan)"/>
+          <circle cx="205" cy="225" r="28" fill="none" stroke="#004328" stroke-width="1.5" opacity="0.7">
+            <animate attributeName="r" values="10;50" dur="1.8s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.9;0" dur="1.8s" repeatCount="indefinite"/>
+          </circle>
+          <circle cx="205" cy="225" r="14" fill="#004328"/>
+          <circle cx="205" cy="225" r="6" fill="#a9f3c5"/>
+
+          <!-- Proposed Route Line to Gateway Mall -->
+          <path d="M205,225 Q235,210 250,195 T285,160" fill="none" stroke="#004328" stroke-width="4" stroke-linecap="round" stroke-dasharray="6,4"/>
+          <circle cx="285" cy="160" r="11" fill="#855300"/>
+          <circle cx="285" cy="160" r="5" fill="#ffffff"/>
+        </svg>
+
+        <!-- Surge Zone Floating Badges -->
+        <div class="absolute top-[138px] right-[24px] flex items-center gap-1 bg-surface-container-lowest px-2 py-1 rounded-full shadow pointer-events-none text-xs">
+          <span class="w-2 h-2 rounded-full bg-secondary-container animate-pulse"></span>
+          <span class="font-bold text-on-surface">Gateway Mall</span>
+          <span class="bg-secondary-fixed text-secondary px-1.5 py-0.2 rounded-full font-extrabold text-[10px]" id="badge-surge-gateway">+1.4x</span>
+        </div>
+
+        <div class="absolute top-[175px] left-[28px] flex items-center gap-1 bg-surface-container-lowest px-2 py-1 rounded-full shadow pointer-events-none text-xs">
+          <span class="font-bold text-on-surface">Area 3 Commercial</span>
+          <span class="bg-secondary-fixed text-secondary px-1.5 py-0.2 rounded-full font-extrabold text-[10px]">+1.3x</span>
+        </div>
+
+        <!-- Top Floating Status Card -->
+        <div class="absolute top-2.5 inset-x-3 z-10">
+          <div class="w-full bg-surface-container-lowest/95 backdrop-blur-md rounded-xl p-2.5 shadow-md border border-outline-variant/30 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="relative flex h-2.5 w-2.5">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                </span>
+                <span class="text-xs font-extrabold text-primary uppercase tracking-wider">RADAR ACTIVE &bull; LILONGWE</span>
+              </div>
+              <div class="flex items-center gap-1 bg-surface-container px-2 py-0.5 rounded-full text-xs font-bold">
+                <span class="material-symbols-outlined text-[14px] text-secondary">star</span>
+                <span>4.92</span>
+              </div>
+            </div>
+
+            <!-- Mini Metrics Row -->
+            <div class="grid grid-cols-3 gap-1.5 bg-surface-container-low rounded-lg p-1.5 text-center text-xs">
+              <div class="flex flex-col">
+                <span class="text-[9px] text-on-surface-variant uppercase font-bold">Trips</span>
+                <span class="font-extrabold text-on-surface" id="metrics-trips">8</span>
+              </div>
+              <div class="flex flex-col bg-surface-container-lowest rounded shadow-xs py-0.5">
+                <span class="text-[9px] text-primary uppercase font-bold">Net Earned</span>
+                <span class="font-extrabold text-primary" id="metrics-earnings">MWK 42.5k</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-[9px] text-on-surface-variant uppercase font-bold">Acceptance</span>
+                <span class="font-extrabold text-on-surface">96%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floating Utilities Pill Actions -->
+        <div class="absolute right-3 bottom-3 flex flex-col gap-2 z-10">
+          <button onclick="alert('Hotspots loaded: Gateway Mall (+1.4x), Area 3 (+1.3x), Paul Kagame Rd.')" class="w-10 h-10 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center text-secondary active:scale-95 transition-transform">
+            <span class="material-symbols-outlined text-[20px]">local_fire_department</span>
+          </button>
+          <button onclick="alert('Nearest Puma & TotalEnergies stations highlighted along Kaunda Road.')" class="w-10 h-10 rounded-full bg-surface-container-lowest shadow-md flex items-center justify-center text-on-surface-variant active:scale-95 transition-transform">
+            <span class="material-symbols-outlined text-[20px]">local_gas_station</span>
+          </button>
+          <button onclick="triggerDriverSOS()" class="w-10 h-10 rounded-full bg-error text-on-error shadow-lg flex items-center justify-center active:scale-95 transition-transform">
+            <span class="material-symbols-outlined text-[20px]">e911_emergency</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Live Dispatch Status Bottom Panel -->
+      <div class="p-4 bg-surface-container-lowest border-t border-outline-variant/20 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-on-surface uppercase tracking-wider">Standby Dispatch Status</span>
+          <span class="text-[10px] text-primary font-bold bg-primary-fixed px-2 py-0.5 rounded-full uppercase">Corridor Match Ready</span>
+        </div>
+        <p class="text-xs text-on-surface-variant">Scanning for passenger trip requests along Area 47 Sector 3, Kaunda Road, and Gateway Mall corridor. Incoming dispatches will display automatically with fare guarantee.</p>
+      </div>
+
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 2: ACTIVE GPS NAVIGATION & TRIP SLIDER    -->
+    <!-- ============================================== -->
+    <section id="view-navigation" class="driver-view hidden flex flex-col w-full relative">
+      
+      <!-- Live Map Area -->
+      <div class="relative w-full h-[440px] overflow-hidden bg-surface-container">
+        <div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBokS_WsKfgPa-bRql1y1dHeTJ5uDYOt6CHAAbXENkXKf9eqPTCLh9VEyWn21r4ucBcb1URVsiuccbx8AmiHsoihOTXpxYHJDjkr2U2-2UJtJgUNZEIXEAwke2MDWwW9u_jwoyOZnhyArU-weHmkXyXJbkwCtLvM9CZe_EKg8LjdK9ConNZORLlZvGNXtsL9P1w6YvqGhHh_jkb_Y20lwuBwGaCqRSojF2d0M8mxdK0yOB9J8NDNZOpFw');"></div>
+        
+        <!-- Top Turn-by-Turn Instruction Banner -->
+        <div class="absolute top-2.5 inset-x-3 z-20">
+          <div class="bg-primary text-on-primary rounded-xl p-3 shadow-xl flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined text-[26px]">turn_right</span>
+                </div>
+                <div class="flex flex-col min-w-0">
+                  <span class="text-lg font-extrabold leading-none">In 350m</span>
+                  <span class="text-xs font-semibold text-on-primary/90 truncate">Turn Right onto Kenyatta Drive</span>
+                </div>
+              </div>
+
+              <!-- Speed Limit Badge -->
+              <div class="w-9 h-9 rounded-full bg-surface-container-lowest text-error font-extrabold text-xs flex flex-col items-center justify-center shadow-inner">
+                <span>60</span>
+              </div>
+            </div>
+
+            <!-- ETA and Distance Strip -->
+            <div class="flex items-center justify-between text-xs bg-primary-container/40 rounded-lg px-2.5 py-1 text-on-primary">
+              <span class="font-bold">5.2 km</span>
+              <span>&bull;</span>
+              <span class="font-bold">12 mins</span>
+              <span>&bull;</span>
+              <span class="font-bold">ETA 14:38</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floating Voice Toggle & Recenter -->
+        <div class="absolute right-3 bottom-4 flex flex-col gap-2 z-10">
+          <button onclick="toggleVoiceNavigation()" id="btn-nav-voice" class="w-10 h-10 rounded-full bg-surface-container-lowest text-on-surface shadow-md flex items-center justify-center active:scale-95 transition-transform">
+            <span class="material-symbols-outlined text-[20px]" id="voice-icon">volume_up</span>
+          </button>
+          <button onclick="recenterMap()" class="w-10 h-10 rounded-full bg-surface-container-lowest text-on-surface shadow-md flex items-center justify-center active:scale-95 transition-transform">
+            <span class="material-symbols-outlined text-[20px]">my_location</span>
+          </button>
+        </div>
+
+        <!-- Vehicle Indicator on Navigation Path -->
+        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none">
+          <div class="w-10 h-10 rounded-full bg-primary text-on-primary shadow-lg flex items-center justify-center z-10 animate-pulse">
+            <span class="material-symbols-outlined text-[22px]">navigation</span>
+          </div>
+          <span class="mt-1 bg-black/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Kaunda Rd &bull; 54 km/h</span>
+        </div>
+
+      </div>
+
+      <!-- Passenger & Slide-to-Complete Fulfillment Sheet -->
+      <div class="w-full bg-surface-container-lowest rounded-t-2xl -mt-4 relative z-30 shadow-xl p-4 flex flex-col gap-3">
+        <div class="w-10 h-1 bg-surface-container-highest rounded-full self-center"></div>
+
+        <!-- Active Stage & PIN Badge -->
+        <div class="flex items-center justify-between">
+          <div class="bg-primary-fixed text-primary px-3 py-1 rounded-full flex items-center gap-1.5 text-xs font-bold">
+            <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+            <span>Heading to Destination</span>
+          </div>
+          <div class="bg-secondary-fixed text-secondary px-3 py-1 rounded-full flex items-center gap-1 text-xs font-bold">
+            <span class="material-symbols-outlined text-[15px]">verified</span>
+            <span>PIN: <strong id="nav-verified-pin">8421</strong></span>
+          </div>
+        </div>
+
+        <!-- Passenger Card -->
+        <div class="flex items-center justify-between bg-surface-container-low p-3 rounded-xl">
+          <div class="flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-sm shadow-sm">CB</div>
+            <div>
+              <div class="flex items-center gap-1">
+                <span class="text-xs font-extrabold text-on-surface">Chisomo Banda</span>
+                <span class="text-secondary text-[11px] font-bold">★ 4.90</span>
+              </div>
+              <span class="text-[11px] text-on-surface-variant">Destination: Gateway Mall</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <a href="tel:+265991234567" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high">
+              <span class="material-symbols-outlined text-[18px]">phone</span>
+            </a>
+            <button onclick="alert('Passenger message drawer opened.')" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high">
+              <span class="material-symbols-outlined text-[18px]">chat</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Guaranteed Net Fare Card -->
+        <div class="bg-surface-container rounded-xl p-2.5 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] text-on-surface-variant font-bold uppercase block">Guaranteed Net Fare</span>
+            <span class="text-base font-extrabold text-primary" id="nav-guaranteed-net-fare">MWK 4,340</span>
+            <span class="text-[10px] text-outline">(70% net after 30% Gaman commission)</span>
+          </div>
+          <span class="bg-primary-fixed text-primary text-[10px] px-2 py-0.5 rounded font-bold uppercase">Airtel Pre-Auth</span>
+        </div>
+
+        <!-- TACTILE SLIDE TO COMPLETE TRIP WIDGET -->
+        <div id="slider-track" class="relative w-full h-14 bg-surface-container-highest rounded-xl p-1 overflow-hidden select-none touch-none">
+          <div id="slider-progress" class="absolute left-0 top-0 bottom-0 bg-primary w-12 rounded-xl transition-all duration-75"></div>
+          <div class="relative w-full h-full flex items-center justify-center pointer-events-none">
+            <span id="slider-label" class="text-xs tracking-wider font-extrabold text-on-surface pl-8">SLIDE TO COMPLETE TRIP &gt;&gt;</span>
+          </div>
+          <!-- Draggable Knob -->
+          <div id="slider-knob" class="absolute left-1 top-1 bottom-1 w-12 bg-primary rounded-lg text-on-primary flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing active:scale-95 transition-transform">
+            <span class="material-symbols-outlined text-[24px]">chevron_right</span>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 3: DRIVER EARNINGS & CASHOUT              -->
+    <!-- ============================================== -->
+    <section id="view-earnings" class="driver-view hidden flex flex-col w-full px-4 pb-8 gap-3">
+      
+      <!-- Payout Hero Card -->
+      <div class="relative overflow-hidden rounded-2xl bg-primary text-on-primary p-4 shadow-md flex flex-col gap-2 mt-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 text-xs text-primary-fixed font-bold uppercase tracking-wider">
+            <span class="material-symbols-outlined text-[16px]">account_balance_wallet</span>
+            <span>Available Balance</span>
+          </div>
+          <span class="bg-primary-container text-primary-fixed text-[9px] px-2 py-0.5 rounded-full font-bold uppercase">Instant Ready</span>
+        </div>
+
+        <div class="flex flex-col">
+          <h2 class="text-3xl font-extrabold tracking-tight text-on-primary" id="driver-balance-num">MWK 142,800</h2>
+          <p class="text-[11px] text-primary-fixed-dim mt-0.5">Instant transfer to Airtel Money or TNM Mpamba with zero platform fee.</p>
+        </div>
+
+        <!-- Cashout Actions -->
+        <div class="flex flex-col gap-1.5 pt-1">
+          <button onclick="openDriverCashoutModal()" class="w-full h-12 bg-secondary-container text-on-secondary-fixed rounded-xl flex items-center justify-between px-4 shadow font-bold text-xs active:scale-[0.99] transition-transform">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-[20px]">bolt</span>
+              <span>Cash Out to Mobile Money</span>
+            </div>
+            <span class="bg-on-secondary-container/20 px-2 py-0.5 rounded-full text-[10px] uppercase font-black">Instant</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Weekly Performance with Interactive Chart -->
+      <div class="bg-surface-container-lowest rounded-xl p-3.5 shadow-sm border border-outline-variant/20 flex flex-col gap-2">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="text-[10px] text-on-surface-variant uppercase font-bold tracking-wider">Weekly Total</span>
+            <h3 class="text-xl font-extrabold text-on-surface">MWK 265,400</h3>
+            <span class="text-[11px] text-on-surface-variant">34 Trips &bull; 28 hrs online</span>
+          </div>
+          <div class="flex items-center gap-1 bg-surface-container px-2 py-1 rounded-full text-primary font-bold text-xs">
+            <span class="material-symbols-outlined text-[15px]">trending_up</span>
+            <span>+18.4%</span>
+          </div>
+        </div>
+
+        <!-- 7-Day Chart -->
+        <div class="pt-2">
+          <div class="flex items-end justify-between h-28 w-full gap-1.5 px-1">
+            <div onclick="inspectDay('Mon', 'MWK 32,000', '4 trips')" class="flex-1 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group">
+              <div class="w-full bg-surface-container-high rounded-t-sm group-hover:bg-primary" style="height: 48%;"></div>
+              <span class="text-[10px] text-on-surface-variant font-bold">M</span>
+            </div>
+            <div onclick="inspectDay('Tue', 'MWK 41,200', '6 trips')" class="flex-1 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group">
+              <div class="w-full bg-surface-container-high rounded-t-sm group-hover:bg-primary" style="height: 62%;"></div>
+              <span class="text-[10px] text-on-surface-variant font-bold">T</span>
+            </div>
+            <div onclick="inspectDay('Wed', 'MWK 38,500', '5 trips')" class="flex-1 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group">
+              <div class="w-full bg-surface-container-high rounded-t-sm group-hover:bg-primary" style="height: 58%;"></div>
+              <span class="text-[10px] text-on-surface-variant font-bold">W</span>
+            </div>
+            <div onclick="inspectDay('Today (Thu)', 'MWK 48,000', '7 trips')" class="flex-1 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group">
+              <div class="w-full bg-primary rounded-t-sm shadow-sm" style="height: 74%;"></div>
+              <span class="text-[10px] text-primary font-extrabold">T</span>
+            </div>
+            <div onclick="inspectDay('Fri', 'MWK 52,000 est.', 'Projected')" class="flex-1 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group">
+              <div class="w-full bg-surface-container rounded-t-sm border-dashed" style="height: 78%;"></div>
+              <span class="text-[10px] text-on-surface-variant">F</span>
+            </div>
+            <div onclick="inspectDay('Sat', 'MWK 34,000 est.', 'Projected')" class="flex-1 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group">
+              <div class="w-full bg-surface-container rounded-t-sm" style="height: 52%;"></div>
+              <span class="text-[10px] text-on-surface-variant">S</span>
+            </div>
+            <div onclick="inspectDay('Sun', 'MWK 19,700 est.', 'Projected')" class="flex-1 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group">
+              <div class="w-full bg-surface-container rounded-t-sm" style="height: 30%;"></div>
+              <span class="text-[10px] text-on-surface-variant">S</span>
+            </div>
+          </div>
+          <div id="chart-inspect-banner" class="mt-2 text-center text-[11px] text-on-surface-variant bg-surface-container-low py-1 rounded">
+            Tap any day to inspect breakdown
+          </div>
+        </div>
+      </div>
+
+      <!-- Breakdown Tiles -->
+      <div class="grid grid-cols-1 gap-1.5">
+        <div class="bg-surface-container-lowest rounded-xl p-2.5 flex items-center justify-between border border-outline-variant/20 shadow-xs">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-[20px]">directions_car</span>
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-on-surface">Net Fares</span>
+              <span class="text-[10px] text-on-surface-variant">Base fares after 30% Gaman commission</span>
+            </div>
+          </div>
+          <span class="text-sm font-bold text-on-surface">MWK 225,000</span>
+        </div>
+
+        <div class="bg-surface-container-lowest rounded-xl p-2.5 flex items-center justify-between border border-outline-variant/20 shadow-xs">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary text-[20px]">volunteer_activism</span>
+            <div class="flex flex-col">
+              <span class="text-xs font-bold text-on-surface">Tips Received</span>
+              <span class="text-[10px] text-on-surface-variant">100% direct to driver</span>
+            </div>
+          </div>
+          <span class="text-sm font-bold text-primary" id="driver-tips-total">MWK 18,400</span>
+        </div>
+      </div>
+
+      <!-- Settlement Feed -->
+      <div class="flex flex-col gap-1.5 mt-1">
+        <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Settlement Ledger</span>
+        <div class="flex flex-col gap-1.5" id="driver-settlement-list">
+          <!-- Populated from state -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 4: DRIVER PROFILE & KYC STATUS            -->
+    <!-- ============================================== -->
+    <section id="view-profile" class="driver-view hidden flex flex-col w-full px-4 pb-8 gap-3">
+      <div class="pt-2 flex items-center gap-3 bg-surface-container-lowest p-3.5 rounded-2xl border border-outline-variant/20 shadow-sm">
+        <img class="w-16 h-16 rounded-full object-cover shadow" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw" alt="Chikondi"/>
+        <div>
+          <h2 class="text-base font-extrabold text-on-surface">Chikondi Phiri</h2>
+          <span class="text-xs text-secondary font-bold flex items-center gap-1">★ 4.92 &bull; 1,420 Trips</span>
+          <span class="inline-block mt-1 bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">Mwendo Pro Partner</span>
+        </div>
+      </div>
+
+      <!-- Vehicle Card -->
+      <div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm border border-outline-variant/20 flex flex-col gap-2">
+        <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Registered Vehicle</span>
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col">
+            <span class="text-sm font-bold text-on-surface">White Toyota Passo</span>
+            <span class="text-xs font-mono font-extrabold text-primary">BW 4920</span>
+          </div>
+          <span class="text-[10px] bg-primary-fixed text-primary px-2.5 py-1 rounded-full font-bold uppercase">DRTSS Inspected</span>
+        </div>
+      </div>
+
+      <!-- Regulatory Compliance -->
+      <div class="bg-surface-container-low rounded-xl p-3 flex flex-col gap-1 text-xs text-on-surface-variant">
+        <span class="font-bold text-on-surface">Directorate of Road Traffic &amp; Safety Services</span>
+        <p class="text-[11px]">Valid public service vehicle permit, commercial third-party insurance, and certified fire extinguisher verified for Lilongwe transit corridors.</p>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ============================================== -->
+  <!-- INCOMING RIDE REQUEST POPUP (RADAR OVERLAY)    -->
+  <!-- ============================================== -->
+  <div id="incoming-request-modal" class="fixed inset-x-0 bottom-16 z-50 p-3 hidden transition-all duration-300">
+    <div class="w-full max-w-sm mx-auto bg-surface-container-lowest rounded-3xl shadow-2xl p-4 flex flex-col gap-3 border-2 border-primary animate-in fade-in slide-in-from-bottom-8">
+      
+      <!-- Drag pill & Timer row -->
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <!-- Countdown Circle -->
+          <div class="relative w-10 h-10 flex items-center justify-center">
+            <svg class="w-10 h-10 -rotate-90">
+              <circle cx="20" cy="20" r="16" fill="none" stroke="#eaedff" stroke-width="3"/>
+              <circle id="countdown-circle" cx="20" cy="20" r="16" fill="none" stroke="#004328" stroke-width="3" stroke-dasharray="100.5" stroke-dashoffset="0" stroke-linecap="round"/>
+            </svg>
+            <span class="absolute font-extrabold text-xs text-primary" id="countdown-val">15</span>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span id="incoming-tier-badge" class="bg-primary-fixed text-primary px-2 py-0.2 rounded-full font-bold text-[10px]">Bike Lift</span>
+              <span class="bg-secondary-fixed text-secondary px-1.5 py-0.2 rounded-full font-bold text-[9px]">+1.4x Surge</span>
+            </div>
+            <span class="text-[10px] text-on-surface-variant">Net Guaranteed: <strong id="incoming-net-num" class="text-primary font-bold">MK 1,320</strong></span>
+          </div>
+        </div>
+
+        <div class="text-right">
+          <span class="text-xl font-black text-on-surface" id="incoming-fare-num">MK 1,500</span>
+          <span class="text-[9px] text-primary font-bold block uppercase">Fast-Payout</span>
+        </div>
+      </div>
+
+      <!-- Passenger Row -->
+      <div class="bg-surface-container-low p-2.5 rounded-xl flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-primary-fixed text-primary flex items-center justify-center font-bold text-xs">AR</div>
+          <div>
+            <span class="text-xs font-bold text-on-surface block leading-tight">AArohan Passenger</span>
+            <span class="text-[10px] text-on-surface-variant">4.95 ★ &bull; Verified Lilongwe</span>
+          </div>
+        </div>
+        <span class="text-[10px] font-bold text-primary bg-surface-container-lowest px-2 py-1 rounded shadow-xs" id="incoming-dist-badge">2.8 km away</span>
+      </div>
+
+      <!-- Route Interconnect -->
+      <div class="bg-surface-container-low p-2.5 rounded-xl flex flex-col gap-2 text-xs">
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-primary shrink-0"></div>
+          <span class="font-bold text-on-surface truncate" id="incoming-pickup-text">Gateway Mall, Kaunda Road, Area 47</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-sm bg-secondary-container shrink-0"></div>
+          <span class="font-bold text-on-surface truncate" id="incoming-dest-text">EPTL Malawi (Entire Printers & Traders Ltd)</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex flex-col gap-1.5">
+        <button onclick="acceptIncomingTrip()" class="w-full h-13 bg-primary text-on-primary rounded-xl font-extrabold text-sm flex items-center justify-between px-4 shadow-lg active:scale-[0.98] transition-transform">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[20px]">electric_bolt</span>
+            <span>ACCEPT TRIP</span>
+          </div>
+          <span class="bg-primary-container px-2 py-0.5 rounded text-xs font-mono" id="btn-timer-num">15s</span>
+        </button>
+
+        <button onclick="declineIncomingTrip()" class="py-1 text-center text-xs text-outline hover:text-error transition-colors">
+          Decline request
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom Navigation Bar -->
+  <nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/90 backdrop-blur-xl border-t border-outline-variant/20 shadow-lg">
+    <div class="flex justify-around items-center h-16 max-w-lg mx-auto">
+      
+      <button onclick="switchDriverView('radar')" id="dnav-radar" class="dnav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] text-primary font-bold transition-colors">
+        <span class="material-symbols-outlined text-[22px]">radar</span>
+        <span class="text-[10px]">Radar</span>
+      </button>
+
+      <button onclick="switchDriverView('navigation')" id="dnav-navigation" class="dnav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined text-[22px]">navigation</span>
+        <span class="text-[10px]">Nav GPS</span>
+      </button>
+
+      <button onclick="switchDriverView('earnings')" id="dnav-earnings" class="dnav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined text-[22px]">payments</span>
+        <span class="text-[10px]">Earnings</span>
+      </button>
+
+      <button onclick="switchDriverView('profile')" id="dnav-profile" class="dnav-item flex flex-col items-center justify-center gap-0.5 min-w-[56px] text-on-surface-variant hover:text-on-surface transition-colors">
+        <span class="material-symbols-outlined text-[22px]">shield_person</span>
+        <span class="text-[10px]">Profile</span>
+      </button>
+
+    </div>
+  </nav>
+
+  <!-- Driver App State & Interactive Logic -->
+  <script>
+    let isOnline = true;
+    let countdownInterval = null;
+    let countdownSecs = 15;
+    let voiceGuidanceMuted = false;
+
+    // View Switching
+    function switchDriverView(viewName) {
+      document.querySelectorAll('.driver-view').forEach(p => p.classList.add('hidden'));
+      const active = document.getElementById('view-' + viewName);
+      if (active) active.classList.remove('hidden');
+
+      document.querySelectorAll('.dnav-item').forEach(btn => {
+        btn.classList.remove('text-primary', 'font-bold');
+        btn.classList.add('text-on-surface-variant');
+      });
+
+      const navBtn = document.getElementById('dnav-' + viewName);
+      if (navBtn) {
+        navBtn.classList.remove('text-on-surface-variant');
+        navBtn.classList.add('text-primary', 'font-bold');
+      }
+
+      if (window.mwendoSound) window.mwendoSound.playClick();
+    }
+
+    let driverWatchId = null;
+    let currentDriverCoords = { lat: -13.9650, lng: 33.7820, heading: 45, accuracy: 5 };
+
+    function startDriverTelemetry() {
+      if (navigator.geolocation) {
+        driverWatchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const lat = parseFloat(pos.coords.latitude.toFixed(5));
+            const lng = parseFloat(pos.coords.longitude.toFixed(5));
+            const heading = pos.coords.heading || 0;
+            const accuracy = Math.round(pos.coords.accuracy);
+
+            currentDriverCoords = { lat, lng, heading, accuracy, timestamp: Date.now() };
+
+            // 1. Post to Gaman server-side spatial driver registry
+            fetch('/api/drivers/location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                driverId: 'DRV-MW-101',
+                name: 'Chikondi Phiri',
+                phone: '+265 99 554 1122',
+                vehicleTier: 'moto',
+                vehiclePlate: 'BW 4920',
+                vehicleModel: 'Haojue 125cc Red',
+                lat,
+                lng,
+                heading,
+                accuracy
+              })
+            }).catch(() => {});
+
+            // 2. Broadcast to connected rider via WebSocket state bus
+            if (window.mwendoStore) {
+              window.mwendoStore.sendDriverLocation(currentDriverCoords);
+            }
+          },
+          (err) => {
+            console.warn('[GamanDriver] Geolocation error:', err.message);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
+        );
+      }
+    }
+
+    function stopDriverTelemetry() {
+      if (driverWatchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(driverWatchId);
+        driverWatchId = null;
+      }
+    }
+
+    // Ping driver location manually (useful for pair-testing on dev desktop)
+    window.pingDriverLocation = function(dLat, dLng) {
+      currentDriverCoords.lat += (dLat || 0.001);
+      currentDriverCoords.lng += (dLng || 0.001);
+      currentDriverCoords.timestamp = Date.now();
+
+      fetch('/api/drivers/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: 'DRV-MW-101',
+          name: 'Chikondi Phiri',
+          phone: '+265 99 554 1122',
+          vehicleTier: 'moto',
+          vehiclePlate: 'BW 4920',
+          vehicleModel: 'Haojue 125cc Red',
+          lat: currentDriverCoords.lat,
+          lng: currentDriverCoords.lng,
+          heading: currentDriverCoords.heading,
+          accuracy: 5
+        })
+      }).catch(() => {});
+
+      if (window.mwendoStore) {
+        window.mwendoStore.sendDriverLocation(currentDriverCoords);
+      }
+    };
+
+    // Online / Offline Switch
+    function toggleOnlineStatus() {
+      isOnline = !isOnline;
+      const ring = document.getElementById('ping-ring');
+      const dot = document.getElementById('ping-dot');
+      const label = document.getElementById('status-label');
+
+      if (isOnline) {
+        ring.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed opacity-75';
+        dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-primary';
+        label.innerText = 'ONLINE';
+        label.className = 'text-xs font-black text-primary tracking-wider uppercase';
+        startDriverTelemetry();
+      } else {
+        ring.className = 'hidden';
+        dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-outline';
+        label.innerText = 'OFFLINE';
+        label.className = 'text-xs font-black text-outline tracking-wider uppercase';
+        hideIncomingRequest();
+        stopDriverTelemetry();
+      }
+
+      window.mwendoStore.setDriverStatus(isOnline ? 'ONLINE' : 'OFFLINE');
+      if (window.mwendoSound) window.mwendoSound.playClick();
+    }
+
+    // Auto-start telemetry on initial page load if online
+    if (isOnline) {
+      startDriverTelemetry();
+    }
+
+    // Incoming Request Modal
+    function showIncomingRequest() {
+      if (!isOnline) return;
+      const modal = document.getElementById('incoming-request-modal');
+      modal.classList.remove('hidden');
+
+      // Populate dynamic trip data from Real-Time Store
+      const currentTrip = (window.mwendoStore && window.mwendoStore.getState()) ? window.mwendoStore.getState().activeTrip : null;
+      if (currentTrip) {
+        const fare = currentTrip.finalFare || 1500;
+        const net = Math.round(fare * 0.70); // 70% Captain Share (30% Gaman Commission)
+        const pEl = document.getElementById('incoming-pickup-text');
+        const dEl = document.getElementById('incoming-dest-text');
+        const fEl = document.getElementById('incoming-fare-num');
+        const nEl = document.getElementById('incoming-net-num');
+        const tEl = document.getElementById('incoming-tier-badge');
+        const distEl = document.getElementById('incoming-dist-badge');
+
+        if (pEl) pEl.innerText = currentTrip.pickup || 'Gateway Mall, Kaunda Rd, Area 47';
+        if (dEl) dEl.innerText = currentTrip.destination || 'EPTL Malawi (Area 4 Industrial)';
+        if (fEl) fEl.innerText = 'MK ' + fare.toLocaleString();
+        if (nEl) nEl.innerText = 'MK ' + net.toLocaleString();
+        if (tEl) tEl.innerText = currentTrip.tier || 'Bike Lift';
+        if (distEl) distEl.innerText = (currentTrip.distanceKm || 2.8) + ' km trip';
+
+        // Also update navigation view labels for when driver accepts
+        const navDest = document.getElementById('nav-dest-label');
+        if (navDest) {
+          const destName = (typeof currentTrip.destination === 'string')
+            ? currentTrip.destination.split(',')[0]
+            : (currentTrip.destination?.name || 'Lilongwe');
+          navDest.innerText = 'Destination: ' + destName;
+        }
+        const navPin = document.getElementById('nav-verified-pin');
+        if (navPin) navPin.innerText = currentTrip.pin || '8421';
+      }
+
+      countdownSecs = 15;
+      const circle = document.getElementById('countdown-circle');
+      const valEl = document.getElementById('countdown-val');
+      const btnTimer = document.getElementById('btn-timer-num');
+      const totalCircumference = 100.5;
+
+      clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        countdownSecs--;
+        if (countdownSecs <= 0) {
+          clearInterval(countdownInterval);
+          hideIncomingRequest();
+          return;
+        }
+        valEl.innerText = countdownSecs;
+        btnTimer.innerText = countdownSecs + 's';
+        if (circle) {
+          circle.style.strokeDashoffset = totalCircumference - (countdownSecs / 15) * totalCircumference;
+        }
+      }, 1000);
+
+      if (window.mwendoSound) window.mwendoSound.playDispatchAlert();
+    }
+
+    function hideIncomingRequest() {
+      clearInterval(countdownInterval);
+      document.getElementById('incoming-request-modal').classList.add('hidden');
+    }
+
+    function acceptIncomingTrip() {
+      hideIncomingRequest();
+      window.mwendoStore.acceptTrip();
+      switchDriverView('navigation');
+    }
+
+    function declineIncomingTrip() {
+      hideIncomingRequest();
+    }
+
+    function simulateTestRequest() {
+      window.mwendoStore.requestTrip({
+        pickup: 'Area 47 Sector 3, Kaunda Road',
+        destination: 'Gateway Mall, Kaunda Rd',
+        tier: 'Gaman Cab',
+        fare: 6200,
+        paymentMethod: 'Airtel Money Locked'
+      });
+    }
+
+    // Tactile Slider Physics Implementation
+    (function initSlider() {
+      const knob = document.getElementById('slider-knob');
+      const track = document.getElementById('slider-track');
+      const progress = document.getElementById('slider-progress');
+      const label = document.getElementById('slider-label');
+
+      if (!knob || !track) return;
+
+      let isDragging = false;
+      let startX = 0;
+      let currentX = 0;
+
+      const getMax = () => track.clientWidth - knob.clientWidth - 8;
+
+      const onStart = (clientX) => {
+        isDragging = true;
+        startX = clientX - (currentX || 0);
+        if (window.mwendoSound) window.mwendoSound.playSliderClick();
+      };
+
+      const onMove = (clientX) => {
+        if (!isDragging) return;
+        const max = getMax();
+        let x = clientX - startX;
+        if (x < 0) x = 0;
+        if (x > max) x = max;
+        currentX = x;
+
+        knob.style.transform = `translateX(${x}px)`;
+        if (progress) progress.style.width = `${x + 48}px`;
+
+        if (x > max * 0.85) {
+          label.innerText = 'RELEASE TO FINISH';
+          label.classList.add('text-on-primary');
+        } else {
+          label.innerText = 'SLIDE TO COMPLETE TRIP >>';
+          label.classList.remove('text-on-primary');
+        }
+      };
+
+      const onEnd = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        const max = getMax();
+
+        if (currentX >= max * 0.9) {
+          knob.style.transform = `translateX(${max}px)`;
+          if (progress) progress.style.width = '100%';
+          label.innerText = 'TRIP COMPLETED ✓';
+          label.classList.add('text-on-primary');
+
+          window.mwendoStore.completeTrip();
+
+          setTimeout(() => {
+            const currentTrip = (window.mwendoStore && window.mwendoStore.getState()) ? window.mwendoStore.getState().activeTrip : null;
+            const fare = (currentTrip && currentTrip.finalFare) ? currentTrip.finalFare : 6200;
+            const net = Math.round(fare * 0.70);
+            alert(`Trip completed successfully! MWK ${net.toLocaleString()} net earnings (70%) settled to your Gaman driver wallet.`);
+            switchDriverView('earnings');
+            currentX = 0;
+            knob.style.transform = 'translateX(0px)';
+            progress.style.width = '48px';
+            label.innerText = 'SLIDE TO COMPLETE TRIP >>';
+            label.classList.remove('text-on-primary');
+          }, 300);
+        } else {
+          currentX = 0;
+          knob.style.transform = 'translateX(0px)';
+          progress.style.width = '48px';
+          label.innerText = 'SLIDE TO COMPLETE TRIP >>';
+          label.classList.remove('text-on-primary');
+        }
+      };
+
+      // Mouse Listeners
+      knob.addEventListener('mousedown', e => onStart(e.clientX));
+      window.addEventListener('mousemove', e => onMove(e.clientX));
+      window.addEventListener('mouseup', onEnd);
+
+      // Touch Listeners
+      knob.addEventListener('touchstart', e => {
+        if (e.touches.length > 0) onStart(e.touches[0].clientX);
+      }, { passive: true });
+      window.addEventListener('touchmove', e => {
+        if (e.touches.length > 0) onMove(e.touches[0].clientX);
+      }, { passive: true });
+      window.addEventListener('touchend', onEnd);
+    })();
+
+    // Voice & Map controls
+    function toggleVoiceNavigation() {
+      voiceGuidanceMuted = !voiceGuidanceMuted;
+      const icon = document.getElementById('voice-icon');
+      icon.innerText = voiceGuidanceMuted ? 'volume_off' : 'volume_up';
+      icon.classList.toggle('text-error', voiceGuidanceMuted);
+
+      if (!voiceGuidanceMuted && 'speechSynthesis' in window) {
+        const utter = new SpeechSynthesisUtterance('In 350 meters, turn right onto Kenyatta Drive');
+        utter.lang = 'en-US';
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
+    function recenterMap() {
+      alert('Map re-centered on vehicle position: Kenyatta Drive, Lilongwe.');
+    }
+
+    // Earnings Cashout
+    function openDriverCashoutModal() {
+      const state = window.mwendoStore.getState();
+      const amt = prompt(`Instant Cashout to Airtel Money\nAvailable Balance: MWK ${state.driver.availableBalance.toLocaleString()}\nEnter amount to withdraw:`, '50000');
+      if (amt && !isNaN(amt)) {
+        const success = window.mwendoStore.cashOutDriver(parseInt(amt), 'Airtel Money (+265 99 554 1122)');
+        if (success) {
+          alert(`Success! MWK ${parseInt(amt).toLocaleString()} transferred to your Airtel Money wallet in under 60 seconds.`);
+        } else {
+          alert('Insufficient available balance.');
+        }
+      }
+    }
+
+    function inspectDay(day, amount, trips) {
+      const banner = document.getElementById('chart-inspect-banner');
+      banner.innerHTML = `<strong>${day}:</strong> ${amount} &bull; ${trips}`;
+      banner.className = 'mt-2 text-center text-xs font-bold text-primary bg-primary-fixed/40 py-1.5 rounded transition-all';
+      if (window.mwendoSound) window.mwendoSound.playClick();
+    }
+
+    function triggerDriverSOS() {
+      window.mwendoStore.triggerSOS('DRIVER', 'Driver Chikondi signaled emergency corridor assist');
+      alert('Emergency response triggered! Lilongwe Rapid Dispatch alerted.');
+    }
+
+    // Reactive State Subscriptions
+    window.mwendoStore.subscribe((state, eventName) => {
+      // Update Header Balance & Today Earnings
+      const hEarn = document.getElementById('header-today-earnings');
+      if (hEarn) hEarn.innerText = 'MWK ' + state.driver.todayEarnings.toLocaleString();
+
+      const dBal = document.getElementById('driver-balance-num');
+      if (dBal) dBal.innerText = 'MWK ' + state.driver.availableBalance.toLocaleString();
+
+      const dTrips = document.getElementById('metrics-trips');
+      if (dTrips) dTrips.innerText = state.driver.todayTrips;
+
+      const mEarn = document.getElementById('metrics-earnings');
+      if (mEarn) mEarn.innerText = 'MWK ' + (state.driver.todayEarnings / 1000).toFixed(1) + 'k';
+
+      // Update PIN
+      const pinEl = document.getElementById('nav-verified-pin');
+      if (pinEl) pinEl.innerText = state.activeTrip.pin;
+
+      // Update Surge Multiplier Badge
+      const surgeBadge = document.getElementById('badge-surge-gateway');
+      if (surgeBadge && state.surgeMultipliers['Gateway Mall']) {
+        surgeBadge.innerText = '+' + state.surgeMultipliers['Gateway Mall'] + 'x';
+      }
+
+      // Render Settlement Activity
+      const setList = document.getElementById('driver-settlement-list');
+      if (setList && state.driverSettlements) {
+        setList.innerHTML = state.driverSettlements.slice(0, 4).map(ds => `
+          <div class="bg-surface-container-lowest rounded-xl p-2.5 flex items-center justify-between border border-outline-variant/20 shadow-xs">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full ${ds.amount > 0 ? 'bg-primary-fixed text-primary' : 'bg-tertiary-fixed text-tertiary'} flex items-center justify-center text-xs">
+                <span class="material-symbols-outlined text-[16px]">${ds.amount > 0 ? 'arrow_downward' : 'arrow_upward'}</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs font-bold text-on-surface">${ds.title}</span>
+                <span class="text-[10px] text-on-surface-variant">${ds.method} &bull; ${ds.time}</span>
+              </div>
+            </div>
+            <span class="text-xs font-bold ${ds.amount > 0 ? 'text-primary' : 'text-on-surface'}">${ds.amount > 0 ? '+' : ''}MWK ${Math.abs(ds.amount).toLocaleString()}</span>
+          </div>
+        `).join('');
+      }
+
+      // Handle Cross-App Events
+      if (eventName === 'TRIP_REQUESTED') {
+        showIncomingRequest();
+      } else if (eventName === 'TRIP_CANCELLED') {
+        hideIncomingRequest();
+      } else if (eventName === 'STATE_RESET') {
+        hideIncomingRequest();
+        switchDriverView('radar');
+      }
+    });
+  </script>
+</body>
+</html>
