@@ -124,7 +124,7 @@
 
     fetchInitialState() {
       const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
-      fetch(`${origin}/api/state`)
+      fetch(`${origin}/api/trips/active`)
         .then(r => r.json())
         .then(serverState => {
           if (serverState) {

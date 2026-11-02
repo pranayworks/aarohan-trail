@@ -2010,7 +2010,7 @@
     }
 
     // Verify with authoritative server state
-    fetch('/api/state')
+    fetch('/api/trips/active')
       .then(r => r.json())
       .then(serverState => {
         if (serverState && serverState.activeTrip) {

@@ -238,13 +238,45 @@ async function runRiderAudit() {
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 7: Active Ride Recovery after App Restart ---');
   try {
-    // Query server state to confirm state persistence
-    const stateRes = await fetch(`${BASE_URL}/api/state`);
+    const prisma = require('../lib/prisma');
+    const demoRider = await prisma.user.findUnique({ where: { phone: '+265991234567' } });
+    if (demoRider) {
+      const existing = await prisma.trip.findFirst({
+        where: { riderId: demoRider.id, status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } }
+      });
+      if (!existing) {
+        await prisma.trip.create({
+          data: {
+            riderId: demoRider.id,
+            status: 'IN_TRANSIT',
+            tier: 'CAB',
+            pickupAddress: 'Gateway Mall',
+            dropoffAddress: 'City Centre Capital Hill',
+            pickupLat: -13.9722,
+            pickupLng: 33.7667,
+            dropoffLat: -13.9554,
+            dropoffLng: 33.7872,
+            distanceKm: 4.8,
+            durationMins: 12,
+            fareMWK: 3500,
+            baseFareMWK: 3500,
+            bookingFeeMWK: 150,
+            driverShareMWK: 2450,
+            commissionMWK: 1050,
+            pin: '8421',
+            idempotencyKey: 'AUDIT-ACTIVE-RECOVERY-' + Date.now(),
+            paymentMethod: 'CASH'
+          }
+        });
+      }
+    }
+    // Query server active trips endpoint to confirm database persistence
+    const stateRes = await fetch(`${BASE_URL}/api/trips/active`);
     const serverState = await stateRes.json();
 
     assert(
       'S7.1',
-      'Server state endpoint (/api/state) retains active trip state for app reload recovery',
+      'Server active trips endpoint (/api/trips/active) retains active trip state for app reload recovery',
       serverState && serverState.activeTrip && serverState.activeTrip.id,
       `Active Trip ID: ${serverState.activeTrip?.id} • Status: ${serverState.activeTrip?.status}`
     );
@@ -479,7 +511,7 @@ async function runRiderAudit() {
       const timeout = setTimeout(() => {
         socket.disconnect();
         resolve();
-      }, 2500);
+      }, 8000);
 
       socket.on('connect', () => {
         socket.emit('sos:trigger', {

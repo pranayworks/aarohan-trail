@@ -14,8 +14,7 @@ function hashPassword(password) {
 async function main() {
   const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
   if (!isDev) {
-    console.log('[Seed] ⚠️ Skipping seed: NODE_ENV is not "development" (current: ' + process.env.NODE_ENV + '). Pass --dev to run in dev mode.');
-    return;
+    throw new Error('Refusing to run seed: NODE_ENV must be set to "development" or --dev must be passed.');
   }
 
   const adminPassword = process.env.ADMIN_INITIAL_PASSWORD;
@@ -156,25 +155,113 @@ async function main() {
       where: { idempotencyKey: 'SEED-OPENING-RIDER-CHISOMO' }
     });
     if (!existingLedger) {
-      await prisma.ledgerEntry.create({
-        data: {
-          journalId: crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex'),
-          account: 'RIDER',
-          userId: demoRider.id,
-          walletId: demoRider.wallet.id,
-          type: 'WALLET_TOPUP',
-          amountMWK: 38500,
-          balanceAfterMWK: 38500,
-          currency: 'MWK',
-          description: 'Demo opening wallet balance',
-          idempotencyKey: 'SEED-OPENING-RIDER-CHISOMO',
-          reference: 'DEV_SEED_OPENING_BALANCE'
-        }
-      });
-      console.log('[Seed] ✅ Demo rider opening-balance ledger entry created (38,500 MWK)');
+      const journalId = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+      await prisma.$transaction([
+        prisma.ledgerEntry.create({
+          data: {
+            journalId,
+            account: 'RIDER',
+            userId: demoRider.id,
+            walletId: demoRider.wallet.id,
+            type: 'WALLET_TOPUP',
+            amountMWK: 38500,
+            balanceAfterMWK: 38500,
+            currency: 'MWK',
+            description: 'Demo opening wallet balance',
+            idempotencyKey: 'SEED-OPENING-RIDER-CHISOMO',
+            reference: 'DEV_SEED_OPENING_BALANCE'
+          }
+        }),
+        prisma.ledgerEntry.create({
+          data: {
+            journalId,
+            account: 'PLATFORM_ESCROW',
+            userId: null,
+            walletId: null,
+            type: 'WALLET_TOPUP',
+            amountMWK: -38500,
+            balanceAfterMWK: 0,
+            currency: 'MWK',
+            description: 'Platform escrow offset for demo opening balance',
+            idempotencyKey: 'SEED-OPENING-ESCROW-CHISOMO',
+            reference: 'DEV_SEED_OPENING_BALANCE'
+          }
+        })
+      ]);
+      console.log('[Seed] ✅ Demo rider zero-sum opening balance ledger created (38,500 MWK)');
     }
   }
   console.log('[Seed] ✅ Demo rider verified (+265991234567, Chisomo Banda)');
+
+  // 3b. Seed Demo Rider 2 (Tionge Mhango)
+  const demoRider2 = await prisma.user.upsert({
+    where: { phone: '+265992223344' },
+    update: {
+      name: 'Tionge Mhango',
+      role: 'RIDER',
+      status: 'ACTIVE',
+      kycTier: 'TIER_1_STANDARD'
+    },
+    create: {
+      phone: '+265992223344',
+      name: 'Tionge Mhango',
+      role: 'RIDER',
+      status: 'ACTIVE',
+      kycTier: 'TIER_1_STANDARD',
+      wallet: {
+        create: { balanceMWK: 25000 }
+      }
+    },
+    include: { wallet: true }
+  });
+
+  if (demoRider2.wallet) {
+    await prisma.wallet.update({
+      where: { id: demoRider2.wallet.id },
+      data: { balanceMWK: 25000 }
+    });
+
+    const existingLedger2 = await prisma.ledgerEntry.findUnique({
+      where: { idempotencyKey: 'SEED-OPENING-RIDER-TIONGE' }
+    });
+    if (!existingLedger2) {
+      const journalId2 = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(16).toString('hex');
+      await prisma.$transaction([
+        prisma.ledgerEntry.create({
+          data: {
+            journalId: journalId2,
+            account: 'RIDER',
+            userId: demoRider2.id,
+            walletId: demoRider2.wallet.id,
+            type: 'WALLET_TOPUP',
+            amountMWK: 25000,
+            balanceAfterMWK: 25000,
+            currency: 'MWK',
+            description: 'Demo opening wallet balance for Rider 2',
+            idempotencyKey: 'SEED-OPENING-RIDER-TIONGE',
+            reference: 'DEV_SEED_OPENING_BALANCE'
+          }
+        }),
+        prisma.ledgerEntry.create({
+          data: {
+            journalId: journalId2,
+            account: 'PLATFORM_ESCROW',
+            userId: null,
+            walletId: null,
+            type: 'WALLET_TOPUP',
+            amountMWK: -25000,
+            balanceAfterMWK: 0,
+            currency: 'MWK',
+            description: 'Platform escrow offset for Rider 2 opening balance',
+            idempotencyKey: 'SEED-OPENING-ESCROW-TIONGE',
+            reference: 'DEV_SEED_OPENING_BALANCE'
+          }
+        })
+      ]);
+      console.log('[Seed] ✅ Demo rider 2 zero-sum opening balance ledger created (25,000 MWK)');
+    }
+  }
+  console.log('[Seed] ✅ Demo rider 2 verified (+265992223344, Tionge Mhango)');
 
   // 4. Seed Demo Drivers
   const demoDrivers = [
