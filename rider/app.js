@@ -2117,119 +2117,25 @@
   // =========================================================================
   // 17. DEVELOPER & VERIFICATION TESTING ACTIONS WITH LIVE SIMULATION
   // =========================================================================
-  let simulationApproachInterval = null;
-  let simulationTransitInterval = null;
-
   window.simulateDriverAcceptNow = function () {
     const store = window.aarohanStore || window.mwendoStore;
     if (store) {
       store.acceptTrip();
     }
-    showToast('Captain accepted trip! Approaching pickup...');
+    showToast('Captain accepted trip! Awaiting live GPS telemetry...');
     if (window.aarohanSound) window.aarohanSound.playAcceptChime();
-
-    // Start autonomous approach animation from current driver position to pickup
-    startAutonomousApproach();
   };
 
-  function startAutonomousApproach() {
-    clearInterval(simulationApproachInterval);
-    const startLat = -13.9650;
-    const startLng = 33.7820;
-    const targetLat = Number(currentPickup?.lat) || -13.9722;
-    const targetLng = Number(currentPickup?.lng) || 33.7667;
-    const steps = 6;
-    let step = 0;
-
-    simulationApproachInterval = setInterval(() => {
-      step++;
-      const factor = step / steps;
-      const currentLat = startLat + (targetLat - startLat) * factor;
-      const currentLng = startLng + (targetLng - startLng) * factor;
-
-      if (!isNaN(currentLat) && !isNaN(currentLng)) {
-        const store = window.aarohanStore || window.mwendoStore;
-        if (store) {
-          store.sendDriverLocation({ lat: parseFloat(currentLat.toFixed(5)), lng: parseFloat(currentLng.toFixed(5)) });
-        }
-      }
-
-      if (step >= steps) {
-        clearInterval(simulationApproachInterval);
-        const store = window.aarohanStore || window.mwendoStore;
-        if (store) {
-          store.driverArrived();
-        }
-        showToast('Captain has arrived at pickup point!');
-        if (window.aarohanSound) window.aarohanSound.playTone(600, 'triangle', 0.25);
-      }
-    }, 1200);
-  }
-
   window.startRiderTransitNow = function () {
-    clearInterval(simulationApproachInterval);
     const store = window.aarohanStore || window.mwendoStore;
     if (store) {
       store.startTransit();
     }
     showToast('PIN verified! Ride in transit to destination...');
     if (window.aarohanSound) window.aarohanSound.playTone(520, 'sine', 0.2);
-
-    // Start autonomous transit along route polyline
-    startAutonomousTransit();
   };
 
-  function startAutonomousTransit() {
-    clearInterval(simulationTransitInterval);
-    const pLat = Number(currentPickup?.lat) || -13.9722;
-    const pLng = Number(currentPickup?.lng) || 33.7667;
-    const dLat = Number(currentDestination?.lat) || -13.9850;
-    const dLng = Number(currentDestination?.lng) || 33.7750;
-
-    const rawPoly = (activeQuote && activeQuote.route && Array.isArray(activeQuote.route.polyline) && activeQuote.route.polyline.length > 0)
-      ? activeQuote.route.polyline
-      : [[pLat, pLng], [dLat, dLng]];
-
-    // Normalize polyline points to guaranteed [lat, lng] numbers
-    const poly = rawPoly.map(pt => {
-      if (Array.isArray(pt)) {
-        return [Number(pt[0]) || pLat, Number(pt[1]) || pLng];
-      } else if (pt && typeof pt === 'object') {
-        return [Number(pt.lat) || pLat, Number(pt.lng) || pLng];
-      }
-      return [pLat, pLng];
-    });
-
-    let idx = 0;
-    const totalPoints = poly.length;
-    const stride = Math.max(1, Math.floor(totalPoints / 8));
-
-    simulationTransitInterval = setInterval(() => {
-      idx += stride;
-      if (idx >= totalPoints) {
-        idx = totalPoints - 1;
-        clearInterval(simulationTransitInterval);
-        const store = window.aarohanStore || window.mwendoStore;
-        if (store) {
-          store.sendDriverLocation({ lat: poly[idx][0], lng: poly[idx][1] });
-          setTimeout(() => {
-            window.simulateCompleteTrip();
-          }, 800);
-        }
-        return;
-      }
-
-      const pt = poly[idx];
-      const store = window.aarohanStore || window.mwendoStore;
-      if (store && pt && !isNaN(pt[0]) && !isNaN(pt[1])) {
-        store.sendDriverLocation({ lat: pt[0], lng: pt[1] });
-      }
-    }, 1200);
-  }
-
   window.completeRiderTripNow = function () {
-    clearInterval(simulationApproachInterval);
-    clearInterval(simulationTransitInterval);
     window.simulateCompleteTrip();
   };
 

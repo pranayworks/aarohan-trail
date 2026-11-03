@@ -111,13 +111,22 @@ async function runTestSuite() {
   assert.ok(driver1User?.driverProfile, 'Driver 1 (+265995541122 Chikondi) must exist in DB');
   assert.ok(driver2User?.driverProfile, 'Driver 2 (+265998241120 Blessings) must exist in DB');
 
-  // Cancel any lingering active trips for these test users to start with clean state
+  // Cancel any lingering active trips for these test users and drivers to start with clean state
   await prisma.trip.updateMany({
     where: {
-      riderId: { in: [rider1.id, rider2.id] },
+      OR: [
+        { riderId: { in: [rider1.id, rider2.id] } },
+        { driverId: { in: [driver1User.driverProfile.id, driver2User.driverProfile.id] } }
+      ],
       status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
     },
     data: { status: 'CANCELLED_BY_RIDER', cancelledBy: 'SYSTEM', cancelReason: 'Test suite setup cleanup' }
+  });
+
+  // Ensure test drivers are set to ONLINE
+  await prisma.driver.updateMany({
+    where: { id: { in: [driver1User.driverProfile.id, driver2User.driverProfile.id] } },
+    data: { availability: 'ONLINE' }
   });
 
   console.log('   Test fixtures verified:');
@@ -440,10 +449,13 @@ async function runTestSuite() {
     );
 
     // 5C: Settle Completed Ride with Cash (Driver Commission Debt + Platform Revenue)
-    // Complete previous active trips to free rider active slots
+    // Complete previous active trips to free rider and driver active slots
     await prisma.trip.updateMany({
       where: {
-        riderId: { in: [rider1.id, rider2.id] },
+        OR: [
+          { riderId: { in: [rider1.id, rider2.id] } },
+          { driverId: { in: [driver1User.driverProfile.id, driver2User.driverProfile.id] } }
+        ],
         status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
       },
       data: { status: 'COMPLETED' }
@@ -504,6 +516,18 @@ async function runTestSuite() {
       cashSettlement.netBalanceSum === 0 && cashCheck.isBalanced && cashCheck.sum === 0 && cashSplitRuleHolds,
       `Fare MK ${cashFare} -> Commission: MK ${cashDS?.commissionMWK} (Debt), Driver Share: MK ${cashDS?.driverEarningsMWK}, Journal Net Sum: ${cashCheck.sum} MWK`
     );
+
+    // Complete cash fixture to free slots before digital settlement
+    await prisma.trip.updateMany({
+      where: {
+        OR: [
+          { riderId: { in: [rider1.id, rider2.id] } },
+          { driverId: { in: [driver1User.driverProfile.id, driver2User.driverProfile.id] } }
+        ],
+        status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
+      },
+      data: { status: 'COMPLETED' }
+    });
 
     // 5D: Settle Completed Ride with Digital Escrow (Rider Debit + Driver Share + Platform Commission)
     const digitalFare = 2200;

@@ -23,17 +23,15 @@
 const assert = require('assert');
 const ioClient = require('socket.io-client');
 const prisma = require('../lib/prisma');
-const { getTestToken } = require('./auth_helper');
 const { app, server } = require('../server');
 
 const BASE_URL = 'http://127.0.0.1:3000';
 
 function connectSocket(userId, role, driverId = null) {
   return new Promise((resolve, reject) => {
-    const token = getTestToken({ userId, role, driverId });
     const socket = ioClient(BASE_URL, {
       transports: ['websocket'],
-      auth: { token }
+      auth: { userId, role, driverId }
     });
 
     const timeout = setTimeout(() => {
@@ -234,14 +232,18 @@ async function runE2ETestSuite() {
     });
     const initialDebtMWK = initialDriverProfile.commissionDebtMWK;
 
+    const cashFareMWK = 5000;
+    const expectedCashComm = Math.round(cashFareMWK * 0.30); // 1500
+    const expectedCashDriverShare = cashFareMWK - expectedCashComm; // 3500
+
     // 2A. Request Cash Trip
     const cashTrip = await new Promise((resolve, reject) => {
       riderSocket.emit('trip:request', {
         pickup: { name: 'Capital Hill City Center', lat: -13.9500, lng: 33.7900 },
         destination: { name: 'Old Town Lilongwe', lat: -13.9850, lng: 33.7700 },
         tierId: 'cab',
-        fare: 5000,
-        baseFare: 5000,
+        fare: cashFareMWK,
+        baseFare: cashFareMWK,
         distanceKm: 5.8,
         durationMins: 15,
         paymentMethod: 'CASH',
@@ -251,10 +253,6 @@ async function runE2ETestSuite() {
         else reject(new Error(res?.error || 'Failed to request cash trip'));
       });
     });
-
-    const cashFareMWK = cashTrip.fareMWK;
-    const expectedCashComm = Math.round(cashFareMWK * 0.30);
-    const expectedCashDriverShare = cashFareMWK - expectedCashComm;
 
     // 2B. Accept Cash Trip
     await new Promise((resolve) => {
@@ -359,14 +357,18 @@ async function runE2ETestSuite() {
     const initialRiderWallet = await prisma.wallet.findUnique({ where: { userId: riderUser.id } });
     const initialDriverWallet = await prisma.wallet.findUnique({ where: { userId: driverUser.id } });
 
+    const digitalFareMWK = 3500;
+    const expectedDigitalComm = Math.round(digitalFareMWK * 0.30); // 1050
+    const expectedDigitalDriverShare = digitalFareMWK - expectedDigitalComm; // 2450
+
     // 3A. Request Digital Trip
     const digitalTrip = await new Promise((resolve, reject) => {
       riderSocket.emit('trip:request', {
         pickup: { name: 'Gateway Mall', lat: -13.9722, lng: 33.7667 },
         destination: { name: 'Area 47 Sector 3', lat: -13.9650, lng: 33.7820 },
         tierId: 'moto',
-        fare: 3500,
-        baseFare: 3500,
+        fare: digitalFareMWK,
+        baseFare: digitalFareMWK,
         distanceKm: 3.2,
         durationMins: 9,
         paymentMethod: 'WALLET_ESCROW',
@@ -376,10 +378,6 @@ async function runE2ETestSuite() {
         else reject(new Error(res?.error || 'Failed to request digital trip'));
       });
     });
-
-    const digitalFareMWK = digitalTrip.fareMWK;
-    const expectedDigitalComm = Math.round(digitalFareMWK * 0.30);
-    const expectedDigitalDriverShare = digitalFareMWK - expectedDigitalComm;
 
     // 3B. Driver Accepts
     await new Promise((resolve) => {

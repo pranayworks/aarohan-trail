@@ -637,17 +637,18 @@ async function runAuthVerificationSuite() {
     // TEST 19: Anonymized Nearby Drivers for Unauthenticated Requests
     // -------------------------------------------------------------------------
     console.log('\n--- 19. Testing Nearby Drivers Anonymization ---');
-    dispatchService.registerDriver({
-      id: 'test-anon-drv-1',
-      name: 'Chikondi Phiri',
-      phone: '+265995541122',
-      plate: 'BW 4920',
-      vehicleType: 'moto',
-      carModel: 'Bajaj RE',
-      rating: 4.9,
-      status: 'ONLINE',
-      location: { lat: -13.9722, lng: 33.7667, timestamp: Date.now() }
-    });
+    const seededDriver = await prisma.driver.findFirst({ where: { approvalStatus: 'APPROVED' } });
+    if (seededDriver) {
+      await prisma.driver.update({
+        where: { id: seededDriver.id },
+        data: {
+          currentLat: -13.9722,
+          currentLng: 33.7667,
+          availability: 'ONLINE',
+          lastLocationAt: new Date()
+        }
+      });
+    }
 
     const anonNearbyRes = await fetch(`${BASE_URL}/api/drivers/nearby?lat=-13.9722&lng=33.7667`);
     const anonNearbyData = await anonNearbyRes.json();

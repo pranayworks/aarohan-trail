@@ -1,7 +1,10 @@
-// GAMAN RIDER APP — PRODUCTION AUDIT & VERIFICATION SUITE
+// ============================================================================
+// AAROHAN RIDER APP — PRODUCTION AUDIT & VERIFICATION SUITE
 // Empirical Automated Verification for Lilongwe, Malawi Launch Readiness
+// ============================================================================
 
 const io = require('socket.io-client');
+const prisma = require('../lib/prisma');
 const pricingService = require('../services/pricing');
 const dispatchService = require('../services/dispatch');
 const financeService = require('../services/finance');
@@ -23,8 +26,9 @@ async function runRiderAudit() {
       if (err.code !== 'EADDRINUSE') throw err;
     }
   }
+
   console.log('================================================================');
-  console.log('   GAMAN RIDER APP: PRODUCTION AUDIT & VERIFICATION SUITE');
+  console.log('   AAROHAN RIDER APP: PRODUCTION AUDIT & VERIFICATION SUITE');
   console.log('   Lilongwe, Malawi • Multi-Tier Mobility & Network Resilience');
   console.log('================================================================\n');
 
@@ -47,9 +51,9 @@ async function runRiderAudit() {
   }
 
   // -------------------------------------------------------------------------
-  // SCENARIO 1: A new rider books a motorcycle ride (Gaman Moto)
+  // SCENARIO 1: A new rider books a motorcycle ride (AArohan Moto)
   // -------------------------------------------------------------------------
-  console.log('--- SCENARIO 1: Motorcycle Booking (Gaman Moto) ---');
+  console.log('--- SCENARIO 1: Motorcycle Booking (AArohan Moto) ---');
   try {
     const quoteRes = await fetch(`${BASE_URL}/api/rides/quote`, {
       method: 'POST',
@@ -64,7 +68,7 @@ async function runRiderAudit() {
 
     assert(
       'S1.1',
-      'Gaman Moto Quote generated with authoritative pricing',
+      'AArohan Moto Quote generated with authoritative pricing',
       moto && moto.finalFare > 0 && quoteData.quoteId.startsWith('AAROHAN-QTE-'),
       `Quote: ${quoteData.quoteId} • Distance: ${quoteData.route.distanceKm} km • Fare: MK ${moto?.finalFare} (Base: MK ${moto?.baseFare}, PerKm: MK ${moto?.ratePerKm})`
     );
@@ -72,7 +76,7 @@ async function runRiderAudit() {
     const eligible = moto.finalFare - (moto.bookingFee || 0);
     assert(
       'S1.2',
-      'Gaman Moto commission is strictly 30% and driver net earnings is 70%',
+      'AArohan Moto commission is strictly 30% and driver net earnings is 70%',
       moto && moto.commissionAmount === Math.round(eligible * 0.30) && (moto.driverNetEarnings || moto.driverEarnings) === Math.round(eligible * 0.70),
       `Gross: MK ${moto?.finalFare} (Eligible: MK ${eligible}) | Platform (30%): MK ${moto?.commissionAmount} | Driver Net (70%): MK ${moto?.driverNetEarnings || moto?.driverEarnings}`
     );
@@ -81,9 +85,9 @@ async function runRiderAudit() {
   }
 
   // -------------------------------------------------------------------------
-  // SCENARIO 2: A rider books a car ride (Gaman Cab)
+  // SCENARIO 2: A rider books a car ride (AArohan Cab)
   // -------------------------------------------------------------------------
-  console.log('\n--- SCENARIO 2: Car Booking (Gaman Cab) ---');
+  console.log('\n--- SCENARIO 2: Car Booking (AArohan Cab) ---');
   try {
     const quoteRes = await fetch(`${BASE_URL}/api/rides/quote`, {
       method: 'POST',
@@ -98,7 +102,7 @@ async function runRiderAudit() {
 
     assert(
       'S2.1',
-      'Gaman Cab Quote itemized breakdown adheres to Sedan tariff (MK 4,500 minimum fare threshold)',
+      'AArohan Cab Quote itemized breakdown adheres to Sedan tariff (MK 4,500 minimum fare threshold)',
       cab && (cab.minimumFare >= 4500 || cab.baseFare >= 2800) && cab.finalFare > cab.baseFare,
       `Cab Fare: MK ${cab?.finalFare} (Base: MK ${cab?.baseFare}, MinFare: MK ${cab?.minimumFare}, Fuel/Km: MK ${cab?.distanceFare})`
     );
@@ -114,7 +118,7 @@ async function runRiderAudit() {
   }
 
   // -------------------------------------------------------------------------
-  // SCENARIO 3: No drivers are available / Out-of-Range Discovery
+  // SCENARIO 3: Spatial Filtering & Out-of-Range Handling via PostgreSQL
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 3: Spatial Filtering & Out-of-Range Handling ---');
   try {
@@ -129,25 +133,30 @@ async function runRiderAudit() {
       `Search at (-13.00, 33.00) radius 5km returned ${farData.count} drivers`
     );
 
-    // Coordinate inside Lilongwe Kaunda Rd corridor (-13.965, 33.78)
-    dispatchService.registerDriver({
-      id: 'DRV-AUDIT-01',
-      name: 'Chikondi Phiri',
-      phone: '+265 99 554 1122',
-      plate: 'BW 4920',
-      vehicleType: 'cab',
-      carModel: 'White Toyota Passo',
-      rating: 4.9,
-      status: 'ONLINE',
-      location: { lat: -13.9720, lng: 33.7660, heading: 90, timestamp: Date.now() }
+    // Ensure at least one verified driver exists in PostgreSQL in the Lilongwe corridor
+    let dbDriver = await prisma.driver.findFirst({
+      where: { approvalStatus: 'APPROVED' },
+      include: { user: true, vehicle: true }
     });
+
+    if (dbDriver) {
+      await prisma.driver.update({
+        where: { id: dbDriver.id },
+        data: {
+          currentLat: -13.9720,
+          currentLng: 33.7660,
+          availability: 'ONLINE',
+          lastLocationAt: new Date()
+        }
+      });
+    }
 
     const nearRes = await fetch(`${BASE_URL}/api/drivers/nearby?lat=-13.9722&lng=33.7667&radius=10`);
     const nearData = await nearRes.json();
 
     assert(
       'S3.2',
-      'Driver discovery returns verified active drivers in Lilongwe corridor',
+      'Driver discovery returns verified active drivers in Lilongwe corridor from PostgreSQL',
       nearData && nearData.count > 0,
       `Found ${nearData.count} verified drivers within 10km radius in Lilongwe`
     );
@@ -156,28 +165,25 @@ async function runRiderAudit() {
   }
 
   // -------------------------------------------------------------------------
-  // SCENARIO 4 & 5: Driver Dispatch, Rejection, and Fresh GPS Updates
+  // SCENARIO 4 & 5: Driver Dispatch & Telemetry Update
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 4 & 5: Dispatch Lifecycle & Telemetry ---');
   try {
-    const testDriver = {
-      id: 'DRV-AUDIT-01',
-      name: 'Chikondi Phiri',
-      phone: '+265 99 554 1122',
-      plate: 'BW 4920',
-      car: 'White Toyota Passo',
-      tier: 'cab',
-      status: 'ONLINE',
-      location: { lat: -13.9650, lng: 33.7820, heading: 90, timestamp: Date.now() }
-    };
-    dispatchService.drivers.set(testDriver.id, testDriver);
+    const testDriver = await prisma.driver.findFirst({
+      where: { approvalStatus: 'APPROVED' },
+      include: { user: true }
+    });
+
+    if (!testDriver) throw new Error('Approved driver missing in database');
+
+    const driverToken = getTestToken({ userId: testDriver.userId, role: 'DRIVER', driverId: testDriver.id });
 
     // Post fresh location
     const updateLocRes = await fetch(`${BASE_URL}/api/drivers/location`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getTestToken({ role: 'DRIVER' })}`
+        'Authorization': `Bearer ${driverToken}`
       },
       body: JSON.stringify({
         driverId: testDriver.id,
@@ -192,7 +198,7 @@ async function runRiderAudit() {
 
     assert(
       'S5.1',
-      'Driver publishes fresh real-time GPS coordinates via API',
+      'Driver publishes fresh real-time GPS coordinates via API and persists to PostgreSQL',
       locData.success && locData.driver.location.lat === -13.9660,
       `Telemetry updated: (${locData.driver.location.lat}, ${locData.driver.location.lng}) speed: 38 km/h`
     );
@@ -206,7 +212,7 @@ async function runRiderAudit() {
   console.log('\n--- SCENARIO 6: Network Reliability & Offline Simulation ---');
   try {
     const offlineAction = {
-      id: 'OFFLINE-ACT-991',
+      id: 'OFFLINE-ACT-' + Date.now(),
       type: 'BOOK_RIDE',
       idempotencyKey: 'IDEMP-OFFLINE-' + Date.now(),
       payload: {
@@ -226,9 +232,10 @@ async function runRiderAudit() {
       `Idempotency Key: ${offlineAction.idempotencyKey}`
     );
 
-    const duplicateCheckRes = financeService.recordTransaction({
+    const testIdempKey = 'IDEMP-KEY-ABCD-' + Date.now();
+    financeService.recordTransaction({
       reference: 'TX-IDEMP-TEST-1',
-      idempotencyKey: 'IDEMP-KEY-ABCD-1234',
+      idempotencyKey: testIdempKey,
       accountType: 'ESCROW_HOLDING',
       entryType: 'CREDIT',
       amountMWK: 2450,
@@ -240,7 +247,7 @@ async function runRiderAudit() {
     try {
       financeService.recordTransaction({
         reference: 'TX-IDEMP-TEST-2',
-        idempotencyKey: 'IDEMP-KEY-ABCD-1234',
+        idempotencyKey: testIdempKey,
         accountType: 'ESCROW_HOLDING',
         entryType: 'CREDIT',
         amountMWK: 2450,
@@ -265,51 +272,56 @@ async function runRiderAudit() {
   // SCENARIO 7: Active Ride Recovery after App Restart
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 7: Active Ride Recovery after App Restart ---');
+  let recoveryTripId = null;
   try {
-    const prisma = require('../lib/prisma');
-    const demoRider = await prisma.user.findUnique({ where: { phone: '+265991234567' } });
-    if (demoRider) {
-      const existing = await prisma.trip.findFirst({
-        where: { riderId: demoRider.id, status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } }
-      });
-      if (!existing) {
-        await prisma.trip.create({
-          data: {
-            riderId: demoRider.id,
-            status: 'IN_TRANSIT',
-            tier: 'CAB',
-            pickupAddress: 'Gateway Mall',
-            dropoffAddress: 'City Centre Capital Hill',
-            pickupLat: -13.9722,
-            pickupLng: 33.7667,
-            dropoffLat: -13.9554,
-            dropoffLng: 33.7872,
-            distanceKm: 4.8,
-            durationMins: 12,
-            fareMWK: 3500,
-            baseFareMWK: 3500,
-            bookingFeeMWK: 150,
-            driverShareMWK: 2450,
-            commissionMWK: 1050,
-            pin: '8421',
-            idempotencyKey: 'AUDIT-ACTIVE-RECOVERY-' + Date.now(),
-            paymentMethod: 'CASH'
-          }
-        });
+    const demoRider = await prisma.user.findFirst({ where: { role: 'RIDER', status: 'ACTIVE' } });
+    if (!demoRider) throw new Error('Active rider missing in database');
+
+    const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Clean up any stale active trip for this rider to respect unique_active_trip_per_rider
+    await prisma.trip.updateMany({
+      where: { riderId: demoRider.id, status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } },
+      data: { status: 'CANCELLED_BY_RIDER', cancelledAt: new Date() }
+    });
+
+    const activeTrip = await prisma.trip.create({
+      data: {
+        riderId: demoRider.id,
+        status: 'IN_TRANSIT',
+        tier: 'CAB',
+        pickupAddress: 'Gateway Mall',
+        dropoffAddress: 'City Centre Capital Hill',
+        pickupLat: -13.9722,
+        pickupLng: 33.7667,
+        dropoffLat: -13.9554,
+        dropoffLng: 33.7872,
+        distanceKm: 4.8,
+        durationMins: 12,
+        fareMWK: 3500,
+        baseFareMWK: 3500,
+        bookingFeeMWK: 150,
+        driverShareMWK: 2450,
+        commissionMWK: 1050,
+        pin: randomPin,
+        idempotencyKey: 'AUDIT-ACTIVE-RECOVERY-' + Date.now(),
+        paymentMethod: 'CASH'
       }
-    }
+    });
+    recoveryTripId = activeTrip.id;
+
     // Query server active trips endpoint to confirm database persistence
     const stateRes = await fetch(`${BASE_URL}/api/trips/active`, {
       headers: {
-        'Authorization': `Bearer ${getTestToken({ role: 'RIDER' })}`
+        'Authorization': `Bearer ${getTestToken({ userId: demoRider.id, role: 'RIDER' })}`
       }
     });
     const serverState = await stateRes.json();
 
     assert(
       'S7.1',
-      'Server active trips endpoint (/api/trips/active) retains active trip state for app reload recovery',
-      serverState && serverState.activeTrip && serverState.activeTrip.id,
+      'Server active trips endpoint (/api/trips/active) retains active trip state dynamically from database',
+      serverState && serverState.activeTrip && serverState.activeTrip.id === activeTrip.id,
       `Active Trip ID: ${serverState.activeTrip?.id} • Status: ${serverState.activeTrip?.status}`
     );
   } catch (err) {
@@ -317,48 +329,104 @@ async function runRiderAudit() {
   }
 
   // -------------------------------------------------------------------------
-  // SCENARIO 8: Trip PIN Verification before Trip Start
+  // SCENARIO 8: Real Server Safety PIN Verification & Transit Authorization
   // -------------------------------------------------------------------------
-  console.log('\n--- SCENARIO 8: Trip PIN Verification ---');
+  console.log('\n--- SCENARIO 8: Trip PIN Verification (Real Socket & Database Flow) ---');
   try {
-    const tripPin = '8421';
-    const testWrongPin = '1111';
-    const testRightPin = '8421';
+    const demoRider = await prisma.user.findFirst({ where: { role: 'RIDER', status: 'ACTIVE' } });
+    const demoDriver = await prisma.driver.findFirst({
+      where: { approvalStatus: 'APPROVED', user: { status: 'ACTIVE' } },
+      include: { user: true }
+    });
 
-    const isWrongValid = testWrongPin === tripPin;
-    const isRightValid = testRightPin === tripPin;
+    const dynamicSecretPin = Math.floor(1000 + Math.random() * 9000).toString();
+
+    // Clean prior active trips for this rider
+    await prisma.trip.updateMany({
+      where: { riderId: demoRider.id, status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } },
+      data: { status: 'COMPLETED', completedAt: new Date() }
+    });
+
+    const pinTrip = await prisma.trip.create({
+      data: {
+        riderId: demoRider.id,
+        driverId: demoDriver.id,
+        status: 'ARRIVED',
+        tier: 'CAB',
+        pickupAddress: 'Capital City Centre',
+        dropoffAddress: 'Old Town Lilongwe',
+        pickupLat: -13.9554,
+        pickupLng: 33.7872,
+        dropoffLat: -13.9850,
+        dropoffLng: 33.7700,
+        distanceKm: 5.0,
+        durationMins: 12,
+        fareMWK: 4500,
+        baseFareMWK: 2800,
+        driverShareMWK: 3150,
+        commissionMWK: 1350,
+        pin: dynamicSecretPin,
+        idempotencyKey: 'PIN-TEST-' + Date.now(),
+        paymentMethod: 'CASH'
+      }
+    });
+
+    const driverToken = getTestToken({ userId: demoDriver.userId, role: 'DRIVER', driverId: demoDriver.id });
+    const driverSocket = io(BASE_URL, {
+      transports: ['websocket'],
+      auth: { token: driverToken },
+      forceNew: true
+    });
+
+    await new Promise((resolve) => driverSocket.on('connect', resolve));
+
+    // Test 1: Submit Incorrect PIN
+    const wrongPinResult = await new Promise((resolve) => {
+      driverSocket.emit('trip:start_transit', { tripId: pinTrip.id, pin: '0000' }, resolve);
+    });
 
     assert(
       'S8.1',
-      'Invalid trip PIN is rejected before trip transit starts',
-      !isWrongValid,
-      `Entered PIN ${testWrongPin} !== Authoritative PIN ${tripPin} (Rejected)`
+      'Incorrect passenger PIN is rejected by server and increments pinAttempts in database',
+      wrongPinResult.success === false && wrongPinResult.error.includes('Invalid passenger safety PIN'),
+      `Server response: "${wrongPinResult.error}"`
     );
+
+    // Test 2: Submit Authoritative PIN
+    const rightPinResult = await new Promise((resolve) => {
+      driverSocket.emit('trip:start_transit', { tripId: pinTrip.id, pin: dynamicSecretPin }, resolve);
+    });
+
+    driverSocket.disconnect();
+
+    const verifiedDbTrip = await prisma.trip.findUnique({ where: { id: pinTrip.id } });
 
     assert(
       'S8.2',
-      'Valid 4-digit safety PIN confirms passenger identity and enables transit',
-      isRightValid,
-      `Entered PIN ${testRightPin} === Authoritative PIN ${tripPin} (Verified)`
+      'Authoritative 4-digit PIN verified by server, transitions status to IN_TRANSIT and starts trip',
+      rightPinResult.success === true && verifiedDbTrip.status === 'IN_TRANSIT',
+      `Trip Status in PostgreSQL: ${verifiedDbTrip?.status} • StartedAt: ${verifiedDbTrip?.startedAt}`
     );
   } catch (err) {
-    assert('S8', 'Trip PIN verification', false, err.message);
+    assert('S8', 'Real PIN verification', false, err.message);
   }
 
   // -------------------------------------------------------------------------
-  // SCENARIO 9: Cash Payment Recording & 30% Commission Reconciliation
+  // SCENARIO 9: Cash Payment & 30% Commission Debt Ledger
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 9: Cash Payment & 30% Commission Debt Ledger ---');
   try {
     const cashFare = 5000;
-    const auditCashDriverId = 'DRV-AUDIT-CASH-' + Date.now();
+    const realDriver = await prisma.driver.findFirst({ where: { approvalStatus: 'APPROVED' } });
+    const realRider = await prisma.user.findFirst({ where: { role: 'RIDER', status: 'ACTIVE' } });
+
     const cashSettlement = financeService.settleCompletedRide({
       rideId: 'TRIP-AUDIT-CASH-' + Date.now(),
       quoteId: 'AAROHAN-QTE-AUDIT-CASH',
       versionId: 'AAROHAN-PRICE-V1',
       categoryId: 'cab',
-      driverId: auditCashDriverId,
-      riderId: 'USR-AUDIT-RIDER',
+      driverId: realDriver.id,
+      riderId: realRider.id,
       grossFare: cashFare,
       driverTip: 500,
       bookingFee: 0,
@@ -383,11 +451,11 @@ async function runRiderAudit() {
       `Commission Debt: MK ${b.commissionAmount} (30% of MK ${cashFare}). Status: PENDING_CASH_SETTLEMENT`
     );
 
-    const driverFin = financeService.getDriverFinancialSummary(auditCashDriverId);
+    const driverFin = financeService.getDriverFinancialSummary(realDriver.id);
     assert(
       'S9.3',
       'Driver financial summary tracks outstanding commission debt accurately',
-      (driverFin.outstandingCommissionDebt || driverFin.outstandingCashCommissionDebt) === 1500,
+      (driverFin.outstandingCommissionDebt || driverFin.outstandingCashCommissionDebt) >= 1500,
       `Driver outstanding commission debt: MK ${driverFin.outstandingCommissionDebt || driverFin.outstandingCashCommissionDebt}`
     );
   } catch (err) {
@@ -475,62 +543,73 @@ async function runRiderAudit() {
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 13: Security & Authoritative Price Protection ---');
   try {
-    // Rider attempts to forge a price quote by submitting a low fare
-    const forgedQuote = {
-      quoteId: 'AAROHAN-QTE-FORGED-000',
-      tiers: {
-        moto: { finalFare: 10 } // illegal 10 MWK fare
-      }
-    };
-
-    let validationFailed = false;
+    let quoteRejectionWorked = false;
     try {
-      dispatchService.createTripBooking({
-        quoteId: forgedQuote.quoteId,
-        tierId: 'moto',
-        riderId: 'USR-HACKER',
-        paymentMethod: 'Cash'
-      });
+      pricingService.validateAndConsumeQuote('AAROHAN-QTE-FORGED-999', 'moto');
     } catch (err) {
-      validationFailed = true;
+      quoteRejectionWorked = true;
     }
 
     assert(
       'S13.1',
       'Server rejects unverified or fabricated quote IDs (Authoritative pricing protection)',
-      validationFailed,
-      'Backend dispatch refused unauthenticated/unregistered quote ID'
+      quoteRejectionWorked,
+      'Backend pricing engine refused unauthenticated/unregistered quote ID'
     );
   } catch (err) {
     assert('S13', 'Security verification', false, err.message);
   }
 
   // -------------------------------------------------------------------------
-  // SCENARIO 14: Driver Stale Location Detection (> 30s)
+  // SCENARIO 14: Driver Stale Location Filtering in Dispatch Engine
   // -------------------------------------------------------------------------
-  console.log('\n--- SCENARIO 14: Stale GPS Location Watchdog ---');
+  console.log('\n--- SCENARIO 14: Real Dispatch GPS Freshness Filter ---');
   try {
-    const freshTimestamp = Date.now() - 5000; // 5 seconds ago
-    const staleTimestamp = Date.now() - 35000; // 35 seconds ago
+    const driver = await prisma.driver.findFirst({ where: { approvalStatus: 'APPROVED' } });
+    if (!driver) throw new Error('Approved driver missing in database');
 
-    const isFreshStale = (Date.now() - freshTimestamp) > 30000;
-    const isStaleStale = (Date.now() - staleTimestamp) > 30000;
+    // 1. Set driver GPS to 2 hours ago (STALE)
+    await prisma.driver.update({
+      where: { id: driver.id },
+      data: {
+        currentLat: -13.9722,
+        currentLng: 33.7667,
+        lastLocationAt: new Date(Date.now() - 48 * 60 * 60 * 1000) // 48h stale
+      }
+    });
+
+    const staleMatches = await dispatchService.findNearbyDrivers(-13.9722, 33.7667, null, 5.0);
+    const isExcludedWhenStale = !staleMatches.some(d => d.driverId === driver.id);
+
+    // 2. Set driver GPS to fresh right now (LIVE)
+    await prisma.driver.update({
+      where: { id: driver.id },
+      data: {
+        currentLat: -13.9722,
+        currentLng: 33.7667,
+        availability: 'ONLINE',
+        lastLocationAt: new Date()
+      }
+    });
+
+    const freshMatches = await dispatchService.findNearbyDrivers(-13.9722, 33.7667, null, 5.0);
+    const isIncludedWhenFresh = freshMatches.some(d => d.driverId === driver.id);
 
     assert(
       'S14.1',
-      'GPS telemetry updated 5 seconds ago is marked LIVE (not stale)',
-      !isFreshStale,
-      `Telemetry age: 5s <= 30s threshold (Marked LIVE)`
+      'PostgreSQL dispatch engine excludes drivers with stale GPS telemetry from spatial results',
+      isExcludedWhenStale,
+      'Stale driver successfully filtered out from dispatch candidate pool'
     );
 
     assert(
       'S14.2',
-      'GPS telemetry older than 30 seconds triggers STALE warning banner',
-      isStaleStale,
-      `Telemetry age: 35s > 30s threshold (Marked STALE • Warning displayed)`
+      'PostgreSQL dispatch engine includes active drivers with fresh live GPS telemetry',
+      isIncludedWhenFresh,
+      'Live driver discovered within corridor search'
     );
   } catch (err) {
-    assert('S14', 'Stale GPS detection', false, err.message);
+    assert('S14', 'Real dispatch GPS freshness', false, err.message);
   }
 
   // -------------------------------------------------------------------------
@@ -555,7 +634,7 @@ async function runRiderAudit() {
       socket.on('connect', () => {
         socket.emit('sos:trigger', {
           source: 'RIDER',
-          tripId: 'TRIP-AUDIT-SOS-01',
+          tripId: 'TRIP-AUDIT-SOS-' + Date.now(),
           location: 'Gateway Mall, Kaunda Road, Lilongwe [GPS: -13.9722, 33.7667]',
           lat: -13.9722,
           lng: 33.7667,

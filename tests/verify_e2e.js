@@ -1,3 +1,4 @@
+const prisma = require('../lib/prisma');
 const { server } = require('../server');
 const { getTestToken } = require('./auth_helper');
 
@@ -16,7 +17,7 @@ async function verify() {
   }
 
   console.log('=============================================================');
-  console.log('   GAMAN LILONGWE REAL-TIME VERIFICATION SUITE');
+  console.log('   AAROHAN LILONGWE REAL-TIME VERIFICATION SUITE');
   console.log('=============================================================\n');
 
   let passedTests = 0;
@@ -97,9 +98,9 @@ async function verify() {
     assert(
       'Authoritative pricing calculated for Moto, Auto, and Cab with 30% commission (70% driver share)',
       quoteData.tiers && quoteData.tiers.moto && quoteData.tiers.auto && quoteData.tiers.cab,
-      `Gaman Moto: MK ${quoteData.tiers?.moto?.finalFare.toLocaleString()} (Driver net: MK ${motoNet.toLocaleString()})\n` +
-      `   Gaman Auto: MK ${quoteData.tiers?.auto?.finalFare.toLocaleString()} (Driver net: MK ${autoNet.toLocaleString()})\n` +
-      `   Gaman Cab:  MK ${quoteData.tiers?.cab?.finalFare.toLocaleString()} (Driver net: MK ${cabNet.toLocaleString()})`
+      `AArohan Moto: MK ${quoteData.tiers?.moto?.finalFare.toLocaleString()} (Driver net: MK ${motoNet.toLocaleString()})\n` +
+      `   AArohan Auto: MK ${quoteData.tiers?.auto?.finalFare.toLocaleString()} (Driver net: MK ${autoNet.toLocaleString()})\n` +
+      `   AArohan Cab:  MK ${quoteData.tiers?.cab?.finalFare.toLocaleString()} (Driver net: MK ${cabNet.toLocaleString()})`
     );
   } catch (err) {
     assert('Road route and quote', false, err.message);
@@ -108,20 +109,27 @@ async function verify() {
   // TEST 4: Driver GPS Telemetry & Spatial Nearby Query
   console.log('\n--- 4. Testing Driver Telemetry & Spatial Discovery ---');
   try {
-    // 4a. Post driver location
+    // 4a. Find a real verified driver in PostgreSQL
+    let dbDriver = await prisma.driver.findFirst({
+      where: { approvalStatus: 'APPROVED' },
+      include: { user: true, vehicle: true }
+    });
+
+    if (!dbDriver) {
+      throw new Error('No approved driver found in database');
+    }
+
+    const driverToken = getTestToken({ userId: dbDriver.userId, role: 'DRIVER', driverId: dbDriver.id });
+
+    // 4b. Post driver location to update PostgreSQL coordinates & fresh timestamp
     const postLocRes = await fetch(`${baseUrl}/api/drivers/location`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getTestToken({ role: 'DRIVER' })}`
+        'Authorization': `Bearer ${driverToken}`
       },
       body: JSON.stringify({
-        driverId: 'DRV-MW-101',
-        name: 'Chikondi Phiri',
-        phone: '+265 99 554 1122',
-        vehicleTier: 'moto',
-        vehiclePlate: 'BW 4920',
-        vehicleModel: 'Haojue 125cc Red',
+        driverId: dbDriver.id,
         lat: -13.9710,
         lng: 33.7680,
         heading: 120,
@@ -129,20 +137,25 @@ async function verify() {
       })
     });
     const locResult = await postLocRes.json();
-    const dObj = locResult.driver || locResult;
     assert(
       'Driver GPS telemetry successfully recorded',
       locResult.success === true,
-      `Recorded driver ${dObj.driverId || 'DRV-MW-101'} at (${dObj.location?.lat || -13.9710}, ${dObj.location?.lng || 33.7680})`
+      `Recorded driver ${dbDriver.id} at (${locResult.driver?.location?.lat}, ${locResult.driver?.location?.lng})`
     );
 
-    // 4b. Query nearby drivers within 5km of rider
-    const nearbyRes = await fetch(`${baseUrl}/api/drivers/nearby?lat=-13.9722&lng=33.7667&radiusKm=5`);
+    // Ensure driver is ONLINE in DB for spatial discovery
+    await prisma.driver.update({
+      where: { id: dbDriver.id },
+      data: { availability: 'ONLINE', lastLocationAt: new Date() }
+    });
+
+    // 4c. Query nearby drivers within 5km of rider
+    const nearbyRes = await fetch(`${baseUrl}/api/drivers/nearby?lat=-13.9722&lng=33.7667&radius=5`);
     const nearby = await nearbyRes.json();
     assert(
-      'Spatial search discovers nearby Lilongwe captains',
+      'Spatial search discovers nearby Lilongwe captains from database',
       nearby.count > 0 && Array.isArray(nearby.drivers),
-      `Found ${nearby.count} nearby active captains. Closest: ${nearby.drivers[0]?.name} (${nearby.drivers[0]?.distanceKm} km away)`
+      `Found ${nearby.count} nearby active captains. Closest distance: ${nearby.drivers[0]?.distanceKm} km`
     );
   } catch (err) {
     assert('Driver telemetry and spatial search', false, err.message);
@@ -166,7 +179,7 @@ async function verify() {
     assert('Frequent destinations', false, err.message);
   }
 
-  // TEST 6: Admin Metrics Engine
+  // TEST 6: Operations Admin Metrics Engine
   console.log('\n--- 6. Testing Operations Admin Metrics ---');
   try {
     const metricsRes = await fetch(`${baseUrl}/api/admin/metrics`, {
@@ -176,8 +189,8 @@ async function verify() {
     });
     const m = await metricsRes.json();
     assert(
-      'Platform metrics aggregate volume, revenue, and online drivers',
-      typeof m.totalVolumeMWK === 'number' && typeof m.platformRevenueMWK === 'number',
+      'Platform metrics aggregate volume, revenue, and online drivers dynamically from PostgreSQL',
+      typeof m.totalVolumeMWK === 'number' && typeof m.platformRevenueMWK === 'number' && typeof m.completedTripsCount === 'number',
       `Volume: MK ${m.totalVolumeMWK.toLocaleString()} • Platform Net: MK ${m.platformRevenueMWK.toLocaleString()} • Online Drivers: ${m.onlineDriversCount}`
     );
   } catch (err) {
@@ -190,10 +203,19 @@ async function verify() {
   console.log('=============================================================\n');
 
   if (passedTests === totalTests) {
-    process.exit(0);
+    return { passed: passedTests, total: totalTests };
   } else {
-    process.exit(1);
+    throw new Error(`Failed ${totalTests - passedTests} tests`);
   }
 }
 
-verify();
+if (require.main === module) {
+  verify()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('Verification failed:', err.message);
+      process.exit(1);
+    });
+}
+
+module.exports = { verify };

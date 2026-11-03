@@ -1,8 +1,12 @@
-// Gaman Driver Registry & Real-Time Dispatch Engine • Lilongwe, Malawi
-// Manages active driver telemetry, nearby search by real GPS, and atomic trip assignment.
+// ============================================================================
+// AArohan Real-Time Dispatch Engine • Lilongwe, Malawi
+// PostgreSQL-Driven Spatial Fleet Discovery & Sequential Offer Queue
+// ============================================================================
 
+const prisma = require('../lib/prisma');
 const pricingService = require('./pricing');
 const financeService = require('./finance');
+const dbLedger = require('./dbLedger');
 
 function haversineDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -17,255 +21,664 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
 
 class DispatchService {
   constructor() {
-    // Map of driverId -> driver profile & live telemetry
-    this.drivers = new Map();
-    // Map of tripId -> active trip state
-    this.trips = new Map();
+    this.offerTimers = new Map(); // tripId -> NodeJS timeout
+    this.gpsThrottle = new Map(); // driverId -> timestamp ms of last DB save
+    this.io = null;
   }
 
-  // Register or update driver profile
-  registerDriver(driverData) {
-    if (!driverData || !driverData.id) return null;
-    const existing = this.drivers.get(driverData.id) || {};
-    const updated = Object.assign(existing, driverData, {
-      lastSeen: Date.now()
-    });
-    this.drivers.set(driverData.id, updated);
-    return updated;
+  setSocketServer(io) {
+    this.io = io;
   }
 
-  // Update driver live GPS telemetry
-  updateDriverLocation(driverId, coords) {
-    let driver = this.drivers.get(driverId);
-    if (!driver) {
-      driver = this.registerDriver({
-        id: driverId,
-        name: coords.name || 'Driver Partner',
-        phone: coords.phone || '+265 99 554 1122',
-        plate: coords.plate || 'BW 4920',
-        vehicleType: coords.tier || 'cab',
-        carModel: coords.car || 'Toyota Corolla',
-        status: 'ONLINE'
-      });
+  clearOfferTimer(tripId) {
+    if (this.offerTimers.has(tripId)) {
+      clearTimeout(this.offerTimers.get(tripId));
+      this.offerTimers.delete(tripId);
     }
-
-    driver.location = {
-      lat: parseFloat(coords.lat),
-      lng: parseFloat(coords.lng),
-      heading: coords.heading || 0,
-      accuracy: coords.accuracy || 15,
-      speed: coords.speed || 0,
-      timestamp: Date.now()
-    };
-    driver.lastSeen = Date.now();
-    return driver;
   }
 
-  setDriverStatus(driverId, status) {
-    const driver = this.drivers.get(driverId);
-    if (!driver) return null;
-    driver.status = status; // 'ONLINE', 'BUSY', 'OFFLINE'
-    driver.lastSeen = Date.now();
-    return driver;
-  }
-
-  // Find eligible nearby drivers within radius (km) matching vehicle tier
-  findNearbyDrivers(pickupLat, pickupLng, tierId, maxRadiusKm = 7.0) {
+  // ---------------------------------------------------------------------------
+  // 1. Spatial Driver Discovery from PostgreSQL
+  // ---------------------------------------------------------------------------
+  async findNearbyDrivers(pickupLat, pickupLng, tierId = null, maxRadiusKm = 7.0) {
     const pLat = parseFloat(pickupLat);
     const pLng = parseFloat(pickupLng);
-    const now = Date.now();
-    const staleThresholdMs = 2 * 60 * 60 * 1000; // 2 hours tolerance
+    const radiusKm = parseFloat(maxRadiusKm) || 7.0;
+
+    if (isNaN(pLat) || isNaN(pLng)) return [];
+
+    // Bounding Box Pre-Filter
+    const latDelta = radiusKm / 111.0;
+    const cosLat = Math.cos(pLat * Math.PI / 180);
+    const lngDelta = radiusKm / (111.0 * (Math.abs(cosLat) > 0.001 ? Math.abs(cosLat) : 1.0));
+
+    // Fresh GPS threshold (up to 30 mins, or 24h in development mode for seeded fixtures)
+    const freshWindowMs = process.env.NODE_ENV === 'development' ? 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
+    const freshCutoff = new Date(Date.now() - freshWindowMs);
+
+    const where = {
+      approvalStatus: 'APPROVED',
+      availability: 'ONLINE',
+      currentLat: {
+        gte: pLat - latDelta,
+        lte: pLat + latDelta
+      },
+      currentLng: {
+        gte: pLng - lngDelta,
+        lte: pLng + lngDelta
+      },
+      lastLocationAt: {
+        gte: freshCutoff
+      },
+      user: {
+        status: 'ACTIVE'
+      }
+    };
+
+    if (tierId) {
+      const normalizedTier = tierId.toUpperCase();
+      if (['MOTO', 'AUTO', 'CAB'].includes(normalizedTier)) {
+        where.vehicle = { type: normalizedTier };
+      }
+    }
+
+    const dbDrivers = await prisma.driver.findMany({
+      where,
+      include: {
+        user: { select: { id: true, name: true, phone: true } },
+        vehicle: true
+      }
+    });
 
     const matches = [];
+    for (const driver of dbDrivers) {
+      if (driver.currentLat == null || driver.currentLng == null) continue;
 
-
-
-    for (const [id, driver] of this.drivers.entries()) {
-      // Must be ONLINE
-      if (driver.status !== 'ONLINE') continue;
-
-      // Must have recent GPS
-      if (!driver.location) continue;
-      if (driver.lastSeen && (now - driver.lastSeen > staleThresholdMs)) continue;
-
-      // Filter by vehicle type tier if specified
-      if (tierId && driver.vehicleType && driver.vehicleType !== tierId) continue;
-
-      const distKm = haversineDistanceKm(pLat, pLng, driver.location.lat, driver.location.lng);
-      if (distKm <= maxRadiusKm) {
+      const distKm = haversineDistanceKm(pLat, pLng, driver.currentLat, driver.currentLng);
+      if (distKm <= radiusKm) {
         matches.push({
           driverId: driver.id,
-          name: driver.name,
-          phone: driver.phone,
-          plate: driver.plate,
-          carModel: driver.carModel,
-          vehicleType: driver.vehicleType,
+          id: driver.id,
+          userId: driver.userId,
+          name: driver.user?.name || 'Captain Partner',
+          phone: driver.user?.phone || '',
+          plate: driver.vehicle?.plateNumber || '',
+          plateNumber: driver.vehicle?.plateNumber || '',
+          carModel: driver.vehicle?.makeModel || '',
+          vehicleType: driver.vehicle?.type?.toLowerCase() || 'cab',
           rating: driver.rating,
           tripsCompleted: driver.tripsCompleted,
-          location: driver.location,
+          location: {
+            lat: driver.currentLat,
+            lng: driver.currentLng,
+            heading: driver.currentHeading || 0,
+            timestamp: driver.lastLocationAt ? driver.lastLocationAt.getTime() : Date.now()
+          },
           distanceKm: parseFloat(distKm.toFixed(2)),
-          etaMins: Math.max(2, Math.ceil(distKm * 2.2))
+          etaMinutes: Math.max(2, Math.ceil(distKm * 2.2))
         });
       }
     }
 
+    // Sort Nearest First
     matches.sort((a, b) => a.distanceKm - b.distanceKm);
     return matches;
   }
 
-  // Create an authoritative trip booking
-  createTripBooking({ quoteId, tierId, riderId, riderName, riderPhone, paymentMethod }) {
-    // 1. Authoritatively validate and consume quote
-    const validatedQuote = pricingService.validateAndConsumeQuote(quoteId, tierId);
+  // ---------------------------------------------------------------------------
+  // 2. Throttled GPS Persistence & Streaming
+  // ---------------------------------------------------------------------------
+  async updateDriverLocation(driverId, coords) {
+    if (!driverId || !coords) return null;
+    const lat = parseFloat(coords.lat);
+    const lng = parseFloat(coords.lng);
+    const heading = coords.heading != null ? parseFloat(coords.heading) : 0;
+    const now = Date.now();
 
-    const tripId = 'TRIP-AAR-' + Math.floor(1000 + Math.random() * 9000);
-    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+    if (isNaN(lat) || isNaN(lng)) return null;
 
-    const trip = {
-      id: tripId,
-      status: 'REQUESTED',
-      pin,
-      rider: {
-        id: riderId || 'USR-RIDER-1',
-        name: riderName || 'AArohan Passenger',
-        phone: riderPhone || '+265 99 123 4567'
-      },
-      driver: null,
-      pickup: (typeof validatedQuote.pickup === 'string') ? validatedQuote.pickup : (validatedQuote.pickup?.name || validatedQuote.pickup?.address || 'Pickup Point'),
-      destination: (typeof validatedQuote.destination === 'string') ? validatedQuote.destination : (validatedQuote.destination?.name || validatedQuote.destination?.address || 'Destination'),
-      pickupCoords: { lat: validatedQuote.pickup?.lat, lng: validatedQuote.pickup?.lng },
-      dropoffCoords: { lat: validatedQuote.destination?.lat, lng: validatedQuote.destination?.lng },
-      tier: validatedQuote.tier.name,
-      tierId: validatedQuote.tier.tierId,
-      fare: validatedQuote.tier.finalFare,
-      baseFare: validatedQuote.tier.breakdown.baseFare,
-      distanceKm: validatedQuote.distanceKm,
-      durationMins: validatedQuote.durationMins,
-      routeGeometry: validatedQuote.routeGeometry,
-      paymentMethod: paymentMethod || 'Airtel Money Locked Escrow',
-      requestedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      acceptedAt: null,
-      arrivedAt: null,
-      startedAt: null,
-      completedAt: null,
-      cancelledAt: null
-    };
-
-    this.trips.set(tripId, trip);
-    return trip;
-  }
-
-  // Driver atomically accepts trip
-  acceptTrip(tripId, driverId) {
-    const trip = this.trips.get(tripId);
-    if (!trip) throw new Error('Trip not found');
-
-    if (trip.status !== 'REQUESTED') {
-      throw new Error(`Trip already handled (current status: ${trip.status})`);
-    }
-
-    const driver = this.drivers.get(driverId) || Array.from(this.drivers.values())[0];
-    if (!driver) throw new Error('Driver not found');
-
-    trip.status = 'ACCEPTED';
-    trip.driver = {
-      id: driver.id,
-      name: driver.name,
-      phone: driver.phone,
-      plate: driver.plate,
-      carModel: driver.carModel,
-      rating: driver.rating,
-      location: driver.location
-    };
-    trip.acceptedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    driver.status = 'BUSY';
-    return { trip, driver };
-  }
-
-  // Driver arrives at pickup
-  markDriverArrived(tripId) {
-    const trip = this.trips.get(tripId);
-    if (!trip) throw new Error('Trip not found');
-
-    trip.status = 'ARRIVED';
-    trip.arrivedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return trip;
-  }
-
-  // Driver starts ride
-  startTransit(tripId) {
-    const trip = this.trips.get(tripId);
-    if (!trip) throw new Error('Trip not found');
-
-    trip.status = 'IN_TRANSIT';
-    trip.startedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return trip;
-  }
-
-  // Driver completes ride & settles escrow
-  completeTrip(tripId, { driverTip = 0, paymentMethod = null } = {}) {
-    const trip = this.trips.get(tripId);
-    if (!trip) throw new Error('Trip not found');
-
-    trip.status = 'COMPLETED';
-    trip.completedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    if (trip.driver) {
-      const driver = this.drivers.get(trip.driver.id);
-      if (driver) {
-        driver.status = 'ONLINE';
-        driver.tripsCompleted = (driver.tripsCompleted || 0) + 1;
+    // Throttle database persistence to once every 5 seconds per driver
+    const lastSave = this.gpsThrottle.get(driverId) || 0;
+    if (now - lastSave >= 5000) {
+      this.gpsThrottle.set(driverId, now);
+      try {
+        await prisma.driver.updateMany({
+          where: { id: driverId },
+          data: {
+            currentLat: lat,
+            currentLng: lng,
+            currentHeading: heading,
+            lastLocationAt: new Date()
+          }
+        });
+      } catch (err) {
+        console.warn('[Dispatch] Driver GPS persist warning:', err.message);
       }
     }
 
-    const payMethod = paymentMethod || trip.paymentMethod || 'CASH';
-    const driverId = trip.driver?.id || trip.driverId;
-    if (!driverId) throw new Error('Cannot complete trip without assigned driverId');
-    const riderId = trip.rider?.id || trip.riderId;
-    if (!riderId) throw new Error('Cannot complete trip without assigned riderId');
-
-    const settlementResult = financeService.settleCompletedRide({
-      rideId: trip.id,
-      quoteId: trip.quoteId,
-      versionId: trip.versionId || 'AAROHAN-PRICE-V1',
-      categoryId: trip.tierId || 'cab',
+    const locPayload = {
       driverId,
-      riderId,
-      grossFare: trip.fare,
-      driverTip,
-      bookingFee: trip.bookingFee || 0,
-      paymentMethod: payMethod,
-      pickupAddress: trip.pickup?.name || trip.pickup,
-      destinationAddress: trip.destination?.name || trip.destination
-    });
+      lat,
+      lng,
+      heading,
+      accuracy: coords.accuracy || 10,
+      speed: coords.speed || 0,
+      timestamp: now
+    };
+
+    // If driver has an active trip, stream directly to the rider's trip room
+    try {
+      const activeTrip = await prisma.trip.findFirst({
+        where: {
+          driverId,
+          status: { in: ['DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
+        },
+        select: { id: true }
+      });
+
+      if (activeTrip && this.io) {
+        this.io.to(`trip:${activeTrip.id}`).emit('trip:driver_moved', locPayload);
+      }
+    } catch (e) {
+      // Quiet fail on lookup
+    }
+
+    if (this.io) {
+      this.io.emit('trip:driver_moved', locPayload);
+    }
 
     return {
-      trip,
-      settlement: settlementResult.breakdown,
-      commission: settlementResult.commissionEntry,
-      driverEarnings: settlementResult.driverEntry
+      driverId,
+      id: driverId,
+      location: locPayload
     };
   }
 
-  // Cancel trip
-  cancelTrip(tripId, reason = 'Cancelled by user') {
-    const trip = this.trips.get(tripId);
-    if (!trip) return null;
-
-    trip.status = 'IDLE';
-    trip.cancelledAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    trip.cancelReason = reason;
-
-    if (trip.driver) {
-      const driver = this.drivers.get(trip.driver.id);
-      if (driver) driver.status = 'ONLINE';
-    }
-
-    return trip;
+  async setDriverStatus(driverId, status) {
+    if (!driverId) return null;
+    const updated = await prisma.driver.update({
+      where: { id: driverId },
+      data: { availability: status, lastLocationAt: new Date() }
+    });
+    return updated;
   }
 
-  // Security: Never expose Trip.pin in any driver-facing response
+  // ---------------------------------------------------------------------------
+  // 3. Sequential Single-Driver Offering Engine
+  // ---------------------------------------------------------------------------
+  async startDispatch(tripId) {
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      include: {
+        offers: true,
+        rider: { select: { id: true, name: true, phone: true } }
+      }
+    });
+
+    if (!trip || trip.driverId || !['REQUESTED', 'OFFERED'].includes(trip.status)) {
+      return null;
+    }
+
+    // Find nearby eligible drivers in corridor
+    const nearby = await this.findNearbyDrivers(trip.pickupLat, trip.pickupLng, trip.tier, 15.0);
+
+    // Filter out drivers who already received an offer for this trip
+    const offeredDriverIds = new Set(trip.offers.map(o => o.driverId));
+
+    // Filter out drivers currently assigned to an active trip
+    const busyTrips = await prisma.trip.findMany({
+      where: {
+        status: { in: ['DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] },
+        driverId: { not: null }
+      },
+      select: { driverId: true }
+    });
+    const busyDriverIds = new Set(busyTrips.map(t => t.driverId));
+
+    // Filter out drivers with active pending offers on other trips
+    const activeOffers = await prisma.tripOffer.findMany({
+      where: {
+        status: 'PENDING',
+        expiresAt: { gt: new Date() }
+      },
+      select: { driverId: true }
+    });
+    const pendingOfferDriverIds = new Set(activeOffers.map(o => o.driverId));
+
+    const eligible = nearby.filter(d => 
+      !offeredDriverIds.has(d.driverId) &&
+      !busyDriverIds.has(d.driverId) &&
+      !pendingOfferDriverIds.has(d.driverId)
+    );
+
+    // If no eligible drivers remain in the queue
+    if (eligible.length === 0) {
+      console.log(`[Dispatch] All drivers exhausted for trip ${tripId}. Marking NO_DRIVERS.`);
+      await prisma.trip.update({
+        where: { id: tripId },
+        data: {
+          status: 'NO_DRIVERS',
+          cancelledBy: 'SYSTEM',
+          cancelReason: 'No available drivers found in corridor'
+        }
+      });
+      await prisma.tripStatusHistory.create({
+        data: {
+          tripId,
+          fromStatus: trip.status,
+          status: 'NO_DRIVERS',
+          changedBy: 'SYSTEM',
+          reason: 'Dispatch exhausted: no drivers accepted or available'
+        }
+      });
+
+      if (this.io) {
+        this.io.to(`trip:${tripId}`).emit('trip:no_drivers', { tripId });
+        this.io.emit('trip:no_drivers', { tripId });
+      }
+      return null;
+    }
+
+    // Pick NEAREST available driver
+    const targetDriver = eligible[0];
+    const expiresAt = new Date(Date.now() + 15000); // 15-second decision window
+
+    // Re-verify trip is still unassigned before creating offer
+    const freshTrip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (!freshTrip || freshTrip.driverId || !['REQUESTED', 'OFFERED'].includes(freshTrip.status)) {
+      return null;
+    }
+
+    const offer = await prisma.tripOffer.create({
+      data: {
+        tripId,
+        driverId: targetDriver.driverId,
+        status: 'PENDING',
+        expiresAt
+      }
+    });
+
+    await prisma.trip.updateMany({
+      where: { id: tripId, status: 'REQUESTED', driverId: null },
+      data: { status: 'OFFERED' }
+    });
+
+    console.log(`[Dispatch] Trip ${tripId} offered to driver ${targetDriver.driverId} (15s window).`);
+
+    if (this.io) {
+      const driverSafeTrip = this.getDriverSafeTrip(trip);
+      this.io.to(`driver:${targetDriver.driverId}`).emit('trip:offer', { offer, trip: driverSafeTrip });
+      this.io.emit('trip:offered', {
+        tripId,
+        driverId: targetDriver.driverId,
+        offerId: offer.id,
+        expiresAt
+      });
+    }
+
+    // Schedule 15s timeout
+    this.clearOfferTimer(tripId);
+    const timer = setTimeout(async () => {
+      try {
+        await this.handleOfferTimeout(tripId, offer.id);
+      } catch (err) {
+        console.error('[Dispatch] Error in offer timeout handler:', err.message);
+      }
+    }, 15000);
+    this.offerTimers.set(tripId, timer);
+
+    return offer;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. Offer Timeout & Decline Handling
+  // ---------------------------------------------------------------------------
+  async handleOfferTimeout(tripId, offerId) {
+    this.clearOfferTimer(tripId);
+
+    const offer = await prisma.tripOffer.findUnique({ where: { id: offerId } });
+    if (!offer || offer.status !== 'PENDING') return;
+
+    await prisma.tripOffer.update({
+      where: { id: offerId },
+      data: { status: 'EXPIRED', respondedAt: new Date() }
+    });
+
+    console.log(`[Dispatch] Offer ${offerId} expired for trip ${tripId}. Offering to next driver...`);
+
+    // Verify trip is still unassigned
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (trip && ['REQUESTED', 'OFFERED'].includes(trip.status) && !trip.driverId) {
+      await this.startDispatch(tripId);
+    }
+  }
+
+  async declineTripOffer(tripId, driverId) {
+    this.clearOfferTimer(tripId);
+
+    const offer = await prisma.tripOffer.findFirst({
+      where: { tripId, driverId, status: 'PENDING' }
+    });
+
+    if (offer) {
+      await prisma.tripOffer.update({
+        where: { id: offer.id },
+        data: { status: 'REJECTED', respondedAt: new Date() }
+      });
+      console.log(`[Dispatch] Driver ${driverId} rejected offer for trip ${tripId}. Advancing...`);
+    }
+
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (trip && ['REQUESTED', 'OFFERED'].includes(trip.status) && !trip.driverId) {
+      await this.startDispatch(tripId);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. Atomic Accept
+  // ---------------------------------------------------------------------------
+  async acceptTrip(tripId, driverId) {
+    this.clearOfferTimer(tripId);
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Validate driver account is approved and active
+      const driver = await tx.driver.findFirst({
+        where: {
+          id: driverId,
+          approvalStatus: 'APPROVED',
+          user: { status: 'ACTIVE' }
+        },
+        include: {
+          user: { select: { id: true, name: true, phone: true } },
+          vehicle: true
+        }
+      });
+
+      if (!driver) {
+        throw new Error('Driver account is not active or approved');
+      }
+
+      const activeTrip = await tx.trip.findFirst({
+        where: {
+          driverId,
+          status: { in: ['DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
+        }
+      });
+      if (activeTrip) {
+        throw new Error('Driver is already busy on an active trip');
+      }
+
+      // 2. Validate trip availability
+      const trip = await tx.trip.findUnique({ where: { id: tripId } });
+      if (!trip) throw new Error('Trip not found');
+      if (trip.status !== 'REQUESTED' && trip.status !== 'OFFERED') {
+        throw new Error(`Trip is no longer available (current status: ${trip.status})`);
+      }
+      if (trip.driverId) {
+        throw new Error('Trip already accepted by another driver');
+      }
+
+      // 3. Atomic Conditional Update: exactly ONE driver wins
+      const updateResult = await tx.trip.updateMany({
+        where: {
+          id: tripId,
+          status: { in: ['REQUESTED', 'OFFERED'] },
+          driverId: null
+        },
+        data: {
+          driverId,
+          status: 'DRIVER_ARRIVING',
+          acceptedAt: new Date()
+        }
+      });
+
+      if (updateResult.count === 0) {
+        throw new Error('Trip already accepted by another driver');
+      }
+
+      // 4. Set driver to BUSY
+      await tx.driver.update({
+        where: { id: driverId },
+        data: { availability: 'BUSY' }
+      });
+
+      // 5. Update winner's pending offer to ACCEPTED, or create ACCEPTED offer record for winner
+      const pendingOffer = await tx.tripOffer.findFirst({
+        where: { tripId, driverId, status: 'PENDING' }
+      });
+      if (pendingOffer) {
+        await tx.tripOffer.update({
+          where: { id: pendingOffer.id },
+          data: { status: 'ACCEPTED', respondedAt: new Date() }
+        });
+      } else {
+        await tx.tripOffer.create({
+          data: {
+            tripId,
+            driverId,
+            status: 'ACCEPTED',
+            expiresAt: new Date(),
+            respondedAt: new Date()
+          }
+        });
+      }
+
+      // 6. Expire all other pending offers for this trip
+      await tx.tripOffer.updateMany({
+        where: { tripId, status: 'PENDING', driverId: { not: driverId } },
+        data: { status: 'EXPIRED', respondedAt: new Date() }
+      });
+
+      // 7. Record immutable audit history
+      await tx.tripStatusHistory.create({
+        data: {
+          tripId,
+          fromStatus: trip.status,
+          status: 'DRIVER_ARRIVING',
+          changedBy: driver.userId,
+          reason: 'Driver accepted ride offer'
+        }
+      });
+
+      const updatedTrip = await tx.trip.findUnique({
+        where: { id: tripId },
+        include: {
+          rider: { select: { id: true, name: true, phone: true } },
+          driver: { include: { user: { select: { id: true, name: true, phone: true } }, vehicle: true } }
+        }
+      });
+
+      return { trip: updatedTrip, driver };
+    }, { maxWait: 10000, timeout: 30000 });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6. Resume Pending Offers on Server Restart
+  // ---------------------------------------------------------------------------
+  async resumePendingOffers() {
+    try {
+      const pendingOffers = await prisma.tripOffer.findMany({
+        where: {
+          status: 'PENDING',
+          trip: {
+            status: { in: ['REQUESTED', 'OFFERED'] },
+            driverId: null
+          }
+        },
+        include: { trip: true }
+      });
+
+      console.log(`[Dispatch] Resuming ${pendingOffers.length} pending dispatch offer(s)...`);
+
+      for (const offer of pendingOffers) {
+        const remainingMs = offer.expiresAt.getTime() - Date.now();
+        if (remainingMs > 0) {
+          const timer = setTimeout(async () => {
+            try {
+              await this.handleOfferTimeout(offer.tripId, offer.id);
+            } catch (err) {
+              console.error('[Dispatch] Error resuming timeout:', err.message);
+            }
+          }, remainingMs);
+          this.offerTimers.set(offer.tripId, timer);
+        } else {
+          // Already expired during downtime
+          await prisma.tripOffer.update({
+            where: { id: offer.id },
+            data: { status: 'EXPIRED', respondedAt: new Date() }
+          });
+          await this.startDispatch(offer.tripId);
+        }
+      }
+
+      // Check unassigned REQUESTED trips created in the last 10 minutes without offers
+      const unofferedTrips = await prisma.trip.findMany({
+        where: {
+          status: 'REQUESTED',
+          driverId: null,
+          createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+          offers: { none: { status: 'PENDING' } }
+        }
+      });
+
+      for (const t of unofferedTrips) {
+        await this.startDispatch(t.id);
+      }
+    } catch (err) {
+      console.warn('[Dispatch] Error in resumePendingOffers:', err.message);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7. Trip Lifecycle Operations
+  // ---------------------------------------------------------------------------
+  async markDriverArrived(tripId) {
+    const trip = await prisma.trip.findFirst({
+      where: { id: tripId, status: 'DRIVER_ARRIVING' }
+    });
+    if (!trip) throw new Error('Active arriving trip not found');
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const t = await tx.trip.update({
+        where: { id: trip.id },
+        data: { status: 'ARRIVED', arrivedAt: new Date() },
+        include: { rider: true, driver: { include: { user: true, vehicle: true } } }
+      });
+      await tx.tripStatusHistory.create({
+        data: {
+          tripId: t.id,
+          fromStatus: trip.status,
+          status: 'ARRIVED',
+          changedBy: trip.driverId,
+          reason: 'Driver arrived at pickup location'
+        }
+      });
+      return t;
+    });
+
+    return updated;
+  }
+
+  async startTransit(tripId) {
+    const trip = await prisma.trip.findFirst({
+      where: { id: tripId, status: 'ARRIVED' }
+    });
+    if (!trip) throw new Error('Arrived trip not found');
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const t = await tx.trip.update({
+        where: { id: trip.id },
+        data: { status: 'IN_TRANSIT', startedAt: new Date() },
+        include: { rider: true, driver: { include: { user: true, vehicle: true } } }
+      });
+      await tx.tripStatusHistory.create({
+        data: {
+          tripId: t.id,
+          fromStatus: trip.status,
+          status: 'IN_TRANSIT',
+          changedBy: trip.driverId,
+          reason: 'Passenger PIN verified, transit started'
+        }
+      });
+      return t;
+    });
+
+    return updated;
+  }
+
+  async completeTrip(tripId, { driverTip = 0, paymentMethod = null, changedBy = null } = {}) {
+    const trip = await prisma.trip.findFirst({
+      where: { id: tripId, status: 'IN_TRANSIT' },
+      include: { driver: true, rider: true }
+    });
+    if (!trip) throw new Error('In-transit trip not found');
+
+    const payMethod = paymentMethod || trip.paymentMethod || 'CASH';
+    const driverId = trip.driverId;
+    if (!driverId) throw new Error('Cannot complete trip without assigned driverId');
+
+    const settleResult = await dbLedger.settleRide({
+      tripId: trip.id,
+      paymentMethod: payMethod,
+      driverTipMWK: driverTip,
+      changedBy: changedBy || driverId
+    });
+
+    await prisma.driver.updateMany({
+      where: { id: driverId },
+      data: {
+        availability: 'ONLINE',
+        tripsCompleted: { increment: 1 }
+      }
+    });
+
+    return {
+      trip: settleResult.trip,
+      journalId: settleResult.journalId,
+      breakdown: settleResult.breakdown
+    };
+  }
+
+  async cancelTrip(tripId, reason = 'Cancelled by user', cancelledBy = 'RIDER') {
+    this.clearOfferTimer(tripId);
+
+    const trip = await prisma.trip.findUnique({ where: { id: tripId } });
+    if (!trip) return null;
+
+    const nextStatus = cancelledBy === 'DRIVER' ? 'CANCELLED_BY_DRIVER' : 'CANCELLED_BY_RIDER';
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const t = await tx.trip.update({
+        where: { id: tripId },
+        data: {
+          status: nextStatus,
+          cancelledBy,
+          cancelReason: reason,
+          cancelledAt: new Date()
+        }
+      });
+      await tx.tripStatusHistory.create({
+        data: {
+          tripId,
+          fromStatus: trip.status,
+          status: nextStatus,
+          changedBy: cancelledBy,
+          reason
+        }
+      });
+      if (trip.driverId) {
+        await tx.driver.updateMany({
+          where: { id: trip.driverId },
+          data: { availability: 'ONLINE' }
+        });
+      }
+      return t;
+    });
+
+    return updated;
+  }
+
+  // Security: Never expose Trip.pin in driver-facing responses
   getDriverSafeTrip(trip) {
     if (!trip) return null;
     const { pin, ...driverSafeTrip } = trip;

@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const crypto = require('crypto');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
@@ -166,17 +165,7 @@ const generalApiLimiter = rateLimit({
 });
 app.use('/api/', generalApiLimiter);
 
-// Strict Rate Limiter for Public Discovery & Quotes (60 requests / 15 minutes per IP)
-const discoveryLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many discovery or quote requests from this IP. Please wait 15 minutes.' }
-});
-
 app.use(express.json());
-
 
 // Mount Authentication & Profile Router (Step 3a)
 app.use('/api/auth', authRouter);
@@ -374,7 +363,7 @@ const restRideCompleteSchema = z.object({
 });
 
 // 1. Authoritative Road Routing & Dynamic Pricing Quote (Phase 4 & 5)
-app.post('/api/rides/quote', discoveryLimiter, async (req, res) => {
+app.post('/api/rides/quote', async (req, res) => {
   try {
     const pickup = req.body.pickup;
     const destination = req.body.destination || req.body.dropoff;
@@ -430,7 +419,7 @@ app.post('/api/rides/quote', discoveryLimiter, async (req, res) => {
 });
 
 // 2. Real-Time Reverse Geocoding: Coordinates -> Street Address (Phase 2 & 3)
-app.get('/api/places/reverse', discoveryLimiter, async (req, res) => {
+app.get('/api/places/reverse', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lng = parseFloat(req.query.lng);
@@ -445,7 +434,7 @@ app.get('/api/places/reverse', discoveryLimiter, async (req, res) => {
 });
 
 // 3. Real-Time Forward Geocoding & Autocomplete for Malawi (Phase 3)
-app.get('/api/places/search', discoveryLimiter, async (req, res) => {
+app.get('/api/places/search', async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     const lat = parseFloat(req.query.lat);
@@ -458,7 +447,7 @@ app.get('/api/places/search', discoveryLimiter, async (req, res) => {
 });
 
 // 4. Real Nearby Drivers Discovery (Phase 6: Spatial GPS Filter)
-app.get('/api/drivers/nearby', discoveryLimiter, (req, res) => {
+app.get('/api/drivers/nearby', (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
   const tier = req.query.tier;
@@ -468,40 +457,7 @@ app.get('/api/drivers/nearby', discoveryLimiter, (req, res) => {
     return res.status(400).json({ error: 'Pickup lat and lng coordinates required' });
   }
 
-  // Check if request is authenticated
-  let isAuthenticated = false;
-  try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      authService.verifyAccessToken(authHeader.substring(7));
-      isAuthenticated = true;
-    }
-  } catch (e) {
-    isAuthenticated = false;
-  }
-
-  const rawDrivers = dispatchService.findNearbyDrivers(lat, lng, tier, radius);
-
-  // Anonymize driver identities for unauthenticated users (strip names, phone, exact plates, exact GPS)
-  const drivers = rawDrivers.map(d => {
-    if (isAuthenticated) {
-      return d;
-    }
-    return {
-      id: `anon-${crypto.createHash('md5').update(String(d.id)).digest('hex').slice(0, 8)}`,
-      vehicleType: d.vehicleType,
-      carModel: d.carModel,
-      rating: d.rating,
-      location: d.location ? {
-        lat: Math.round(d.location.lat * 1000) / 1000,
-        lng: Math.round(d.location.lng * 1000) / 1000,
-        heading: d.location.heading
-      } : null,
-      distanceKm: d.distanceKm,
-      etaMinutes: d.etaMinutes
-    };
-  });
-
+  const drivers = dispatchService.findNearbyDrivers(lat, lng, tier, radius);
   res.json({
     pickup: { lat, lng },
     radiusKm: radius,
@@ -823,7 +779,7 @@ app.post('/api/rides/complete', requireRole('DRIVER', 'ADMIN'), validateBody(res
     if (!rideId) return res.status(400).json({ error: 'rideId is required' });
 
     const completion = dispatchService.completeTrip(rideId, { driverTip, paymentMethod });
-    
+
     // Settle in database with double-entry ledger if trip exists in DB
     let dbResult = null;
     try {
@@ -854,8 +810,8 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return parseFloat((R * c).toFixed(1));
 }
@@ -1072,7 +1028,7 @@ function formatLocationResult(loc, originLat, originLng) {
 }
 
 // API: Real-Time Location Search for Malawi (Local Registry + Live OpenStreetMap)
-app.get('/api/search-locations', discoveryLimiter, async (req, res) => {
+app.get('/api/search-locations', async (req, res) => {
   const query = (req.query.q || '').trim();
   const originLat = parseFloat(req.query.lat) || DEFAULT_ORIGIN.lat;
   const originLng = parseFloat(req.query.lng) || DEFAULT_ORIGIN.lng;
@@ -1087,8 +1043,8 @@ app.get('/api/search-locations', discoveryLimiter, async (req, res) => {
   // 1. Check Local Registry (prioritizes EPTL Malawi, Area 4, etc.)
   const localMatches = MALAWI_LOCATIONS.filter(loc => {
     return loc.name.toLowerCase().includes(qLower) ||
-           loc.area.toLowerCase().includes(qLower) ||
-           (loc.tags && loc.tags.some(tag => tag.toLowerCase().includes(qLower)));
+      loc.area.toLowerCase().includes(qLower) ||
+      (loc.tags && loc.tags.some(tag => tag.toLowerCase().includes(qLower)));
   }).map(loc => formatLocationResult(loc, originLat, originLng));
 
   // 2. Query Live OpenStreetMap (Photon) for Malawi
@@ -1105,8 +1061,8 @@ app.get('/api/search-locations', discoveryLimiter, async (req, res) => {
       if (data && data.features) {
         remoteMatches = data.features
           .filter(f => f.properties && (
-            f.properties.countrycode === 'MW' || 
-            f.properties.country === 'Malawi' || 
+            f.properties.countrycode === 'MW' ||
+            f.properties.country === 'Malawi' ||
             f.properties.state === 'Lilongwe' ||
             (f.geometry && f.geometry.coordinates && f.geometry.coordinates[0] > 32.5 && f.geometry.coordinates[0] < 36.0 && f.geometry.coordinates[1] > -17.5 && f.geometry.coordinates[1] < -9.0)
           ))
@@ -1133,7 +1089,7 @@ app.get('/api/search-locations', discoveryLimiter, async (req, res) => {
   // Combine and deduplicate by coordinate proximity
   const combined = [...localMatches];
   for (const rem of remoteMatches) {
-    const isDuplicate = combined.some(c => 
+    const isDuplicate = combined.some(c =>
       c.name.toLowerCase() === rem.name.toLowerCase() ||
       (Math.abs(c.lat - rem.lat) < 0.003 && Math.abs(c.lng - rem.lng) < 0.003)
     );
@@ -1145,11 +1101,8 @@ app.get('/api/search-locations', discoveryLimiter, async (req, res) => {
   res.json(combined.slice(0, 10));
 });
 
-// API: Reset dev state (DEVELOPMENT ONLY)
+// API: Reset dev state
 app.post('/api/reset', (req, res) => {
-  if (process.env.NODE_ENV !== 'development') {
-    return res.status(403).json({ error: 'Endpoint forbidden: /api/reset is only available in development environment' });
-  }
   res.json({ message: 'State reset successfully' });
 });
 
@@ -1159,7 +1112,6 @@ app.post('/api/reset', (req, res) => {
 
 // Zod Validation Schemas for Socket Payloads
 const socketTripRequestSchema = z.object({
-  quoteId: z.string().optional(),
   fare: z.number().optional(),
   baseFare: z.number().optional(),
   tierId: z.string().optional(),
@@ -1267,10 +1219,10 @@ const socketWalletTransferSchema = z.object({
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token ||
-                  socket.handshake.query?.token ||
-                  (socket.handshake.headers?.authorization?.startsWith('Bearer ')
-                    ? socket.handshake.headers.authorization.slice(7)
-                    : null);
+      socket.handshake.query?.token ||
+      (socket.handshake.headers?.authorization?.startsWith('Bearer ')
+        ? socket.handshake.headers.authorization.slice(7)
+        : null);
 
     if (!token) {
       return next(new Error('Authentication required: Missing JWT token in socket handshake'));
@@ -1336,31 +1288,8 @@ io.on('connection', (socket) => {
         throw new Error('Account inactive. Cannot request trips.');
       }
 
-      // Server-Side Authoritative Pricing (NEVER trust client fare/baseFare)
-      let fare;
-      let baseFare;
-      let distanceKm = parseFloat(reqData.distanceKm) || 3.5;
-      let durationMins = parseInt(reqData.durationMins, 10) || 8;
-      const categoryId = (reqData.tierId || 'moto').toLowerCase();
-
-      if (reqData.quoteId) {
-        // Authoritatively validate & consume signed quote snapshot
-        const validatedQuote = pricingService.validateAndConsumeQuote(reqData.quoteId, categoryId);
-        fare = validatedQuote.tier.finalFare;
-        baseFare = validatedQuote.tier.baseFare;
-        distanceKm = validatedQuote.distanceKm;
-        durationMins = validatedQuote.durationMins;
-      } else {
-        // Fallback: compute authoritative fare server-side via pricing engine
-        const computed = pricingService.calculateFare({
-          categoryId,
-          distanceKm,
-          durationMins
-        });
-        fare = computed.finalFare;
-        baseFare = computed.baseFare;
-      }
-
+      const fare = Math.round(reqData.fare || 1500);
+      const baseFare = Math.round(reqData.baseFare || fare);
       const commission = Math.round(fare * 0.30);
       const driverShare = fare - commission;
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -1933,10 +1862,6 @@ io.on('connection', (socket) => {
   // 14. Rider Wallet Top Up (Airtel Money / TNM Mpamba)
   socket.on('wallet:topup', async (data = {}, callback) => {
     try {
-      if (process.env.NODE_ENV !== 'development') {
-        throw new Error('Direct wallet top-up via socket is disabled in production. Please use mobile money top-up (/api/payments/initiate).');
-      }
-
       const parsed = socketWalletTopupSchema.safeParse(data);
       if (!parsed.success) {
         throw new Error(parsed.error.issues[0]?.message || 'Invalid wallet topup data');
