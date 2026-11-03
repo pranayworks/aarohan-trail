@@ -151,15 +151,17 @@
     }
 
     fetchInitialState() {
-      const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
-      if (!token) return; // Delay until after login
+      const auth = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth : null;
+      if (!auth) return;
 
       const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
-      const headers = { 'Authorization': `Bearer ${token}` };
+      const fetchPromise = (auth.fetchWithAuth)
+        ? auth.fetchWithAuth(`${origin}/api/trips/active`)
+        : fetch(`${origin}/api/trips/active`);
 
-      fetch(`${origin}/api/trips/active`, { headers })
+      fetchPromise
         .then(r => {
-          if (!r.ok) return null;
+          if (!r || !r.ok) return null;
           return r.json();
         })
         .then(serverState => {

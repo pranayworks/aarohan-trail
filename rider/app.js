@@ -140,11 +140,43 @@
     }
 
     if (typeof window !== 'undefined' && window.aarohanAuth) {
+      const initialUser = window.aarohanAuth.getUser();
+      if (initialUser) {
+        const balance = (initialUser.walletBalanceMWK != null)
+          ? initialUser.walletBalanceMWK
+          : (initialUser.wallet && initialUser.wallet.balanceMWK != null ? initialUser.wallet.balanceMWK : 0);
+        const headerBal = document.getElementById('header-wallet-bal');
+        if (headerBal) headerBal.innerText = `MK ${balance.toLocaleString()}`;
+        const walletMain = document.getElementById('wallet-main-balance');
+        if (walletMain) walletMain.innerText = `MK ${balance.toLocaleString()}`;
+      }
+
       window.aarohanAuth.onAuthChange((user) => {
-        if (user && window.aarohanAuth.getAccessToken()) {
-          loadFrequentPlaces();
-          loadSavedPlaces();
-          recoverActiveRideSession();
+        if (user) {
+          const balance = (user.walletBalanceMWK != null)
+            ? user.walletBalanceMWK
+            : (user.wallet && user.wallet.balanceMWK != null ? user.wallet.balanceMWK : 0);
+          const headerBal = document.getElementById('header-wallet-bal');
+          if (headerBal) headerBal.innerText = `MK ${balance.toLocaleString()}`;
+          const walletMain = document.getElementById('wallet-main-balance');
+          if (walletMain) walletMain.innerText = `MK ${balance.toLocaleString()}`;
+
+          const store = window.aarohanStore || window.mwendoStore;
+          if (store) {
+            const s = store.getState();
+            if (s && s.rider) {
+              s.rider.walletBalance = balance;
+              if (user.name) s.rider.name = user.name;
+              if (user.phone) s.rider.phone = user.phone;
+              store.saveState(s);
+            }
+          }
+
+          if (window.aarohanAuth.getAccessToken()) {
+            loadFrequentPlaces();
+            loadSavedPlaces();
+            recoverActiveRideSession();
+          }
         }
       });
     }
@@ -1361,11 +1393,16 @@
 
     // 1. Rider Profile & Wallet
     if (state.rider) {
+      const authUser = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getUser() : null;
+      const walletBalance = (state.rider.walletBalance && state.rider.walletBalance > 0)
+        ? state.rider.walletBalance
+        : (authUser && authUser.walletBalanceMWK != null ? authUser.walletBalanceMWK : 0);
+
       const headerBal = document.getElementById('header-wallet-bal');
-      if (headerBal) headerBal.innerText = `MK ${state.rider.walletBalance.toLocaleString()}`;
+      if (headerBal) headerBal.innerText = `MK ${walletBalance.toLocaleString()}`;
 
       const walletMain = document.getElementById('wallet-main-balance');
-      if (walletMain) walletMain.innerText = `MK ${state.rider.walletBalance.toLocaleString()}`;
+      if (walletMain) walletMain.innerText = `MK ${walletBalance.toLocaleString()}`;
 
       const nameEl = document.getElementById('profile-rider-name');
       if (nameEl && state.rider.name) nameEl.innerText = state.rider.name;
@@ -1468,7 +1505,7 @@
     if (!trip) return;
 
     // Persist active trip for recovery after restart (Phase 2.D)
-    if (trip && ['REQUESTED', 'ACCEPTED', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) {
+    if (trip && ['REQUESTED', 'ACCEPTED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) {
       try {
         localStorage.setItem('aarohan_active_ride_state', JSON.stringify({
           activeTrip: trip,
@@ -1666,12 +1703,10 @@
   // =========================================================================
   async function loadFrequentPlaces() {
     try {
-      const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
-      if (!token) return; // Delayed until after login
-      const res = await fetch('/api/user/frequent-places', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
+      const auth = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth : null;
+      if (!auth) return;
+      const res = await auth.fetchWithAuth('/api/user/frequent-places');
+      if (res && res.ok) {
         const places = await res.json();
         // Dynamically update quick chips if present
       }
@@ -1680,12 +1715,10 @@
 
   async function loadSavedPlaces() {
     try {
-      const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
-      if (!token) return; // Delayed until after login
-      const res = await fetch('/api/user/saved-places', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
+      const auth = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth : null;
+      if (!auth) return;
+      const res = await auth.fetchWithAuth('/api/user/saved-places');
+      if (res && res.ok) {
         const saved = await res.json();
       }
     } catch (e) { }
@@ -2038,26 +2071,51 @@
       if (status === 'REQUESTED') {
         window.switchView('dispatching');
         startDispatchCountdown();
-      } else if (['ACCEPTED', 'ARRIVED', 'IN_TRANSIT'].includes(status)) {
+      } else if (['ACCEPTED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(status)) {
         window.switchView('tracking');
         if (window.initTrackingMap) setTimeout(() => window.initTrackingMap(), 150);
       }
     }
 
-    // Verify with authoritative server state
-    fetch('/api/trips/active', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    // Verify with authoritative server state using authenticated fetch wrapper
+    const auth = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth : null;
+    if (!auth) return;
+
+    auth.fetchWithAuth('/api/trips/active')
       .then(r => {
-        if (!r.ok) return null;
+        if (!r || !r.ok) return null;
         return r.json();
       })
       .then(serverState => {
         if (serverState && serverState.activeTrip) {
           const trip = serverState.activeTrip;
-          if (['REQUESTED', 'ACCEPTED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) {
+          if (['REQUESTED', 'OFFERED', 'ACCEPTED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) {
             console.log('[AArohanRecovery] Server confirmed active trip:', trip.id, trip.status);
-            handleStateUpdate(serverState, 'SESSION_RECOVERED', trip);
+            const store = window.mwendoStore || window.aarohanStore;
+            if (store) {
+              const current = store.getState();
+              current.activeTrip = Object.assign({}, current.activeTrip, {
+                id: trip.id,
+                status: trip.status,
+                pickup: trip.pickupAddress || current.activeTrip?.pickup || 'Pickup Point',
+                destination: trip.dropoffAddress || current.activeTrip?.destination || 'Destination Hub',
+                pin: trip.pin || current.activeTrip?.pin || '',
+                fare: trip.fareMWK || current.activeTrip?.finalFare || 0,
+                paymentMethod: trip.paymentMethod || current.activeTrip?.paymentMethod || 'CASH'
+              });
+              if (trip.driver && trip.driver.user) {
+                current.driver = Object.assign({}, current.driver, {
+                  name: trip.driver.user.name,
+                  phone: trip.driver.user.phone,
+                  plate: trip.driver.vehicle?.plateNumber || '',
+                  car: trip.driver.vehicle ? `${trip.driver.vehicle.color || ''} ${trip.driver.vehicle.makeModel || ''}`.trim() : ''
+                });
+              }
+              store.saveState(current);
+              handleStateUpdate(current, 'SESSION_RECOVERED', current.activeTrip);
+            } else {
+              handleStateUpdate(serverState, 'SESSION_RECOVERED', trip);
+            }
           }
         }
       })

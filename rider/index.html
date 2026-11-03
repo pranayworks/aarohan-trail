@@ -2762,13 +2762,24 @@
               const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AR';
               avatarEl.innerText = initials;
             }
-            if (window.aarohanStore) {
-              const s = window.aarohanStore.getState();
+            const balance = (user.walletBalanceMWK != null)
+              ? user.walletBalanceMWK
+              : (user.wallet && user.wallet.balanceMWK != null ? user.wallet.balanceMWK : 0);
+
+            const headerBal = document.getElementById('header-wallet-bal');
+            if (headerBal) headerBal.innerText = `MK ${balance.toLocaleString()}`;
+            const walletMain = document.getElementById('wallet-main-balance');
+            if (walletMain) walletMain.innerText = `MK ${balance.toLocaleString()}`;
+
+            const store = window.aarohanStore || window.mwendoStore;
+            if (store) {
+              const s = store.getState();
+              if (!s.rider) s.rider = {};
               s.rider.name = user.name || 'AArohan Rider';
               s.rider.phone = user.phone;
-              if (user.wallet) s.rider.walletBalance = user.wallet.balanceMWK;
-              window.aarohanStore.saveState(s);
-              window.aarohanStore.notifyListeners(s, 'USER_AUTH', user);
+              s.rider.walletBalance = balance;
+              store.saveState(s);
+              store.notifyListeners(s, 'USER_AUTH', user);
             }
           }
         });

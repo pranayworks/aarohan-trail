@@ -15,10 +15,13 @@
 // ============================================================================
 
 require('dotenv').config();
+const assert = require('assert');
+const jwt = require('jsonwebtoken');
 const { chromium } = require('playwright');
 const prisma = require('../lib/prisma');
 const authService = require('../services/auth');
 const { server } = require('../server');
+const { JWT_SECRET } = require('./auth_helper');
 
 const BASE_URL = 'http://localhost:3000';
 const RIDER_PHONE = '+265991234567';
@@ -54,14 +57,19 @@ async function runBrowserE2E() {
   // 1. Ensure backend server is running
   let serverStartedLocally = false;
   if (!server.listening) {
-    console.log('[Setup] Starting backend HTTP & Socket.IO server on port 3000...');
-    await new Promise((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(3000, '0.0.0.0', () => {
-        serverStartedLocally = true;
-        resolve();
+    try {
+      console.log('[Setup] Starting backend HTTP & Socket.IO server on port 3000...');
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(3000, '0.0.0.0', () => {
+          serverStartedLocally = true;
+          resolve();
+        });
       });
-    });
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') throw err;
+      console.log('[Setup] Server already running on port 3000.');
+    }
   }
 
   // 2. Clean up any existing active trips for test rider/driver
@@ -244,6 +252,30 @@ async function runBrowserE2E() {
     console.log(`  [PASS] Rider display confirmed: "Captain On The Way" • Genuine PIN: ${realPin}`);
 
     // -------------------------------------------------------------------------
+    // STEP 5b: Mid-Trip Page Reload & Active Ride Restoration
+    // -------------------------------------------------------------------------
+    console.log('\n--- Step 5b: Mid-Trip Reload & Session Recovery ---');
+    await pageRider.reload();
+
+    // Confirm that tracking view is restored
+    await pageRider.waitForSelector('#view-tracking:not(.hidden)', { timeout: 10000 });
+    await pageRider.waitForFunction(() => {
+      const title = (document.getElementById('tracking-status-title')?.innerText || '').toLowerCase();
+      return title.includes('captain on the way') || title.includes('captain');
+    }, { timeout: 8000 });
+
+    const restoredPin = (await pageRider.locator('#tracking-pin-display').innerText()).trim();
+    assert.strictEqual(restoredPin, realPin, 'Restored ride PIN matches original PIN');
+
+    // Confirm header wallet shows genuine balance from /api/auth/me (not MK 0)
+    await pageRider.waitForFunction(() => {
+      const bal = document.getElementById('header-wallet-bal')?.innerText || '';
+      return bal.includes('MK') && !bal.includes('MK 0');
+    }, { timeout: 8000 });
+    const headerBalMidTrip = await pageRider.locator('#header-wallet-bal').innerText();
+    console.log(`  [PASS] Mid-trip reload confirmed: Active ride restored • PIN: ${restoredPin} • Header Wallet: ${headerBalMidTrip}`);
+
+    // -------------------------------------------------------------------------
     // STEP 6: Driver Arrives at Pickup
     // -------------------------------------------------------------------------
     console.log('\n--- Step 6: Driver Arrives at Pickup ---');
@@ -335,6 +367,42 @@ async function runBrowserE2E() {
     }
 
     console.log('  [PASS] Database record & ledger verification passed.');
+
+    // -------------------------------------------------------------------------
+    // STEP 10: Expired Access Token Refresh Verification
+    // -------------------------------------------------------------------------
+    console.log('\n--- Step 10: Expired Access Token Refresh Verification ---');
+    const riderRecord = await prisma.user.findUnique({
+      where: { phone: RIDER_PHONE }
+    });
+
+    const expiredToken = jwt.sign(
+      { userId: riderRecord.id, phone: riderRecord.phone, role: 'RIDER' },
+      JWT_SECRET,
+      { algorithm: 'HS256', expiresIn: '-1h' }
+    );
+
+    // Overwrite access token in localStorage with the expired JWT
+    await pageRider.evaluate((badToken) => {
+      localStorage.setItem('aarohan_access_token', badToken);
+    }, expiredToken);
+
+    // Reload /rider/ with the expired token
+    await pageRider.reload();
+
+    // Verify token refreshed via /api/auth/refresh, /api/auth/me returns balance, no login modal
+    await pageRider.waitForFunction((oldToken) => {
+      const token = localStorage.getItem('aarohan_access_token');
+      const bal = document.getElementById('header-wallet-bal')?.innerText || '';
+      const modal = document.getElementById('aarohan-auth-modal');
+      return token && token !== oldToken && bal.includes('MK') && !bal.includes('MK 0') && !modal;
+    }, expiredToken, { timeout: 12000 });
+
+    const freshToken = await pageRider.evaluate(() => localStorage.getItem('aarohan_access_token'));
+    assert.notStrictEqual(freshToken, expiredToken, 'Access token successfully rotated upon 401');
+    const refreshedWalletBal = await pageRider.locator('#header-wallet-bal').innerText();
+    console.log(`  [PASS] Expired token refreshed: Rotated JWT stored • Auth retained • Header Wallet: ${refreshedWalletBal}`);
+
     testPassed = true;
 
   } finally {

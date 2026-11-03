@@ -23,7 +23,30 @@
       this.refreshTimer = null;
       this.activeSocket = null;
       this.onAuthChangeCallbacks = [];
+      this.isReady = false;
+      this.readyPromise = null;
+      this.readyResolve = null;
+      this.refreshPromise = null;
       this.initAutoRefresh();
+    }
+
+    whenReady() {
+      if (this.isReady) return Promise.resolve(this.getUser());
+      if (!this.readyPromise) {
+        this.readyPromise = new Promise((resolve) => {
+          this.readyResolve = resolve;
+        });
+      }
+      return this.readyPromise;
+    }
+
+    setReady(user = null) {
+      this.isReady = true;
+      if (this.readyResolve) {
+        const resolve = this.readyResolve;
+        this.readyResolve = null;
+        resolve(user || this.getUser());
+      }
     }
 
     getAccessToken() {
@@ -99,48 +122,63 @@
       }
     }
 
-    // Rotating Refresh Token Exchange
+    // Rotating Refresh Token Exchange (deduplicated in-flight)
     async refreshToken() {
-      const refreshToken = this.getRefreshToken();
-      if (!refreshToken) {
-        this.clearSession();
-        return null;
+      if (this.refreshPromise) {
+        return this.refreshPromise;
       }
 
-      try {
-        const res = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          console.warn('[Auth] Token refresh failed:', errData.error || res.statusText);
+      this.refreshPromise = (async () => {
+        const refreshToken = this.getRefreshToken();
+        if (!refreshToken) {
           this.clearSession();
           return null;
         }
 
-        const data = await res.json();
-        this.setSession(data.accessToken, data.refreshToken, data.user || this.getUser());
+        try {
+          const res = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken })
+          });
 
-        // Update active Socket.IO connection with the fresh token
-        if (this.activeSocket) {
-          this.activeSocket.auth = { token: data.accessToken };
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            console.warn('[Auth] Token refresh failed:', errData.error || res.statusText);
+            this.clearSession();
+            return null;
+          }
+
+          const data = await res.json();
+          this.setSession(data.accessToken, data.refreshToken, data.user || this.getUser());
+
+          // Update active Socket.IO connection with the fresh token
+          if (this.activeSocket) {
+            this.activeSocket.auth = { token: data.accessToken };
+          }
+
+          return data.accessToken;
+        } catch (err) {
+          console.error('[Auth] Refresh network error:', err);
+          return null;
         }
+      })().finally(() => {
+        this.refreshPromise = null;
+      });
 
-        return data.accessToken;
-      } catch (err) {
-        console.error('[Auth] Refresh network error:', err);
-        return null;
-      }
+      return this.refreshPromise;
     }
 
-    // Authenticated API request wrapper (attaches JWT, retries on 401 via refresh token)
+    // Authenticated API request wrapper (never fires before auth is ready; retries once on 401)
     async fetchWithAuth(url, options = {}) {
+      if (!this.isReady && !url.includes('/api/auth/')) {
+        await this.whenReady();
+      }
+
       let token = this.getAccessToken();
       if (!token) {
-        throw new Error('Unauthenticated: Please log in');
+        // Unauthenticated - do not fire protected request
+        return null;
       }
 
       const headers = Object.assign({}, options.headers || {}, {
@@ -149,9 +187,9 @@
 
       let res = await fetch(url, Object.assign({}, options, { headers }));
 
-      // If token expired (401), attempt immediate refresh and retry request
+      // If token expired (401), attempt immediate refresh and retry request once
       if (res.status === 401) {
-        console.log('[Auth] Received 401 Unauthorized. Attempting refresh token exchange...');
+        console.log(`[Auth] 401 Unauthorized for ${url}. Attempting token refresh and retry...`);
         const newToken = await this.refreshToken();
         if (newToken) {
           headers['Authorization'] = `Bearer ${newToken}`;
@@ -511,9 +549,24 @@
 
           this.setSession(data.accessToken, data.refreshToken, data.user);
 
+          // Fetch authoritative profile & wallet from /api/auth/me
+          let fullUser = data.user;
+          try {
+            const meRes = await this.fetchWithAuth('/api/auth/me');
+            if (meRes && meRes.ok) {
+              const meData = await meRes.json();
+              if (meData.user) {
+                fullUser = Object.assign({}, fullUser, meData.user);
+                this.setSession(data.accessToken, data.refreshToken, fullUser);
+              }
+            }
+          } catch (e) {
+            console.warn('[Auth] Post-login profile fetch error:', e);
+          }
+
           // For driver portal: verify approvalStatus
           if (role === 'DRIVER') {
-            if (!data.user.driverProfile || data.user.driverProfile.approvalStatus !== 'APPROVED') {
+            if (!fullUser.driverProfile || fullUser.driverProfile.approvalStatus !== 'APPROVED') {
               stepOtp.classList.add('hidden');
               stepPending.classList.remove('hidden');
               document.getElementById('auth-title').innerText = i18n.t('driverPendingTitle');
@@ -523,8 +576,9 @@
           }
 
           modalEl.remove();
+          this.setReady(fullUser);
           if (typeof onLoginSuccess === 'function') {
-            onLoginSuccess(data.user);
+            onLoginSuccess(fullUser);
           }
         } catch (err) {
           showAlert(err.message);
@@ -540,16 +594,24 @@
       if (this.isAuthenticated()) {
         try {
           const res = await this.fetchWithAuth('/api/auth/me');
-          if (res.ok) {
+          if (res && res.ok) {
             const data = await res.json();
             const user = data.user;
             this.setSession(this.getAccessToken(), this.getRefreshToken(), user);
 
             if (role === 'DRIVER' && (!user.driverProfile || user.driverProfile.approvalStatus !== 'APPROVED')) {
-              this.showLoginModal({ role, onLoginSuccess: onAuthenticated });
+              this.setReady(user);
+              this.showLoginModal({
+                role,
+                onLoginSuccess: (u) => {
+                  this.setReady(u);
+                  if (typeof onAuthenticated === 'function') onAuthenticated(u);
+                }
+              });
               return;
             }
 
+            this.setReady(user);
             if (typeof onAuthenticated === 'function') {
               onAuthenticated(user);
             }
@@ -560,10 +622,20 @@
         }
       }
 
-      // Not authenticated -> show login modal
-      this.showLoginModal({ role, onLoginSuccess: onAuthenticated });
+      // Not authenticated -> resolve ready state and show login modal
+      this.setReady(null);
+      this.showLoginModal({
+        role,
+        onLoginSuccess: (user) => {
+          this.setReady(user);
+          if (typeof onAuthenticated === 'function') {
+            onAuthenticated(user);
+          }
+        }
+      });
     }
   }
 
   window.aarohanAuth = new AArohanAuth();
+  window.fetchWithAuth = (url, options) => window.aarohanAuth.fetchWithAuth(url, options);
 })(window);
