@@ -1,8 +1,20 @@
-// Gaman Ride-Hailing Platform • End-to-End Automated Integration Verification
-// Tests real-time search (EPTL), Mapbox road quotes, spatial telemetry, and lifecycle state.
+const { server } = require('../server');
+const { getTestToken } = require('./auth_helper');
 
 async function verify() {
   const baseUrl = 'http://localhost:3000';
+
+  if (!server.listening) {
+    try {
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(3000, '0.0.0.0', resolve);
+      });
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') throw err;
+    }
+  }
+
   console.log('=============================================================');
   console.log('   GAMAN LILONGWE REAL-TIME VERIFICATION SUITE');
   console.log('=============================================================\n');
@@ -99,7 +111,10 @@ async function verify() {
     // 4a. Post driver location
     const postLocRes = await fetch(`${baseUrl}/api/drivers/location`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getTestToken({ role: 'DRIVER' })}`
+      },
       body: JSON.stringify({
         driverId: 'DRV-MW-101',
         name: 'Chikondi Phiri',
@@ -136,7 +151,11 @@ async function verify() {
   // TEST 5: Saved & Frequent Places
   console.log('\n--- 5. Testing Saved & Frequent Places Services ---');
   try {
-    const frequentRes = await fetch(`${baseUrl}/api/user/frequent-places`);
+    const frequentRes = await fetch(`${baseUrl}/api/user/frequent-places`, {
+      headers: {
+        'Authorization': `Bearer ${getTestToken({ role: 'RIDER' })}`
+      }
+    });
     const frequent = await frequentRes.json();
     assert(
       'Frequent destinations dynamically calculated from trip history',
@@ -150,7 +169,11 @@ async function verify() {
   // TEST 6: Admin Metrics Engine
   console.log('\n--- 6. Testing Operations Admin Metrics ---');
   try {
-    const metricsRes = await fetch(`${baseUrl}/api/admin/metrics`);
+    const metricsRes = await fetch(`${baseUrl}/api/admin/metrics`, {
+      headers: {
+        'Authorization': `Bearer ${getTestToken({ role: 'ADMIN' })}`
+      }
+    });
     const m = await metricsRes.json();
     assert(
       'Platform metrics aggregate volume, revenue, and online drivers',

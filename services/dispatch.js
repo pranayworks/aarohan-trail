@@ -21,65 +21,6 @@ class DispatchService {
     this.drivers = new Map();
     // Map of tripId -> active trip state
     this.trips = new Map();
-
-    // Default verified initial driver partner (Chikondi Phiri)
-    this.registerDriver({
-      id: 'DRV-MW-101',
-      name: 'Chikondi Phiri',
-      phone: '+265 99 554 1122',
-      plate: 'BW 4920',
-      vehicleType: 'auto',
-      carModel: 'White Bajaj RE Compact',
-      rating: 4.92,
-      tripsCompleted: 1420,
-      status: 'ONLINE',
-      location: {
-        lat: -13.9650,
-        lng: 33.7820,
-        heading: 45,
-        accuracy: 10,
-        timestamp: Date.now()
-      }
-    });
-
-    // Moto captain partner
-    this.registerDriver({
-      id: 'DRV-MW-102',
-      name: 'Blessings Phiri',
-      phone: '+265 99 824 1120',
-      plate: 'LL 4920 B',
-      vehicleType: 'moto',
-      carModel: 'Red Boxer 150',
-      rating: 4.95,
-      tripsCompleted: 1840,
-      status: 'ONLINE',
-      location: {
-        lat: -13.9600,
-        lng: 33.7850,
-        heading: 90,
-        accuracy: 8,
-        timestamp: Date.now()
-      }
-    });
-    // Cab captain partner
-    this.registerDriver({
-      id: 'DRV-MW-103',
-      name: 'Tamandani Gondwe',
-      phone: '+265 99 331 4455',
-      plate: 'LL 7821 C',
-      vehicleType: 'cab',
-      carModel: 'Silver Toyota Passo',
-      rating: 4.88,
-      tripsCompleted: 980,
-      status: 'ONLINE',
-      location: {
-        lat: -13.9680,
-        lng: 33.7750,
-        heading: 180,
-        accuracy: 10,
-        timestamp: Date.now()
-      }
-    });
   }
 
   // Register or update driver profile
@@ -143,9 +84,9 @@ class DispatchService {
       // Must be ONLINE
       if (driver.status !== 'ONLINE') continue;
 
-      // Must have recent GPS (ensure verified core fleet captains remain discoverable)
+      // Must have recent GPS
       if (!driver.location) continue;
-      if (driver.lastSeen && (now - driver.lastSeen > staleThresholdMs) && !driver.id.startsWith('DRV-MW-')) continue;
+      if (driver.lastSeen && (now - driver.lastSeen > staleThresholdMs)) continue;
 
       // Filter by vehicle type tier if specified
       if (tierId && driver.vehicleType && driver.vehicleType !== tierId) continue;
@@ -279,8 +220,10 @@ class DispatchService {
     }
 
     const payMethod = paymentMethod || trip.paymentMethod || 'CASH';
-    const driverId = (trip.driver && trip.driver.id) || 'DRV-MW-101';
-    const riderId = (trip.rider && trip.rider.id) || 'USR-RIDER-1';
+    const driverId = trip.driver?.id || trip.driverId;
+    if (!driverId) throw new Error('Cannot complete trip without assigned driverId');
+    const riderId = trip.rider?.id || trip.riderId;
+    if (!riderId) throw new Error('Cannot complete trip without assigned riderId');
 
     const settlementResult = financeService.settleCompletedRide({
       rideId: trip.id,

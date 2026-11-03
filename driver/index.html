@@ -65,6 +65,8 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../shared/sound.js"></script>
   <script src="../shared/state.js"></script>
+  <script src="../shared/i18n.js"></script>
+  <script src="../shared/auth.js"></script>
 
   <!-- Sticky Top Header -->
   <header class="fixed top-0 w-full z-50 pt-safe bg-surface/90 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm">
@@ -498,11 +500,13 @@
     <!-- ============================================== -->
     <section id="view-profile" class="driver-view hidden flex flex-col w-full px-4 pb-8 gap-3">
       <div class="pt-2 flex items-center gap-3 bg-surface-container-lowest p-3.5 rounded-2xl border border-outline-variant/20 shadow-sm">
-        <img class="w-16 h-16 rounded-full object-cover shadow" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw" alt="Chikondi"/>
+        <div class="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-on-primary font-black text-xl shadow" id="driver-avatar-circle">
+          CP
+        </div>
         <div>
-          <h2 class="text-base font-extrabold text-on-surface">Chikondi Phiri</h2>
-          <span class="text-xs text-secondary font-bold flex items-center gap-1">★ 4.92 &bull; 1,420 Trips</span>
-          <span class="inline-block mt-1 bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">Mwendo Pro Partner</span>
+          <h2 class="text-base font-extrabold text-on-surface" id="driver-profile-name">Captain Partner</h2>
+          <span class="text-xs text-secondary font-bold flex items-center gap-1" id="driver-profile-sub">★ 4.92 &bull; Verified Partner</span>
+          <span class="inline-block mt-1 bg-primary text-on-primary text-[10px] px-2 py-0.5 rounded-full font-bold">AArohan Pro Captain</span>
         </div>
       </div>
 
@@ -511,11 +515,27 @@
         <span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Registered Vehicle</span>
         <div class="flex items-center justify-between">
           <div class="flex flex-col">
-            <span class="text-sm font-bold text-on-surface">White Toyota Passo</span>
-            <span class="text-xs font-mono font-extrabold text-primary">BW 4920</span>
+            <span class="text-sm font-bold text-on-surface" id="driver-profile-vehicle">Motorcycle Partner</span>
+            <span class="text-xs font-mono font-extrabold text-primary" id="driver-profile-plate">Verified Plate</span>
           </div>
           <span class="text-[10px] bg-primary-fixed text-primary px-2.5 py-1 rounded-full font-bold uppercase">DRTSS Inspected</span>
         </div>
+      </div>
+
+      <!-- Account Session & Sign Out -->
+      <div class="bg-surface-container-lowest rounded-xl p-3 shadow-sm border border-outline-variant/20 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-error/10 text-error flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-[20px]">logout</span>
+          </div>
+          <div>
+            <span class="text-xs font-bold text-on-surface block" id="driver-session-phone">+265 Mobile Session</span>
+            <span class="text-[10px] text-on-surface-variant font-medium">Captain Partner Portal</span>
+          </div>
+        </div>
+        <button onclick="window.aarohanAuth ? window.aarohanAuth.logout() : location.reload()" class="px-3.5 py-1.5 bg-error-container hover:bg-error/20 text-error rounded-lg text-xs font-bold active:scale-95 transition-all">
+          Sign Out
+        </button>
       </div>
 
       <!-- Regulatory Compliance -->
@@ -671,16 +691,27 @@
             currentDriverCoords = { lat, lng, heading, accuracy, timestamp: Date.now() };
 
             // 1. Post to Gaman server-side spatial driver registry
+            const user = window.aarohanAuth ? window.aarohanAuth.getUser() : null;
+            const driverId = (user && user.driverProfile) ? user.driverProfile.id : 'DRV-MW-101';
+            const name = (user && user.name) ? user.name : 'Captain Partner';
+            const phone = (user && user.phone) ? user.phone : '+265 99 554 1122';
+            const plate = (user && user.driverProfile) ? (user.driverProfile.plateNumber || 'BW 4920') : 'BW 4920';
+            const tier = (user && user.driverProfile && user.driverProfile.vehicleType) ? user.driverProfile.vehicleType.toLowerCase() : 'moto';
+            const headers = { 'Content-Type': 'application/json' };
+            if (window.aarohanAuth && window.aarohanAuth.getAccessToken()) {
+              headers['Authorization'] = `Bearer ${window.aarohanAuth.getAccessToken()}`;
+            }
+
             fetch('/api/drivers/location', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({
-                driverId: 'DRV-MW-101',
-                name: 'Chikondi Phiri',
-                phone: '+265 99 554 1122',
-                vehicleTier: 'moto',
-                vehiclePlate: 'BW 4920',
-                vehicleModel: 'Haojue 125cc Red',
+                driverId,
+                name,
+                phone,
+                vehicleTier: tier,
+                vehiclePlate: plate,
+                vehicleModel: 'Verified Partner Vehicle',
                 lat,
                 lng,
                 heading,
@@ -714,16 +745,27 @@
       currentDriverCoords.lng += (dLng || 0.001);
       currentDriverCoords.timestamp = Date.now();
 
+      const user = window.aarohanAuth ? window.aarohanAuth.getUser() : null;
+      const driverId = (user && user.driverProfile) ? user.driverProfile.id : 'DRV-MW-101';
+      const name = (user && user.name) ? user.name : 'Captain Partner';
+      const phone = (user && user.phone) ? user.phone : '+265 99 554 1122';
+      const plate = (user && user.driverProfile) ? (user.driverProfile.plateNumber || 'BW 4920') : 'BW 4920';
+      const tier = (user && user.driverProfile && user.driverProfile.vehicleType) ? user.driverProfile.vehicleType.toLowerCase() : 'moto';
+      const headers = { 'Content-Type': 'application/json' };
+      if (window.aarohanAuth && window.aarohanAuth.getAccessToken()) {
+        headers['Authorization'] = `Bearer ${window.aarohanAuth.getAccessToken()}`;
+      }
+
       fetch('/api/drivers/location', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          driverId: 'DRV-MW-101',
-          name: 'Chikondi Phiri',
-          phone: '+265 99 554 1122',
-          vehicleTier: 'moto',
-          vehiclePlate: 'BW 4920',
-          vehicleModel: 'Haojue 125cc Red',
+          driverId,
+          name,
+          phone,
+          vehicleTier: tier,
+          vehiclePlate: plate,
+          vehicleModel: 'Verified Partner Vehicle',
           lat: currentDriverCoords.lat,
           lng: currentDriverCoords.lng,
           heading: currentDriverCoords.heading,
@@ -801,7 +843,7 @@
           navDest.innerText = 'Destination: ' + destName;
         }
         const navPin = document.getElementById('nav-verified-pin');
-        if (navPin) navPin.innerText = currentTrip.pin || '8421';
+        if (navPin) navPin.innerText = currentTrip.isPinVerified ? 'Verified' : '••••';
       }
 
       countdownSecs = 15;
@@ -1039,6 +1081,35 @@
       } else if (eventName === 'STATE_RESET') {
         hideIncomingRequest();
         switchDriverView('radar');
+      }
+    });
+
+    // --- Step 3b Driver Auth Verification & PENDING Enforcer ---
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.aarohanAuth) {
+        window.aarohanAuth.ensureAuth({
+          role: 'DRIVER',
+          onAuthenticated: (user) => {
+            console.log('[DriverApp] Authenticated driver:', user.phone, user.name);
+            const nameEl = document.getElementById('driver-profile-name');
+            if (nameEl) nameEl.innerText = user.name || 'Captain Partner';
+            const phoneEl = document.getElementById('driver-session-phone');
+            if (phoneEl) phoneEl.innerText = user.phone;
+            const avatarEl = document.getElementById('driver-avatar-circle');
+            if (avatarEl) {
+              const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'CP';
+              avatarEl.innerText = initials;
+            }
+            if (user.driverProfile) {
+              const plateEl = document.getElementById('driver-profile-plate');
+              if (plateEl && user.driverProfile.plateNumber) plateEl.innerText = user.driverProfile.plateNumber;
+              const vehicleEl = document.getElementById('driver-profile-vehicle');
+              if (vehicleEl && user.driverProfile.vehicleType) {
+                vehicleEl.innerText = `${user.driverProfile.vehicleType} Captain`;
+              }
+            }
+          }
+        });
       }
     });
   </script>

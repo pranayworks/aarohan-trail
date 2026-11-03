@@ -71,7 +71,22 @@
       topUpBtn: 'Top Up (Airtel/TNM)',
       sendKwachaBtn: 'Send Kwacha',
       recentTx: 'Recent Transactions',
-      savedPlaces: 'Saved Places in Lilongwe'
+      savedPlaces: 'Saved Places in Lilongwe',
+      loginTitle: 'Sign In to AArohan',
+      loginSub: 'Fast, secure urban mobility in Lilongwe',
+      phoneLabel: 'Malawian Mobile Number',
+      requestOtpBtn: 'Send Verification Code',
+      otpTitle: 'Verify Your Phone',
+      otpSub: 'Enter the 6-digit code sent to {phone}',
+      otpLabel: '6-Digit SMS Code',
+      verifyOtpBtn: 'Verify & Continue',
+      changePhoneBtn: 'Change Phone',
+      logoutBtn: 'Log Out',
+      driverPendingTitle: 'Application Under Review',
+      driverPendingSub: 'Your driver partner profile is pending verification by AArohan operations in Lilongwe.',
+      adminLoginTitle: 'Operations Desk Access',
+      adminPasswordLabel: 'Admin Password',
+      adminLoginBtn: 'Verify & Sign In'
     },
     ny: {
       appName: 'AArohan Malawi',
@@ -137,7 +152,22 @@
       topUpBtn: 'Onjezani Ndalama (Airtel/TNM)',
       sendKwachaBtn: 'Tumizani Kwacha',
       recentTx: 'Zomwe Mwachita Posachedwa',
-      savedPlaces: 'Malo Okhazikika ku Lilongwe'
+      savedPlaces: 'Malo Okhazikika ku Lilongwe',
+      loginTitle: 'Lowani mu AArohan',
+      loginSub: 'Mayendedwe amakono komanso otetezeka ku Lilongwe',
+      phoneLabel: 'Nambala ya Foni ya ku Malawi',
+      requestOtpBtn: 'Tumizani Nambala Yachinsinsi',
+      otpTitle: 'Tsimikizani Foni Yanu',
+      otpSub: 'Lowetsani nambala 6 yomwe yatumizidwa ku {phone}',
+      otpLabel: 'Nambala 6 ya SMS',
+      verifyOtpBtn: 'Tsimikizani & Pitirizani',
+      changePhoneBtn: 'Sinthani Foni',
+      logoutBtn: 'Tulukani',
+      driverPendingTitle: 'Chikalata Chikuwunikidwa',
+      driverPendingSub: 'Mbiri yanu yaudilaiva ikudikira kuvomerezedwa ndi oyang\'anira AArohan ku Lilongwe.',
+      adminLoginTitle: 'Kulowa kwa Oyang\'anira',
+      adminPasswordLabel: 'Mawu Achinsinsi',
+      adminLoginBtn: 'Tsimikizani & Lowani'
     }
   };
 

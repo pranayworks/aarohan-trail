@@ -76,6 +76,7 @@
   <script src="../shared/sound.js?v=3.0"></script>
   <script src="../shared/state.js?v=3.0"></script>
   <script src="../shared/i18n.js?v=3.0"></script>
+  <script src="../shared/auth.js?v=3.0"></script>
 
   <!-- Sticky Top Header (AArohan Branded) -->
   <header
@@ -1232,16 +1233,15 @@
           <div
             class="w-13 h-13 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-base shadow-sm ring-2 ring-emerald-500/30"
             id="profile-rider-avatar">
-            CB
+            AR
           </div>
           <div>
             <div class="flex items-center gap-1.5">
-              <h3 class="font-black text-sm text-slate-900" id="profile-rider-name">Chisomo Banda</h3>
+              <h3 class="font-black text-sm text-slate-900" id="profile-rider-name">AArohan Rider</h3>
               <span
                 class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
             </div>
-            <span class="text-xs text-slate-400 font-medium" id="profile-rider-sub">+265 99 123 4567 &bull; 4.90 ★
-              Lilongwe</span>
+            <span class="text-xs text-slate-400 font-medium" id="profile-rider-sub">+265 &bull; Verified Lilongwe</span>
           </div>
         </div>
         <button onclick="openProfileEditModal()"
@@ -1346,6 +1346,23 @@
       <div class="flex flex-col gap-2 mt-1">
         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Recent Transactions</span>
         <div id="wallet-tx-list" class="flex flex-col gap-2"></div>
+      </div>
+
+      <!-- Account Session & Sign Out Card -->
+      <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/90 flex items-center justify-between mt-3">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+            <span class="material-symbols-outlined text-[20px]">logout</span>
+          </div>
+          <div>
+            <h4 class="font-extrabold text-xs text-slate-900">Active Session</h4>
+            <span class="text-[11px] text-slate-400" id="profile-session-phone">+265 Mobile Login</span>
+          </div>
+        </div>
+        <button onclick="window.aarohanAuth ? window.aarohanAuth.logout() : location.reload()"
+          class="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-black active:scale-95 transition-all">
+          <span>Sign Out</span>
+        </button>
       </div>
     </section>
 
@@ -2064,12 +2081,12 @@
       <div class="grid grid-cols-2 gap-2">
         <div>
           <label class="text-[10px] font-bold text-slate-400 uppercase">Passenger Name</label>
-          <input id="intercity-pass-name" type="text" value="Chisomo Banda"
+          <input id="intercity-pass-name" type="text" placeholder="Full Name"
             class="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none mt-1" />
         </div>
         <div>
           <label class="text-[10px] font-bold text-slate-400 uppercase">Phone Number</label>
-          <input id="intercity-pass-phone" type="text" value="+265 99 123 4567"
+          <input id="intercity-pass-phone" type="text" placeholder="+265..."
             class="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold outline-none mt-1 font-mono" />
         </div>
       </div>
@@ -2106,13 +2123,13 @@
 
       <div>
         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Full Name</label>
-        <input id="edit-profile-name" type="text" value="Chisomo Banda"
+        <input id="edit-profile-name" type="text" placeholder="Full Name"
           class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none mt-1" />
       </div>
 
       <div>
         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mobile Number (Malawi)</label>
-        <input id="edit-profile-phone" type="text" value="+265 99 123 4567"
+        <input id="edit-profile-phone" type="text" placeholder="+265..."
           class="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 outline-none mt-1 font-mono" />
       </div>
 
@@ -2726,6 +2743,37 @@
         }
       }
     };
+
+    // --- Step 3b Rider Auth Verification ---
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.aarohanAuth) {
+        window.aarohanAuth.ensureAuth({
+          role: 'RIDER',
+          onAuthenticated: (user) => {
+            console.log('[RiderApp] Authenticated as:', user.phone, user.name);
+            const nameEl = document.getElementById('profile-rider-name');
+            if (nameEl) nameEl.innerText = user.name || 'AArohan Rider';
+            const subEl = document.getElementById('profile-rider-sub');
+            if (subEl) subEl.innerHTML = `${user.phone} &bull; Verified Lilongwe`;
+            const phoneEl = document.getElementById('profile-session-phone');
+            if (phoneEl) phoneEl.innerText = user.phone;
+            const avatarEl = document.getElementById('profile-rider-avatar');
+            if (avatarEl) {
+              const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AR';
+              avatarEl.innerText = initials;
+            }
+            if (window.aarohanStore) {
+              const s = window.aarohanStore.getState();
+              s.rider.name = user.name || 'AArohan Rider';
+              s.rider.phone = user.phone;
+              if (user.wallet) s.rider.walletBalance = user.wallet.balanceMWK;
+              window.aarohanStore.saveState(s);
+              window.aarohanStore.notifyListeners(s, 'USER_AUTH', user);
+            }
+          }
+        });
+      }
+    });
   </script>
 
 </body>

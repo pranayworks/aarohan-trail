@@ -7,55 +7,53 @@
 
   const defaultInitialState = {
     rider: {
-      name: 'Chisomo Banda',
-      phone: '+265 99 123 4567',
-      walletBalance: 38500,
-      rating: 4.90,
-      tripsCompleted: 24,
-      kycTier: 'KYC Tier 1 (Verified)'
+      name: '',
+      phone: '',
+      walletBalance: 0,
+      rating: 5.0,
+      tripsCompleted: 0,
+      kycTier: 'Standard Passenger'
     },
     driver: {
-      name: 'Chikondi Phiri',
-      phone: '+265 99 554 1122',
-      plate: 'BW 4920',
-      car: 'White Toyota Passo',
-      rating: 4.92,
-      tripsCompleted: 1420,
-      availableBalance: 142800,
-      todayEarnings: 42500,
-      todayTrips: 8,
-      status: 'ONLINE',
-      kycTier: 'Verified Gaman Pro Captain',
+      name: '',
+      phone: '',
+      plate: '',
+      car: '',
+      rating: 5.0,
+      tripsCompleted: 0,
+      availableBalance: 0,
+      todayEarnings: 0,
+      todayTrips: 0,
+      status: 'OFFLINE',
+      kycTier: 'Captain Partner',
       location: { lat: -13.9650, lng: 33.7820, heading: 45 }
     },
     activeTrip: {
-      id: 'TRIP-LL-9821',
+      id: null,
       status: 'IDLE', // IDLE, REQUESTED, ACCEPTED, EN_ROUTE, ARRIVED, IN_TRANSIT, COMPLETED
-      pickup: 'Area 47 Sector 3, Kaunda Road',
-      pickupLandmark: 'Near Green Pharmacy',
-      destination: 'Gateway Mall, Kaunda Rd',
-      destinationLandmark: 'Main Entrance Drop Zone',
-      tier: 'Gaman Cab',
-      baseFare: 6200,
+      pickup: '',
+      pickupLandmark: '',
+      destination: '',
+      destinationLandmark: '',
+      tier: 'cab',
+      baseFare: 0,
       discount: 0,
-      finalFare: 6200,
-      paymentMethod: 'Airtel Money Locked',
-      paymentRef: 'AM-MW-9821401',
-      pin: '8421',
-      distanceKm: 6.8,
-      durationMins: 18,
-      etaMins: 3,
+      finalFare: 0,
+      paymentMethod: 'CASH',
+      paymentRef: '',
+      pin: '',
+      distanceKm: 0,
+      durationMins: 0,
+      etaMins: 0,
       driverLocation: { lat: -13.9650, lng: 33.7820 },
       requestedAt: null,
       acceptedAt: null,
       completedAt: null,
       rating: 5,
-      tipAmount: 1000,
-      compliments: ['Smooth Driving', 'Clean Car', 'Polite & Friendly']
+      tipAmount: 0,
+      compliments: []
     },
-    chatMessages: [
-      { sender: 'driver', text: 'Moni Chisomo! I am on Kenyatta Drive approaching Area 47 Sector 3.', time: '14:21' }
-    ],
+    chatMessages: [],
     surgeMultipliers: {
       'Gateway Mall': 1.4,
       'Area 3 Commercial': 1.3,
@@ -64,26 +62,9 @@
       'Bingu Stadium': 1.1
     },
     emergencyAlerts: [],
-    supportTickets: [
-      {
-        id: 'MW-8821',
-        user: 'Chisomo Banda',
-        issue: 'Payment Dispute (Duplicate Airtel Money Entry)',
-        amount: 3200,
-        status: 'Under Review',
-        assigned: 'Lilongwe Finance Team',
-        updated: '1 hour ago'
-      }
-    ],
-    transactionLogs: [
-      { id: 'TX-101', type: 'TRIP', title: 'Trip to Gateway Mall', amount: -6200, method: 'Airtel Money', time: 'Today 14:30', status: 'Completed' },
-      { id: 'TX-102', type: 'TOPUP', title: 'Top Up from TNM Mpamba', amount: 20000, method: 'TNM Mpamba', time: 'Yesterday 09:15', status: 'Success' },
-      { id: 'TX-103', type: 'TRIP', title: 'Kabaza: Old Town Market', amount: -2500, method: 'Gaman Cash', time: '2 days ago', status: 'Completed' }
-    ],
-    driverSettlements: [
-      { id: 'DS-201', title: 'Gateway Mall to Area 47', amount: 5270, method: 'Airtel Money credit', time: 'Today 14:42', status: 'Instant Settled' },
-      { id: 'DS-202', title: 'City Center to Old Town', amount: 3400, method: 'Cash trip recorded', time: 'Today 12:15', status: 'Cash In Pocket' }
-    ]
+    supportTickets: [],
+    transactionLogs: [],
+    driverSettlements: []
   };
 
   class MwendoStateStore {
@@ -124,7 +105,11 @@
 
     fetchInitialState() {
       const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
-      fetch(`${origin}/api/trips/active`)
+      const headers = {};
+      if (typeof window !== 'undefined' && window.aarohanAuth && window.aarohanAuth.getAccessToken()) {
+        headers['Authorization'] = `Bearer ${window.aarohanAuth.getAccessToken()}`;
+      }
+      fetch(`${origin}/api/trips/active`, { headers })
         .then(r => r.json())
         .then(serverState => {
           if (serverState) {
@@ -141,10 +126,25 @@
         if (typeof window.io === 'function' && !this.socket) {
           try {
             const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
+            const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
             this.socket = window.io(origin, {
+              transports: ['websocket'],
+              auth: { token },
               reconnectionAttempts: 15,
               reconnectionDelay: 1000,
               timeout: 6000
+            });
+
+            this.socket.on('connect_error', async (err) => {
+              console.warn('[MwendoStateStore] ⚠️ Socket handshake error:', err.message);
+              if (window.aarohanAuth && err.message && (err.message.includes('Authentication') || err.message.includes('token') || err.message.includes('expired'))) {
+                console.log('[MwendoStateStore] Proactively refreshing JWT token for Socket.IO reconnect...');
+                const freshToken = await window.aarohanAuth.refreshToken();
+                if (freshToken) {
+                  this.socket.auth = { token: freshToken };
+                  this.socket.connect();
+                }
+              }
             });
 
             this.socket.on('connect', () => {

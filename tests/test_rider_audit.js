@@ -6,10 +6,23 @@ const pricingService = require('../services/pricing');
 const dispatchService = require('../services/dispatch');
 const financeService = require('../services/finance');
 const paymentManager = require('../services/payments');
+const { getTestToken } = require('./auth_helper');
+const { server } = require('../server');
 
 const BASE_URL = 'http://localhost:3000';
 
 async function runRiderAudit() {
+  // Ensure real server is listening
+  if (!server.listening) {
+    try {
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(3000, '0.0.0.0', resolve);
+      });
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') throw err;
+    }
+  }
   console.log('================================================================');
   console.log('   GAMAN RIDER APP: PRODUCTION AUDIT & VERIFICATION SUITE');
   console.log('   Lilongwe, Malawi • Multi-Tier Mobility & Network Resilience');
@@ -117,6 +130,18 @@ async function runRiderAudit() {
     );
 
     // Coordinate inside Lilongwe Kaunda Rd corridor (-13.965, 33.78)
+    dispatchService.registerDriver({
+      id: 'DRV-AUDIT-01',
+      name: 'Chikondi Phiri',
+      phone: '+265 99 554 1122',
+      plate: 'BW 4920',
+      vehicleType: 'cab',
+      carModel: 'White Toyota Passo',
+      rating: 4.9,
+      status: 'ONLINE',
+      location: { lat: -13.9720, lng: 33.7660, heading: 90, timestamp: Date.now() }
+    });
+
     const nearRes = await fetch(`${BASE_URL}/api/drivers/nearby?lat=-13.9722&lng=33.7667&radius=10`);
     const nearData = await nearRes.json();
 
@@ -150,7 +175,10 @@ async function runRiderAudit() {
     // Post fresh location
     const updateLocRes = await fetch(`${BASE_URL}/api/drivers/location`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getTestToken({ role: 'DRIVER' })}`
+      },
       body: JSON.stringify({
         driverId: testDriver.id,
         lat: -13.9660,
@@ -271,7 +299,11 @@ async function runRiderAudit() {
       }
     }
     // Query server active trips endpoint to confirm database persistence
-    const stateRes = await fetch(`${BASE_URL}/api/trips/active`);
+    const stateRes = await fetch(`${BASE_URL}/api/trips/active`, {
+      headers: {
+        'Authorization': `Bearer ${getTestToken({ role: 'RIDER' })}`
+      }
+    });
     const serverState = await stateRes.json();
 
     assert(
@@ -370,7 +402,10 @@ async function runRiderAudit() {
     const payAuditRef = 'AAROHAN-PAY-AUDIT-' + Date.now();
     const initRes = await fetch(`${BASE_URL}/api/payments/initiate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getTestToken({ role: 'RIDER' })}`
+      },
       body: JSON.stringify({
         amount: 3500,
         currency: 'MWK',
@@ -503,7 +538,11 @@ async function runRiderAudit() {
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 15: Emergency Assistance Escalation ---');
   try {
-    const socket = io(BASE_URL);
+    const token = getTestToken({ role: 'RIDER' });
+    const socket = io(BASE_URL, {
+      transports: ['websocket'],
+      auth: { token }
+    });
     let sosDelivered = false;
     let receivedAlert = null;
 

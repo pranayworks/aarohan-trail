@@ -25,15 +25,17 @@ const assert = require('assert');
 const ioClient = require('socket.io-client');
 const prisma = require('../lib/prisma');
 const dbLedger = require('../services/dbLedger');
+const { getTestToken } = require('./auth_helper');
 const { expireStaleTrips, server } = require('../server');
 
 const BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3000';
 
-function connectSocket(userId, role) {
+function connectSocket(userId, role, driverId = null) {
   return new Promise((resolve, reject) => {
+    const token = getTestToken({ userId, role, driverId });
     const socket = ioClient(BASE_URL, {
       transports: ['websocket'],
-      auth: { userId, role },
+      auth: { token },
       forceNew: true,
       reconnection: false
     });

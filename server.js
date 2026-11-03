@@ -1,13 +1,17 @@
 require('dotenv').config();
 const express = require('express');
+const crypto = require('crypto');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const QRCode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
+const { z } = require('zod');
 
 const pricingService = require('./services/pricing');
 const locationService = require('./services/location');
@@ -17,6 +21,12 @@ const paymentManager = require('./services/payments');
 const notificationService = require('./services/notifications');
 const prisma = require('./lib/prisma');
 const dbLedger = require('./services/dbLedger');
+const authService = require('./services/auth');
+const { requireAuth, requireRole, requireDriverApproval, validateBody, validateQuery } = require('./middleware/auth');
+const authRouter = require('./routes/auth');
+
+// Refuse startup if auth secrets are missing or insecure
+authService.assertAuthSecrets();
 
 const app = express();
 const server = http.createServer(app);
@@ -50,42 +60,7 @@ function getLocalIpAddress() {
 
 const LOCAL_IP = getLocalIpAddress();
 
-// =========================================================================
-// TEMPORARY DEV AUTH - STEP 2 ONLY (Will be replaced in Step 3 by JWT Auth)
-// =========================================================================
-async function temporaryDevAuth(req, res, next) {
-  try {
-    const devUserId = req.headers['x-dev-user-id'] || req.headers['x-user-id'] || req.query.userId;
-    const devRole = req.headers['x-dev-role'] || req.query.role || 'RIDER';
 
-    if (devUserId) {
-      req.user = await prisma.user.findUnique({
-        where: { id: devUserId },
-        include: { wallet: true, driverProfile: { include: { vehicle: true } } }
-      });
-      if (req.user) {
-        req.userId = req.user.id;
-        req.userRole = req.user.role;
-        return next();
-      }
-    }
-
-    // Default fallback to seeded demo accounts for manual browser exploration
-    const phone = devRole === 'DRIVER' ? '+265995541122' : '+265991234567';
-    req.user = await prisma.user.findUnique({
-      where: { phone },
-      include: { wallet: true, driverProfile: { include: { vehicle: true } } }
-    });
-    if (req.user) {
-      req.userId = req.user.id;
-      req.userRole = req.user.role;
-    }
-    next();
-  } catch (err) {
-    console.error('[TemporaryDevAuth] Auth lookup error:', err.message);
-    next();
-  }
-}
 
 // =========================================================================
 // STALE TRIPS WATCHDOG (Moves REQUESTED/OFFERED trips > 3 mins to NO_DRIVERS)
@@ -156,12 +131,87 @@ const operationalState = {
   ]
 };
 
-// Middleware
-app.use(cors());
+// =========================================================================
+// SECURITY MIDDLEWARE: Helmet, CORS Allowlist & General Rate Limiting
+// =========================================================================
+app.use(helmet({
+  contentSecurityPolicy: false, // Permit maps, Leaflet tiles, and assets across portals
+  crossOriginEmbedderPolicy: false
+}));
+
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  `http://${LOCAL_IP}:${PORT}`,
+  'http://localhost:5173'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Permit local dev, same-origin, curl/postman, and configured origins
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS access blocked by AArohan security policy for origin: ' + origin));
+  },
+  credentials: true
+}));
+
+const generalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // 300 requests per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP address. Please try again after 15 minutes.' }
+});
+app.use('/api/', generalApiLimiter);
+
+// Strict Rate Limiter for Public Discovery & Quotes (60 requests / 15 minutes per IP)
+const discoveryLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many discovery or quote requests from this IP. Please wait 15 minutes.' }
+});
+
 app.use(express.json());
+
+
+// Mount Authentication & Profile Router (Step 3a)
+app.use('/api/auth', authRouter);
+
+// Explicit Public API Endpoints Whitelist (No JWT Required)
+const PUBLIC_API_ROUTES = [
+  '/api/health',
+  '/api/network-info',
+  '/api/map-config',
+  '/api/places/reverse',
+  '/api/places/search',
+  '/api/search-locations',
+  '/api/rides/quote',
+  '/api/drivers/nearby',
+  '/api/reset'
+];
+
+// Global Deny-by-Default Middleware for all /api/ Routes
+app.use('/api', (req, res, next) => {
+  // Webhooks and /api/auth routes manage their own public/signature auth
+  if (req.path.startsWith('/auth') || req.path.startsWith('/payments/webhook')) {
+    return next();
+  }
+  const fullPath = '/api' + (req.path === '/' ? '' : req.path);
+  if (PUBLIC_API_ROUTES.includes(fullPath)) {
+    return next();
+  }
+  return requireAuth(req, res, next);
+});
 
 // Favicon handler (prevents 404 console errors in browsers)
 app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// Health check endpoint
+app.get('/api/health', (req, res) => res.json({ status: 'HEALTHY', platform: 'AArohan Mobility', timestamp: new Date().toISOString() }));
 
 // Serve static apps with no-cache in local development to guarantee fresh scripts
 const noCacheStatic = {
@@ -213,15 +263,17 @@ app.get('/api/network-info', async (req, res) => {
   }
 });
 
-// API: Get current active trip for rider or driver from database
-app.get('/api/trips/active', temporaryDevAuth, async (req, res) => {
+// API: Get current active trip for caller from database (Authoritative via JWT)
+app.get('/api/trips/active', requireAuth, async (req, res) => {
   try {
+    const isDriver = req.user.role === 'DRIVER';
+    const whereCondition = isDriver && req.user.driverId
+      ? { driverId: req.user.driverId }
+      : { riderId: req.user.id };
+
     const activeTrip = await prisma.trip.findFirst({
       where: {
-        OR: [
-          { riderId: req.userId },
-          { driver: { userId: req.userId } }
-        ],
+        ...whereCondition,
         status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
       },
       include: {
@@ -229,7 +281,7 @@ app.get('/api/trips/active', temporaryDevAuth, async (req, res) => {
         driver: { include: { user: { select: { id: true, name: true, phone: true } }, vehicle: true } }
       }
     });
-    res.json({ activeTrip });
+    res.json({ activeTrip: activeTrip || null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -254,8 +306,75 @@ app.get('/api/map-config', (req, res) => {
 // AAROHAN REAL-TIME PLATFORM ENDPOINTS (PHASES 2-12)
 // =============================================================
 
+// -------------------------------------------------------------
+// Zod Schemas for Protected REST Endpoints
+// -------------------------------------------------------------
+const restDriverLocationSchema = z.object({
+  driverId: z.string().optional(),
+  lat: z.number({ required_error: 'lat is required' }),
+  lng: z.number({ required_error: 'lng is required' }),
+  heading: z.number().optional(),
+  accuracy: z.number().optional(),
+  speed: z.number().optional()
+});
+
+const restSavedPlaceSchema = z.object({
+  label: z.string().optional(),
+  name: z.string().min(1, 'Place name is required'),
+  address: z.string().optional(),
+  lat: z.number(),
+  lng: z.number()
+});
+
+const restPricingVersionSchema = z.object({
+  versionId: z.string().optional(),
+  name: z.string().optional(),
+  rates: z.record(z.any()).optional()
+}).passthrough();
+
+const restPricingActivateSchema = z.object({
+  versionId: z.string().min(1, 'versionId is required'),
+  adminId: z.string().optional()
+});
+
+const restNotificationTestSchema = z.object({
+  to: z.string().min(1, 'recipient phone required'),
+  message: z.string().min(1, 'message required'),
+  channel: z.enum(['SMS', 'WHATSAPP', 'PUSH', 'IN_APP']).optional(),
+  urgent: z.boolean().optional()
+});
+
+const restCashSettlementVerifySchema = z.object({
+  settlementId: z.string().min(1, 'settlementId is required'),
+  approved: z.boolean(),
+  notes: z.string().optional()
+});
+
+const restPayoutRequestSchema = z.object({
+  amount: z.number().int().positive('Payout amount must be positive'),
+  provider: z.string().optional(),
+  destinationPhone: z.string().optional(),
+  idempotencyKey: z.string().optional(),
+  driverId: z.string().optional()
+});
+
+const restPaymentInitiateSchema = z.object({
+  amount: z.number().int().positive('Amount must be positive'),
+  currency: z.string().optional(),
+  phone: z.string().min(9, 'Phone is required'),
+  reference: z.string().optional(),
+  provider: z.string().optional(),
+  idempotencyKey: z.string().optional()
+});
+
+const restRideCompleteSchema = z.object({
+  rideId: z.string().min(1, 'rideId is required'),
+  driverTip: z.number().int().min(0).optional(),
+  paymentMethod: z.enum(['CASH', 'WALLET_ESCROW', 'AIRTEL_MONEY', 'TNM_MPAMBA']).optional()
+});
+
 // 1. Authoritative Road Routing & Dynamic Pricing Quote (Phase 4 & 5)
-app.post('/api/rides/quote', async (req, res) => {
+app.post('/api/rides/quote', discoveryLimiter, async (req, res) => {
   try {
     const pickup = req.body.pickup;
     const destination = req.body.destination || req.body.dropoff;
@@ -311,7 +430,7 @@ app.post('/api/rides/quote', async (req, res) => {
 });
 
 // 2. Real-Time Reverse Geocoding: Coordinates -> Street Address (Phase 2 & 3)
-app.get('/api/places/reverse', async (req, res) => {
+app.get('/api/places/reverse', discoveryLimiter, async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lng = parseFloat(req.query.lng);
@@ -326,7 +445,7 @@ app.get('/api/places/reverse', async (req, res) => {
 });
 
 // 3. Real-Time Forward Geocoding & Autocomplete for Malawi (Phase 3)
-app.get('/api/places/search', async (req, res) => {
+app.get('/api/places/search', discoveryLimiter, async (req, res) => {
   try {
     const q = (req.query.q || '').trim();
     const lat = parseFloat(req.query.lat);
@@ -339,7 +458,7 @@ app.get('/api/places/search', async (req, res) => {
 });
 
 // 4. Real Nearby Drivers Discovery (Phase 6: Spatial GPS Filter)
-app.get('/api/drivers/nearby', (req, res) => {
+app.get('/api/drivers/nearby', discoveryLimiter, (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
   const tier = req.query.tier;
@@ -349,7 +468,40 @@ app.get('/api/drivers/nearby', (req, res) => {
     return res.status(400).json({ error: 'Pickup lat and lng coordinates required' });
   }
 
-  const drivers = dispatchService.findNearbyDrivers(lat, lng, tier, radius);
+  // Check if request is authenticated
+  let isAuthenticated = false;
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      authService.verifyAccessToken(authHeader.substring(7));
+      isAuthenticated = true;
+    }
+  } catch (e) {
+    isAuthenticated = false;
+  }
+
+  const rawDrivers = dispatchService.findNearbyDrivers(lat, lng, tier, radius);
+
+  // Anonymize driver identities for unauthenticated users (strip names, phone, exact plates, exact GPS)
+  const drivers = rawDrivers.map(d => {
+    if (isAuthenticated) {
+      return d;
+    }
+    return {
+      id: `anon-${crypto.createHash('md5').update(String(d.id)).digest('hex').slice(0, 8)}`,
+      vehicleType: d.vehicleType,
+      carModel: d.carModel,
+      rating: d.rating,
+      location: d.location ? {
+        lat: Math.round(d.location.lat * 1000) / 1000,
+        lng: Math.round(d.location.lng * 1000) / 1000,
+        heading: d.location.heading
+      } : null,
+      distanceKm: d.distanceKm,
+      etaMinutes: d.etaMinutes
+    };
+  });
+
   res.json({
     pickup: { lat, lng },
     radiusKm: radius,
@@ -359,17 +511,17 @@ app.get('/api/drivers/nearby', (req, res) => {
 });
 
 // 5. Driver Telemetry Update (Phase 2 & 7: GPS publish)
-app.post('/api/drivers/location', async (req, res) => {
-  const { driverId, lat, lng, heading, accuracy, speed } = req.body;
-  if (!driverId || isNaN(lat) || isNaN(lng)) {
-    return res.status(400).json({ error: 'driverId, lat and lng required' });
-  }
+app.post('/api/drivers/location', requireDriverApproval, validateBody(restDriverLocationSchema), async (req, res) => {
+  const driverId = (req.user.role === 'ADMIN' && req.body.driverId)
+    ? req.body.driverId
+    : (req.user.driverId || req.driver?.id);
+  const { lat, lng, heading, accuracy, speed } = req.body;
 
   const updatedDriver = dispatchService.updateDriverLocation(driverId, { lat, lng, heading, accuracy, speed });
   if (updatedDriver) {
     try {
       await prisma.driver.updateMany({
-        where: { OR: [{ id: driverId }, { user: { phone: driverId } }] },
+        where: { id: driverId },
         data: {
           currentLat: parseFloat(lat),
           currentLng: parseFloat(lng),
@@ -398,11 +550,8 @@ app.get('/api/user/saved-places', (req, res) => {
   res.json(savedPlacesList);
 });
 
-app.post('/api/user/saved-places', (req, res) => {
+app.post('/api/user/saved-places', validateBody(restSavedPlaceSchema), (req, res) => {
   const { label, name, address, lat, lng } = req.body;
-  if (!name || isNaN(lat) || isNaN(lng)) {
-    return res.status(400).json({ error: 'name, lat, and lng are required' });
-  }
 
   const newPlace = {
     id: 'PLC-' + Date.now().toString(36),
@@ -464,7 +613,7 @@ app.get('/api/user/frequent-places', async (req, res) => {
 });
 
 // 8. Admin Real-Time Metrics & Management (AArohan 30% Platform Commission Policy)
-app.get('/api/admin/metrics', async (req, res) => {
+app.get('/api/admin/metrics', requireRole('ADMIN'), async (req, res) => {
   try {
     const finReport = financeService.getPlatformFinancialReport();
     const activeTripsCount = await prisma.trip.count({
@@ -507,11 +656,11 @@ app.get('/api/admin/metrics', async (req, res) => {
   }
 });
 
-app.get('/api/admin/financial-report', (req, res) => {
+app.get('/api/admin/financial-report', requireRole('ADMIN'), (req, res) => {
   res.json(financeService.getPlatformFinancialReport());
 });
 
-app.get('/api/admin/financial-ledger', (req, res) => {
+app.get('/api/admin/financial-ledger', requireRole('ADMIN'), (req, res) => {
   res.json(financeService.ledger);
 });
 
@@ -524,7 +673,7 @@ app.get('/api/pricing/active', (req, res) => {
   res.json(pricingService.getActiveVersion());
 });
 
-app.post('/api/pricing/versions', (req, res) => {
+app.post('/api/pricing/versions', requireRole('ADMIN'), validateBody(restPricingVersionSchema), (req, res) => {
   try {
     const version = pricingService.createPricingVersion(req.body);
     res.json({ success: true, version });
@@ -533,11 +682,11 @@ app.post('/api/pricing/versions', (req, res) => {
   }
 });
 
-app.post('/api/pricing/activate', (req, res) => {
+app.post('/api/pricing/activate', requireRole('ADMIN'), validateBody(restPricingActivateSchema), (req, res) => {
   try {
-    const { versionId, adminId } = req.body;
+    const { versionId } = req.body;
     if (!versionId) return res.status(400).json({ error: 'versionId required' });
-    const activated = pricingService.activateVersion(versionId, adminId || 'ADMIN_SUPER');
+    const activated = pricingService.activateVersion(versionId, req.user?.id || 'ADMIN_SUPER');
     io.emit('pricing:version_activated', activated);
     res.json({ success: true, activated });
   } catch (err) {
@@ -545,10 +694,10 @@ app.post('/api/pricing/activate', (req, res) => {
   }
 });
 
-app.post('/api/pricing/rates/:categoryId', (req, res) => {
+app.post('/api/pricing/rates/:categoryId', requireRole('ADMIN'), (req, res) => {
   try {
     const { categoryId } = req.params;
-    const result = pricingService.updateCategoryRates(categoryId, req.body, req.body.adminId || 'ADMIN_SUPER');
+    const result = pricingService.updateCategoryRates(categoryId, req.body, req.user?.id || 'ADMIN_SUPER');
     io.emit('pricing:rates_updated', result);
     res.json({ success: true, result });
   } catch (err) {
@@ -557,11 +706,11 @@ app.post('/api/pricing/rates/:categoryId', (req, res) => {
 });
 
 // Notifications & SMS / WhatsApp Gateway Endpoints
-app.get('/api/notifications/history', (req, res) => {
+app.get('/api/notifications/history', requireRole('ADMIN', 'SUPPORT'), (req, res) => {
   res.json({ success: true, history: notificationService.getRecentHistory() });
 });
 
-app.post('/api/notifications/test', async (req, res) => {
+app.post('/api/notifications/test', requireRole('ADMIN', 'SUPPORT'), validateBody(restNotificationTestSchema), async (req, res) => {
   try {
     const { to, message, channel, urgent } = req.body;
     const result = await notificationService.sendMessage({ to, message, channel, urgent });
@@ -573,11 +722,14 @@ app.post('/api/notifications/test', async (req, res) => {
 
 // Driver Financial & Payout Endpoints
 app.get('/api/driver/financial-summary/:driverId', (req, res) => {
+  if (req.user.role !== 'ADMIN' && req.user.driverId !== req.params.driverId) {
+    return res.status(403).json({ error: 'Forbidden: You can only view your own financial summary' });
+  }
   const summary = financeService.getDriverFinancialSummary(req.params.driverId);
   res.json(summary);
 });
 
-app.post('/api/driver/cash-settlement/submit', (req, res) => {
+app.post('/api/driver/cash-settlement/submit', requireRole('DRIVER'), (req, res) => {
   try {
     const settlement = financeService.submitCashCommissionSettlement(req.body);
     io.emit('commission:settlement_submitted', settlement);
@@ -587,10 +739,15 @@ app.post('/api/driver/cash-settlement/submit', (req, res) => {
   }
 });
 
-app.post('/api/admin/cash-settlement/verify', (req, res) => {
+app.post('/api/admin/cash-settlement/verify', requireRole('ADMIN'), validateBody(restCashSettlementVerifySchema), (req, res) => {
   try {
-    const { settlementId, adminId, approved, notes } = req.body;
-    const result = financeService.verifyCashCommissionSettlement({ settlementId, adminId, approved, notes });
+    const { settlementId, approved, notes } = req.body;
+    const result = financeService.verifyCashCommissionSettlement({
+      settlementId,
+      adminId: req.user?.id || 'ADMIN_SUPER',
+      approved,
+      notes
+    });
     io.emit('commission:settlement_verified', result);
     res.json({ success: true, result });
   } catch (err) {
@@ -598,9 +755,10 @@ app.post('/api/admin/cash-settlement/verify', (req, res) => {
   }
 });
 
-app.post('/api/driver/payout/request', async (req, res) => {
+app.post('/api/driver/payout/request', requireRole('DRIVER'), validateBody(restPayoutRequestSchema), async (req, res) => {
   try {
-    const { driverId, amount, provider, destinationPhone, idempotencyKey } = req.body;
+    const { amount, provider, destinationPhone, idempotencyKey } = req.body;
+    const driverId = req.user.driverId || req.body.driverId;
     const adapter = paymentManager.getAdapter(provider || 'sandbox');
     const payout = await financeService.requestDriverPayout({
       driverId,
@@ -619,7 +777,7 @@ app.post('/api/driver/payout/request', async (req, res) => {
 });
 
 // Digital Payment Collection Endpoints
-app.post('/api/payments/initiate', async (req, res) => {
+app.post('/api/payments/initiate', validateBody(restPaymentInitiateSchema), async (req, res) => {
   try {
     const { amount, currency, phone, reference, provider, idempotencyKey } = req.body;
     const adapter = paymentManager.getAdapter(provider || 'sandbox');
@@ -659,7 +817,7 @@ app.post('/api/payments/webhook/:provider', async (req, res) => {
 });
 
 // Authoritative Ride Completion Endpoint
-app.post('/api/rides/complete', async (req, res) => {
+app.post('/api/rides/complete', requireRole('DRIVER', 'ADMIN'), validateBody(restRideCompleteSchema), async (req, res) => {
   try {
     const { rideId, driverTip, paymentMethod } = req.body;
     if (!rideId) return res.status(400).json({ error: 'rideId is required' });
@@ -673,7 +831,7 @@ app.post('/api/rides/complete', async (req, res) => {
         tripId: rideId,
         paymentMethod: paymentMethod || 'CASH',
         driverTipMWK: driverTip || 0,
-        changedBy: 'DRIVER'
+        changedBy: req.user?.id || 'DRIVER'
       });
     } catch (e) {
       // Handled in dispatchService for in-memory / mock rides
@@ -686,7 +844,7 @@ app.post('/api/rides/complete', async (req, res) => {
   }
 });
 
-app.get('/api/admin/drivers', (req, res) => {
+app.get('/api/admin/drivers', requireRole('ADMIN'), (req, res) => {
   res.json(Array.from(dispatchService.drivers.values()));
 });
 
@@ -914,7 +1072,7 @@ function formatLocationResult(loc, originLat, originLng) {
 }
 
 // API: Real-Time Location Search for Malawi (Local Registry + Live OpenStreetMap)
-app.get('/api/search-locations', async (req, res) => {
+app.get('/api/search-locations', discoveryLimiter, async (req, res) => {
   const query = (req.query.q || '').trim();
   const originLat = parseFloat(req.query.lat) || DEFAULT_ORIGIN.lat;
   const originLng = parseFloat(req.query.lng) || DEFAULT_ORIGIN.lng;
@@ -987,39 +1145,172 @@ app.get('/api/search-locations', async (req, res) => {
   res.json(combined.slice(0, 10));
 });
 
-// API: Reset dev state
+// API: Reset dev state (DEVELOPMENT ONLY)
 app.post('/api/reset', (req, res) => {
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(403).json({ error: 'Endpoint forbidden: /api/reset is only available in development environment' });
+  }
   res.json({ message: 'State reset successfully' });
 });
 
-// Socket.IO Real-Time Connection
-// TEMPORARY DEV AUTH - STEP 2 ONLY (Socket.IO Handshake Authentication)
+// =========================================================================
+// SOCKET.IO REAL-TIME AUTHENTICATION & HANDLERS (Step 3a)
+// =========================================================================
+
+// Zod Validation Schemas for Socket Payloads
+const socketTripRequestSchema = z.object({
+  quoteId: z.string().optional(),
+  fare: z.number().optional(),
+  baseFare: z.number().optional(),
+  tierId: z.string().optional(),
+  pickup: z.union([
+    z.string(),
+    z.object({
+      name: z.string().optional(),
+      address: z.string().optional(),
+      lat: z.number(),
+      lng: z.number()
+    })
+  ]),
+  destination: z.union([
+    z.string(),
+    z.object({
+      name: z.string().optional(),
+      address: z.string().optional(),
+      lat: z.number(),
+      lng: z.number()
+    })
+  ]),
+  distanceKm: z.number().optional(),
+  durationMins: z.number().optional(),
+  idempotencyKey: z.string().optional(),
+  paymentMethod: z.string().optional()
+});
+
+const socketTripAcceptSchema = z.object({
+  tripId: z.string().min(1, 'tripId is required')
+});
+
+const socketDriverMovedSchema = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  heading: z.number().optional(),
+  accuracy: z.number().optional(),
+  speed: z.number().optional()
+});
+
+const socketTripArrivedSchema = z.object({
+  tripId: z.string().min(1, 'tripId is required')
+});
+
+const socketTripStartTransitSchema = z.object({
+  tripId: z.string().min(1, 'tripId is required'),
+  pin: z.string().min(4).max(6, 'PIN must be 4 digits')
+});
+
+const socketTripCompleteSchema = z.object({
+  tripId: z.string().min(1, 'tripId is required'),
+  paymentMethod: z.string().optional(),
+  driverTip: z.number().optional()
+});
+
+const socketTripRateSchema = z.object({
+  tripId: z.string().min(1, 'tripId is required'),
+  rating: z.union([z.number(), z.string()]).optional(),
+  tags: z.array(z.string()).optional(),
+  comment: z.string().optional()
+});
+
+const socketTripCancelSchema = z.union([
+  z.string().min(1),
+  z.object({
+    tripId: z.string().min(1),
+    reason: z.string().optional()
+  })
+]);
+
+const socketChatSendSchema = z.object({
+  tripId: z.string().min(1, 'tripId is required'),
+  text: z.string().min(1, 'message text required'),
+  sender: z.string().optional()
+});
+
+const socketSosTriggerSchema = z.object({
+  tripId: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  note: z.string().optional(),
+  location: z.string().optional(),
+  source: z.string().optional(),
+  riderPhone: z.string().optional(),
+  emergencyPhone: z.string().optional()
+});
+
+const socketDriverSetStatusSchema = z.object({
+  status: z.enum(['ONLINE', 'OFFLINE', 'BUSY'])
+});
+
+const socketWalletTopupSchema = z.object({
+  amount: z.number().int().positive('Top-up amount must be positive'),
+  provider: z.string().optional(),
+  idempotencyKey: z.string().optional()
+});
+
+const socketWalletTransferSchema = z.object({
+  amount: z.number().int().positive('Transfer amount must be positive'),
+  recipientId: z.string().optional(),
+  phone: z.string().optional(),
+  idempotencyKey: z.string().optional()
+});
+
+// Socket.IO Handshake Authentication: Strict JWT & DB Status Check
 io.use(async (socket, next) => {
   try {
-    const handshakeUserId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
-    const handshakeRole = socket.handshake.auth?.role || socket.handshake.query?.role || 'RIDER';
+    const token = socket.handshake.auth?.token ||
+                  socket.handshake.query?.token ||
+                  (socket.handshake.headers?.authorization?.startsWith('Bearer ')
+                    ? socket.handshake.headers.authorization.slice(7)
+                    : null);
 
-    let socketUser = null;
-    if (handshakeUserId) {
-      socketUser = await prisma.user.findUnique({
-        where: { id: handshakeUserId },
-        include: { wallet: true, driverProfile: { include: { vehicle: true } } }
-      });
-    }
-    if (!socketUser) {
-      const phone = handshakeRole === 'DRIVER' ? '+265995541122' : '+265991234567';
-      socketUser = await prisma.user.findUnique({
-        where: { phone },
-        include: { wallet: true, driverProfile: { include: { vehicle: true } } }
-      });
+    if (!token) {
+      return next(new Error('Authentication required: Missing JWT token in socket handshake'));
     }
 
-    socket.userId = socketUser ? socketUser.id : 'USR-DEV-DEFAULT';
-    socket.userRole = socketUser ? socketUser.role : handshakeRole;
-    socket.driverId = socketUser?.driverProfile ? socketUser.driverProfile.id : null;
+    let payload;
+    try {
+      payload = authService.verifyAccessToken(token);
+    } catch (err) {
+      return next(new Error('Authentication failed: Invalid or expired access token (' + err.message + ')'));
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      include: { driverProfile: { include: { vehicle: true } } }
+    });
+
+    if (!user) {
+      return next(new Error('Authentication failed: User account not found'));
+    }
+
+    if (user.status !== 'ACTIVE') {
+      return next(new Error(`Account access denied: Account is ${user.status.toLowerCase()}`));
+    }
+
+    if (user.role === 'DRIVER' && user.driverProfile) {
+      if (user.driverProfile.approvalStatus !== 'APPROVED') {
+        return next(new Error(`Driver profile not approved: Current status is ${user.driverProfile.approvalStatus}`));
+      }
+    }
+
+    socket.user = user;
+    socket.userId = user.id;
+    socket.userRole = user.role;
+    socket.driverId = user.driverProfile ? user.driverProfile.id : null;
+    socket.driver = user.driverProfile || null;
+
     next();
   } catch (err) {
-    next();
+    next(new Error('Socket connection rejected: ' + err.message));
   }
 });
 
@@ -1030,12 +1321,46 @@ io.on('connection', (socket) => {
   console.log(`[Socket.IO] Client connected (${socket.id}, User: ${socket.userId}, Role: ${socket.userRole}). Total clients: ${connectedClients}`);
   io.emit('clients:count', connectedClients);
 
-  // 1. Trip Request from Rider App (on Phone or Web)
-  socket.on('trip:request', async (data, callback) => {
-    console.log('[RealTime] Rider requested trip:', data);
+  // 1. Trip Request from Rider App
+  socket.on('trip:request', async (data = {}, callback) => {
     try {
-      const fare = Math.round(data.fare || 1500);
-      const baseFare = Math.round(data.baseFare || fare);
+      const parsed = socketTripRequestSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new Error(parsed.error.issues[0]?.message || 'Invalid trip request payload');
+      }
+      const reqData = parsed.data;
+
+      // DB Check: User.status === 'ACTIVE'
+      const user = await prisma.user.findUnique({ where: { id: socket.userId }, select: { status: true } });
+      if (!user || user.status !== 'ACTIVE') {
+        throw new Error('Account inactive. Cannot request trips.');
+      }
+
+      // Server-Side Authoritative Pricing (NEVER trust client fare/baseFare)
+      let fare;
+      let baseFare;
+      let distanceKm = parseFloat(reqData.distanceKm) || 3.5;
+      let durationMins = parseInt(reqData.durationMins, 10) || 8;
+      const categoryId = (reqData.tierId || 'moto').toLowerCase();
+
+      if (reqData.quoteId) {
+        // Authoritatively validate & consume signed quote snapshot
+        const validatedQuote = pricingService.validateAndConsumeQuote(reqData.quoteId, categoryId);
+        fare = validatedQuote.tier.finalFare;
+        baseFare = validatedQuote.tier.baseFare;
+        distanceKm = validatedQuote.distanceKm;
+        durationMins = validatedQuote.durationMins;
+      } else {
+        // Fallback: compute authoritative fare server-side via pricing engine
+        const computed = pricingService.calculateFare({
+          categoryId,
+          distanceKm,
+          durationMins
+        });
+        fare = computed.finalFare;
+        baseFare = computed.baseFare;
+      }
+
       const commission = Math.round(fare * 0.30);
       const driverShare = fare - commission;
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -1043,25 +1368,25 @@ io.on('connection', (socket) => {
       const trip = await prisma.$transaction(async (tx) => {
         const created = await tx.trip.create({
           data: {
-            riderId: socket.userId,
+            riderId: socket.userId, // Strictly authoritative from JWT
             status: 'REQUESTED',
-            tier: (data.tierId || 'moto').toUpperCase(),
-            pickupAddress: (typeof data.pickup === 'string') ? data.pickup : (data.pickup?.name || data.pickup?.address || 'Pickup Point'),
-            dropoffAddress: (typeof data.destination === 'string') ? data.destination : (data.destination?.name || data.destination?.address || 'Destination'),
-            pickupLat: parseFloat(data.pickup?.lat) || -13.9722,
-            pickupLng: parseFloat(data.pickup?.lng) || 33.7667,
-            dropoffLat: parseFloat(data.destination?.lat) || -13.9933,
-            dropoffLng: parseFloat(data.destination?.lng) || 33.6777,
-            distanceKm: parseFloat(data.distanceKm) || 3.5,
-            durationMins: parseInt(data.durationMins, 10) || 8,
+            tier: (reqData.tierId || 'moto').toUpperCase(),
+            pickupAddress: (typeof reqData.pickup === 'string') ? reqData.pickup : (reqData.pickup?.name || reqData.pickup?.address || 'Pickup Point'),
+            dropoffAddress: (typeof reqData.destination === 'string') ? reqData.destination : (reqData.destination?.name || reqData.destination?.address || 'Destination'),
+            pickupLat: typeof reqData.pickup === 'object' ? reqData.pickup.lat : -13.9722,
+            pickupLng: typeof reqData.pickup === 'object' ? reqData.pickup.lng : 33.7667,
+            dropoffLat: typeof reqData.destination === 'object' ? reqData.destination.lat : -13.9933,
+            dropoffLng: typeof reqData.destination === 'object' ? reqData.destination.lng : 33.6777,
+            distanceKm: parseFloat(reqData.distanceKm) || 3.5,
+            durationMins: parseInt(reqData.durationMins, 10) || 8,
             fareMWK: fare,
             baseFareMWK: baseFare,
             bookingFeeMWK: 150,
             driverShareMWK: driverShare,
             commissionMWK: commission,
             pin: pin,
-            idempotencyKey: data.idempotencyKey || `REQ-${socket.userId}-${Date.now()}`,
-            paymentMethod: (data.paymentMethod && data.paymentMethod.toUpperCase().includes('CASH')) ? 'CASH' : 'WALLET_ESCROW'
+            idempotencyKey: reqData.idempotencyKey || `REQ-${socket.userId}-${Date.now()}`,
+            paymentMethod: (reqData.paymentMethod && reqData.paymentMethod.toUpperCase().includes('CASH')) ? 'CASH' : 'WALLET_ESCROW'
           },
           include: {
             rider: { select: { id: true, name: true, phone: true } }
@@ -1085,7 +1410,7 @@ io.on('connection', (socket) => {
       io.emit('trip:requested', trip);
       if (typeof callback === 'function') callback({ success: true, trip });
     } catch (err) {
-      console.warn('[TripRequest] Error creating trip:', err.message);
+      console.warn('[TripRequest] Error:', err.message);
       const isDuplicateActive = err.code === 'P2002' || err.message.includes('unique_active_trip_per_rider');
       const errorMsg = isDuplicateActive
         ? 'Rider already has an active trip'
@@ -1097,18 +1422,33 @@ io.on('connection', (socket) => {
 
   // 2. Driver Accepts Trip
   socket.on('trip:accept', async (data = {}, callback) => {
-    console.log('[RealTime] Driver accepted trip request:', data);
     try {
-      const resolvedDriverId = socket.driverId || data.driverId || 'DRV-MW-101';
-      const tripId = data.tripId;
-      if (!tripId) {
-        throw new Error('tripId is required to accept a trip');
+      const parsed = socketTripAcceptSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new Error(parsed.error.issues[0]?.message || 'tripId is required');
+      }
+      const tripId = parsed.data.tripId;
+
+      if (socket.userRole !== 'DRIVER' || !socket.driverId) {
+        throw new Error('Unauthorized: Only registered drivers can accept trips');
       }
 
       const updatedTrip = await prisma.$transaction(async (tx) => {
+        // DB Check: User.status === 'ACTIVE' and Driver.approvalStatus === 'APPROVED'
+        const driverRecord = await tx.driver.findFirst({
+          where: {
+            id: socket.driverId,
+            approvalStatus: 'APPROVED',
+            user: { id: socket.userId, status: 'ACTIVE' }
+          }
+        });
+
+        if (!driverRecord) {
+          throw new Error('Driver account is not active or approved');
+        }
+
         const trip = await tx.trip.findUnique({
-          where: { id: tripId },
-          include: { driver: true }
+          where: { id: tripId }
         });
 
         if (!trip) throw new Error('Trip not found');
@@ -1119,13 +1459,6 @@ io.on('connection', (socket) => {
           throw new Error('Trip already accepted by another driver');
         }
 
-        let driverRecord = await tx.driver.findFirst({
-          where: { OR: [{ id: resolvedDriverId }, { userId: socket.userId }] }
-        });
-        if (!driverRecord) {
-          driverRecord = await tx.driver.findFirst({ where: { approvalStatus: 'APPROVED' } });
-        }
-
         // Atomic conditional update: strictly 1 driver can transition this trip
         const updateResult = await tx.trip.updateMany({
           where: {
@@ -1134,7 +1467,7 @@ io.on('connection', (socket) => {
             driverId: null
           },
           data: {
-            driverId: driverRecord ? driverRecord.id : null,
+            driverId: socket.driverId, // Strictly authoritative
             status: 'DRIVER_ARRIVING',
             acceptedAt: new Date()
           }
@@ -1155,7 +1488,7 @@ io.on('connection', (socket) => {
         await tx.tripStatusHistory.create({
           data: {
             tripId: accepted.id,
-            fromStatus: trip ? trip.status : 'REQUESTED',
+            fromStatus: trip.status,
             status: 'DRIVER_ARRIVING',
             changedBy: socket.userId,
             reason: 'Driver accepted ride offer'
@@ -1180,28 +1513,72 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 3. Driver Live GPS Telemetry
-  socket.on('trip:driver_moved', async (coords) => {
-    if (coords && coords.lat && coords.lng) {
-      if (socket.driverId) {
-        try {
-          await prisma.driver.update({
-            where: { id: socket.driverId },
-            data: { currentLat: parseFloat(coords.lat), currentLng: parseFloat(coords.lng), lastLocationAt: new Date() }
-          });
-        } catch (e) { }
+  // 3. Driver Availability Status (Go-Online / Go-Offline)
+  socket.on('driver:set_status', async (data = {}, callback) => {
+    try {
+      if (socket.userRole !== 'DRIVER' || !socket.driverId) {
+        throw new Error('Only registered drivers can change driver availability');
       }
-      socket.broadcast.emit('trip:driver_moved', coords);
+      const parsed = socketDriverSetStatusSchema.safeParse(data);
+      if (!parsed.success) throw new Error('Invalid availability status');
+
+      // DB check: User.status === 'ACTIVE' and Driver.approvalStatus === 'APPROVED'
+      const driver = await prisma.driver.findFirst({
+        where: {
+          id: socket.driverId,
+          approvalStatus: 'APPROVED',
+          user: { id: socket.userId, status: 'ACTIVE' }
+        }
+      });
+
+      if (!driver) {
+        throw new Error('Driver profile is not active and approved');
+      }
+
+      const updated = await prisma.driver.update({
+        where: { id: socket.driverId },
+        data: { availability: parsed.data.status }
+      });
+
+      socket.emit('driver:status_changed', { availability: updated.availability });
+      if (typeof callback === 'function') callback({ success: true, availability: updated.availability });
+    } catch (err) {
+      socket.emit('driver:error', { error: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 4. Driver Arrived at Pickup
-  socket.on('trip:arrived', async (data = {}, callback) => {
-    console.log('[RealTime] Driver arrived at pickup location:', data);
+  // 4. Driver Live GPS Telemetry
+  socket.on('trip:driver_moved', async (coords) => {
     try {
-      const tripId = data.tripId;
+      if (!socket.driverId) return;
+      const parsed = socketDriverMovedSchema.safeParse(coords);
+      if (!parsed.success) return;
+
+      await prisma.driver.updateMany({
+        where: { id: socket.driverId, approvalStatus: 'APPROVED' },
+        data: {
+          currentLat: parsed.data.lat,
+          currentLng: parsed.data.lng,
+          currentHeading: parsed.data.heading || null,
+          lastLocationAt: new Date()
+        }
+      });
+      socket.broadcast.emit('trip:driver_moved', { ...parsed.data, driverId: socket.driverId });
+    } catch (err) {
+      console.warn('[DriverMoved] Error:', err.message);
+    }
+  });
+
+  // 5. Driver Arrived at Pickup
+  socket.on('trip:arrived', async (data = {}, callback) => {
+    try {
+      const parsed = socketTripArrivedSchema.safeParse(data);
+      if (!parsed.success) throw new Error('tripId is required');
+      const tripId = parsed.data.tripId;
+
       const trip = await prisma.trip.findFirst({
-        where: tripId ? { id: tripId } : { driverId: socket.driverId, status: 'DRIVER_ARRIVING' },
+        where: { id: tripId, status: 'DRIVER_ARRIVING' },
         include: { driver: true }
       });
 
@@ -1237,13 +1614,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. Trip In Transit
+  // 6. Trip In Transit (PIN Verification)
   socket.on('trip:start_transit', async (data = {}, callback) => {
-    console.log('[RealTime] Trip in transit requested:', data);
     try {
-      const tripId = data.tripId;
+      const parsed = socketTripStartTransitSchema.safeParse(data);
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || 'tripId and 4-digit PIN required');
+      const { tripId, pin } = parsed.data;
+
       const trip = await prisma.trip.findFirst({
-        where: tripId ? { id: tripId } : { driverId: socket.driverId, status: 'ARRIVED' },
+        where: { id: tripId, status: 'ARRIVED' },
         include: { driver: true }
       });
 
@@ -1257,7 +1636,7 @@ io.on('connection', (socket) => {
         throw new Error('PIN entry locked: Maximum attempts (5) exceeded');
       }
 
-      if (!data.pin || data.pin !== trip.pin) {
+      if (pin !== trip.pin) {
         await prisma.trip.update({
           where: { id: trip.id },
           data: { pinAttempts: { increment: 1 } }
@@ -1292,13 +1671,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 6. Trip Completed - Atomic Double-Entry Financial Settlement
+  // 7. Trip Completed - Atomic Double-Entry Financial Settlement
   socket.on('trip:complete', async (completionData = {}, callback) => {
-    console.log('[RealTime] Trip complete event:', completionData);
     try {
-      const tripId = completionData.tripId;
+      const parsed = socketTripCompleteSchema.safeParse(completionData);
+      if (!parsed.success) throw new Error(parsed.error.issues[0]?.message || 'tripId is required');
+      const { tripId } = parsed.data;
+
       const trip = await prisma.trip.findFirst({
-        where: tripId ? { id: tripId } : { driverId: socket.driverId, status: 'IN_TRANSIT' },
+        where: { id: tripId, status: 'IN_TRANSIT' },
         include: { driver: true, rider: true }
       });
 
@@ -1345,13 +1726,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 7. Rider Rating & Driver Tip
-  socket.on('trip:rate', async (review = {}) => {
-    console.log('[RealTime] Rider rating submitted:', review);
+  // 8. Rider Rating & Driver Tip
+  socket.on('trip:rate', async (review = {}, callback) => {
     try {
-      const tripId = review.tripId;
+      const parsed = socketTripRateSchema.safeParse(review);
+      if (!parsed.success) throw new Error('Invalid rating payload');
+
       const trip = await prisma.trip.findFirst({
-        where: tripId ? { id: tripId } : { riderId: socket.userId, status: 'COMPLETED' },
+        where: { id: parsed.data.tripId, status: 'COMPLETED' },
         include: { driver: true }
       });
 
@@ -1365,27 +1747,31 @@ io.on('connection', (socket) => {
               tripId: trip.id,
               fromUserId: socket.userId,
               toUserId: trip.driver.userId,
-              stars: Math.min(5, Math.max(1, parseInt(review.rating, 10) || 5)),
-              tags: Array.isArray(review.tags) ? review.tags : [],
-              comment: review.comment || null
+              stars: Math.min(5, Math.max(1, parseInt(parsed.data.rating, 10) || 5)),
+              tags: Array.isArray(parsed.data.tags) ? parsed.data.tags : [],
+              comment: parsed.data.comment || null
             },
             update: {
-              stars: Math.min(5, Math.max(1, parseInt(review.rating, 10) || 5)),
-              comment: review.comment || null
+              stars: Math.min(5, Math.max(1, parseInt(parsed.data.rating, 10) || 5)),
+              comment: parsed.data.comment || null
             }
           });
         });
       }
       io.emit('trip:rated', { review, tripId: trip?.id });
+      if (typeof callback === 'function') callback({ success: true });
     } catch (err) {
       console.warn('[TripRate] Error:', err.message);
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 8. Trip Cancelled
-  socket.on('trip:cancel', async (data = {}) => {
-    console.log('[RealTime] Trip cancel requested:', data);
+  // 9. Trip Cancelled
+  socket.on('trip:cancel', async (data = {}, callback) => {
     try {
+      const parsed = socketTripCancelSchema.safeParse(data);
+      if (!parsed.success) throw new Error('Invalid cancellation data');
+
       const tripId = typeof data === 'string' ? data : data.tripId;
       const reason = (typeof data === 'object' && data.reason) ? data.reason : 'Cancelled by user';
 
@@ -1424,134 +1810,183 @@ io.on('connection', (socket) => {
 
         io.to(`trip:${updated.id}`).emit('trip:cancelled', { tripId: updated.id, status: newStatus, reason });
         io.emit('trip:cancelled', { tripId: updated.id, status: newStatus, reason });
+        if (typeof callback === 'function') callback({ success: true, trip: updated });
       }
     } catch (err) {
       console.warn('[TripCancel] Error:', err.message);
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 9. Real-Time Chat (Rider <-> Driver)
-  socket.on('chat:send', async (msg = {}) => {
-    console.log('[RealTime Chat]', msg.sender, ':', msg.text);
+  // 10. Real-Time Chat (Rider <-> Driver)
+  socket.on('chat:send', async (msg = {}, callback) => {
     try {
-      if (msg.tripId) {
-        await prisma.chatMessage.create({
-          data: {
-            tripId: msg.tripId,
-            senderId: socket.userId,
-            senderRole: socket.userRole || (msg.sender === 'driver' ? 'DRIVER' : 'RIDER'),
-            text: msg.text || ''
-          }
-        });
-      }
+      const parsed = socketChatSendSchema.safeParse(msg);
+      if (!parsed.success) throw new Error('tripId and text required');
+
+      await prisma.chatMessage.create({
+        data: {
+          tripId: parsed.data.tripId,
+          senderId: socket.userId,
+          senderRole: socket.userRole || 'RIDER',
+          text: parsed.data.text
+        }
+      });
+
       const messageObj = {
-        tripId: msg.tripId,
-        sender: msg.sender,
-        text: msg.text,
+        tripId: parsed.data.tripId,
+        sender: socket.userRole?.toLowerCase() || 'rider',
+        text: parsed.data.text,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      if (msg.tripId) io.to(`trip:${msg.tripId}`).emit('chat:message', messageObj);
+
+      io.to(`trip:${parsed.data.tripId}`).emit('chat:message', messageObj);
       io.emit('chat:message', messageObj);
+      if (typeof callback === 'function') callback({ success: true, message: messageObj });
     } catch (err) {
       console.warn('[Chat] Error:', err.message);
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 10. SOS Emergency Alert Trigger
-  socket.on('sos:trigger', async (data = {}) => {
-    console.warn('[RealTime SOS Alert!]', data);
+  // 11. SOS Emergency Alert Trigger
+  socket.on('sos:trigger', async (data = {}, callback) => {
     try {
-      let validTripId = null;
-      if (data.tripId) {
-        const tripExists = await prisma.trip.findUnique({ where: { id: data.tripId } });
-        if (tripExists) validTripId = data.tripId;
-      }
+      const parsed = socketSosTriggerSchema.safeParse(data);
+      if (!parsed.success) throw new Error('Invalid SOS payload');
 
-      let validUserId = socket.userId;
-      if (!validUserId || validUserId === 'USR-DEV-DEFAULT') {
-        const fallbackUser = await prisma.user.findFirst({ where: { role: 'RIDER' } });
-        if (fallbackUser) validUserId = fallbackUser.id;
+      let validTripId = null;
+      if (parsed.data.tripId) {
+        const tripExists = await prisma.trip.findUnique({ where: { id: parsed.data.tripId } });
+        if (tripExists) validTripId = parsed.data.tripId;
       }
 
       const sosEvent = await prisma.sosEvent.create({
         data: {
           tripId: validTripId,
-          userId: validUserId,
-          lat: parseFloat(data.lat) || -13.9722,
-          lng: parseFloat(data.lng) || 33.7667,
-          notes: data.note || 'Emergency assistance requested on corridor',
+          userId: socket.userId,
+          lat: parsed.data.lat || -13.9722,
+          lng: parsed.data.lng || 33.7667,
+          notes: parsed.data.note || 'Emergency assistance requested on corridor',
           status: 'ACTIVE'
         }
       });
 
       const alertItem = {
         id: sosEvent.id,
-        source: data.source || 'RIDER',
-        location: data.location || 'Kenyatta Drive, Lilongwe',
+        source: socket.userRole || 'RIDER',
+        location: parsed.data.location || 'Kenyatta Drive, Lilongwe',
         lat: sosEvent.lat,
         lng: sosEvent.lng,
-        riderPhone: data.riderPhone || '+265991234567',
-        emergencyPhone: data.emergencyPhone || '+265999970000',
+        riderPhone: socket.user?.phone || '+265991234567',
+        emergencyPhone: parsed.data.emergencyPhone || '+265999970000',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         status: 'ACTIVE_DISPATCH_ALERT',
-        note: data.note || 'Emergency assistance requested on corridor'
+        note: parsed.data.note || 'Emergency assistance requested on corridor'
       };
 
       io.emit('sos:alert', alertItem);
       notificationService.sendEmergencySosAlert(alertItem).catch(err => {
         console.warn('[NotificationService] SOS broadcast exception:', err.message);
       });
+      if (typeof callback === 'function') callback({ success: true, alert: alertItem });
     } catch (err) {
       console.error('[SosTrigger] Error:', err.message);
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 11. SOS Resolution (from Admin desk)
-  socket.on('sos:resolve', async (id) => {
+  // 12. SOS Resolution (Operations / Admin only)
+  socket.on('sos:resolve', async (id, callback) => {
     try {
+      if (socket.userRole !== 'ADMIN' && socket.userRole !== 'SUPPORT') {
+        throw new Error('Forbidden: Only operations personnel can resolve emergency alerts');
+      }
       await prisma.sosEvent.update({
         where: { id },
         data: { status: 'RESOLVED', resolvedAt: new Date(), resolvedBy: socket.userId }
       });
       io.emit('sos:resolved', id);
+      if (typeof callback === 'function') callback({ success: true });
     } catch (err) {
       console.warn('[SosResolve] Error:', err.message);
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 12. Dynamic Surge Multiplier Update (Admin)
-  socket.on('surge:update', (data) => {
-    if (data && data.zone) {
-      operationalState.surgeMultipliers[data.zone] = parseFloat(data.multiplier);
-      io.emit('surge:updated', data);
-    }
-  });
-
-  // 13. Rider Wallet Top Up (Airtel Money / TNM Mpamba)
-  socket.on('wallet:topup', async (data = {}) => {
+  // 13. Dynamic Surge Multiplier Update (Admin only)
+  socket.on('surge:update', (data, callback) => {
     try {
-      const amt = parseInt(data.amount, 10) || 10000;
-      const provider = data.provider || 'Airtel Money';
+      if (socket.userRole !== 'ADMIN') {
+        throw new Error('Forbidden: Only administrators can update surge multipliers');
+      }
+      if (data && data.zone) {
+        operationalState.surgeMultipliers[data.zone] = parseFloat(data.multiplier);
+        io.emit('surge:updated', data);
+        if (typeof callback === 'function') callback({ success: true });
+      }
+    } catch (err) {
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
+    }
+  });
+
+  // 14. Rider Wallet Top Up (Airtel Money / TNM Mpamba)
+  socket.on('wallet:topup', async (data = {}, callback) => {
+    try {
+      if (process.env.NODE_ENV !== 'development') {
+        throw new Error('Direct wallet top-up via socket is disabled in production. Please use mobile money top-up (/api/payments/initiate).');
+      }
+
+      const parsed = socketWalletTopupSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new Error(parsed.error.issues[0]?.message || 'Invalid wallet topup data');
+      }
+
+      // DB check: User.status === 'ACTIVE'
+      const user = await prisma.user.findUnique({
+        where: { id: socket.userId },
+        select: { status: true }
+      });
+      if (!user || user.status !== 'ACTIVE') {
+        throw new Error('User account is inactive. Wallet operations blocked.');
+      }
+
       const result = await dbLedger.recordWalletTopup({
         userId: socket.userId,
-        amountMWK: amt,
-        provider,
-        idempotencyKey: data.idempotencyKey
+        amountMWK: parsed.data.amount,
+        provider: parsed.data.provider || 'Airtel Money',
+        idempotencyKey: parsed.data.idempotencyKey
       });
+
       socket.emit('wallet:updated', { wallet: result.wallet, netBalanceSum: result.netBalanceSum });
       io.emit('wallet:updated', { userId: socket.userId, wallet: result.wallet });
+      if (typeof callback === 'function') callback({ success: true, wallet: result.wallet });
     } catch (err) {
       socket.emit('wallet:error', { error: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 14. P2P Kwacha Transfer
-  socket.on('wallet:transfer', async (data = {}) => {
+  // 15. P2P Kwacha Transfer
+  socket.on('wallet:transfer', async (data = {}, callback) => {
     try {
-      const amt = parseInt(data.amount, 10) || 0;
-      let recipientUserId = data.recipientId;
-      if (!recipientUserId && data.phone) {
-        const recipient = await prisma.user.findUnique({ where: { phone: data.phone } });
+      const parsed = socketWalletTransferSchema.safeParse(data);
+      if (!parsed.success) {
+        throw new Error(parsed.error.issues[0]?.message || 'Invalid wallet transfer data');
+      }
+
+      // DB check: User.status === 'ACTIVE'
+      const user = await prisma.user.findUnique({
+        where: { id: socket.userId },
+        select: { status: true }
+      });
+      if (!user || user.status !== 'ACTIVE') {
+        throw new Error('User account is inactive. Wallet operations blocked.');
+      }
+
+      let recipientUserId = parsed.data.recipientId;
+      if (!recipientUserId && parsed.data.phone) {
+        const recipient = await prisma.user.findUnique({ where: { phone: parsed.data.phone } });
         if (recipient) recipientUserId = recipient.id;
       }
       if (!recipientUserId) throw new Error('Recipient not found');
@@ -1559,18 +1994,25 @@ io.on('connection', (socket) => {
       const result = await dbLedger.recordP2PTransfer({
         senderUserId: socket.userId,
         recipientUserId,
-        amountMWK: amt,
-        idempotencyKey: data.idempotencyKey
+        amountMWK: parsed.data.amount,
+        idempotencyKey: parsed.data.idempotencyKey
       });
+
       socket.emit('wallet:updated', { wallet: result.senderWallet, netBalanceSum: result.netBalanceSum });
+      if (typeof callback === 'function') callback({ success: true, wallet: result.senderWallet });
     } catch (err) {
       socket.emit('wallet:error', { error: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
-  // 15. In-App Call Signaling
+  // 16. In-App Call Signaling
   socket.on('call:signal', (signal) => {
-    socket.broadcast.emit('call:signal', signal);
+    try {
+      socket.broadcast.emit('call:signal', signal);
+    } catch (err) {
+      console.warn('[CallSignal] Error:', err.message);
+    }
   });
 
   socket.on('disconnect', () => {

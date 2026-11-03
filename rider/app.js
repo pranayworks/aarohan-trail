@@ -2029,8 +2029,12 @@
   // =========================================================================
   window.shareTripDetails = async function () {
     const state = window.mwendoStore ? window.mwendoStore.getState() : null;
-    const trip = state && state.activeTrip ? state.activeTrip : { id: 'TRIP-LL-9821', destination: currentDestination.name, pin: '8421' };
-    const driver = state && state.driver ? state.driver : { name: 'Blessings Phiri', plate: 'LL 4920 B' };
+    const trip = state?.activeTrip;
+    if (!trip || !trip.id) {
+      if (typeof showToast === 'function') showToast('No active ride to share.');
+      return;
+    }
+    const driver = trip.driver || state?.driver || { name: 'Assigned Driver', plate: '' };
 
     const shareUrl = `${window.location.origin}/ride-tracking.html?tripId=${encodeURIComponent(trip.id)}&pin=${encodeURIComponent(trip.pin || '')}`;
     const shareText = `I am on a AArohan ride in Lilongwe to ${trip.destination}. Captain: ${driver.name} (${driver.plate}). Track my route live:`;
