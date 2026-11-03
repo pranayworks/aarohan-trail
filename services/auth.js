@@ -188,7 +188,7 @@ async function requestOtp(phone, ip = null) {
   // Security Rule: NEVER return the OTP in the API response
   // Console-log ONLY when NODE_ENV === 'development'
   if (process.env.NODE_ENV === 'development') {
-    console.log(`[DEV OTP] Verification code for ${cleanPhone}: [ ${otpCode} ] (Valid for 5 mins)`);
+    console.log(`[DEV OTP] ${cleanPhone} : ${otpCode}`);
   }
 
   return {

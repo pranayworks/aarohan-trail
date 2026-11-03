@@ -41,10 +41,14 @@ async function runAuthVerificationSuite() {
 
   // Ensure server is listening
   if (!server.listening) {
-    await new Promise((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(3000, '0.0.0.0', resolve);
-    });
+    try {
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(3000, '0.0.0.0', resolve);
+      });
+    } catch (err) {
+      if (err.code !== 'EADDRINUSE') throw err;
+    }
   }
 
   try {
