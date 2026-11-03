@@ -64,9 +64,9 @@
   <!-- Shared Audio & Realtime State -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="../shared/sound.js"></script>
+  <script src="../shared/auth.js"></script>
   <script src="../shared/state.js"></script>
   <script src="../shared/i18n.js"></script>
-  <script src="../shared/auth.js"></script>
 
   <!-- Sticky Top Header -->
   <header class="fixed top-0 w-full z-50 pt-safe bg-surface/90 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm">
@@ -312,36 +312,36 @@
 
       </div>
 
-      <!-- Passenger & Slide-to-Complete Fulfillment Sheet -->
+      <!-- Passenger & Fulfillment Sheet -->
       <div class="w-full bg-surface-container-lowest rounded-t-2xl -mt-4 relative z-30 shadow-xl p-4 flex flex-col gap-3">
         <div class="w-10 h-1 bg-surface-container-highest rounded-full self-center"></div>
 
-        <!-- Active Stage & PIN Badge -->
+        <!-- Active Stage & Status Badge -->
         <div class="flex items-center justify-between">
           <div class="bg-primary-fixed text-primary px-3 py-1 rounded-full flex items-center gap-1.5 text-xs font-bold">
             <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-            <span>Heading to Destination</span>
+            <span id="nav-stage-badge">Heading to Pickup</span>
           </div>
           <div class="bg-secondary-fixed text-secondary px-3 py-1 rounded-full flex items-center gap-1 text-xs font-bold">
             <span class="material-symbols-outlined text-[15px]">verified</span>
-            <span>PIN: <strong id="nav-verified-pin">8421</strong></span>
+            <span>Trip: <strong id="nav-verified-pin">Active</strong></span>
           </div>
         </div>
 
         <!-- Passenger Card -->
         <div class="flex items-center justify-between bg-surface-container-low p-3 rounded-xl">
           <div class="flex items-center gap-2.5">
-            <div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-sm shadow-sm">CB</div>
+            <div id="nav-passenger-avatar" class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-sm shadow-sm">AR</div>
             <div>
               <div class="flex items-center gap-1">
-                <span class="text-xs font-extrabold text-on-surface">Chisomo Banda</span>
-                <span class="text-secondary text-[11px] font-bold">★ 4.90</span>
+                <span id="nav-passenger-name" class="text-xs font-extrabold text-on-surface">AArohan Passenger</span>
+                <span class="text-secondary text-[11px] font-bold">★ 4.95</span>
               </div>
-              <span class="text-[11px] text-on-surface-variant">Destination: Gateway Mall</span>
+              <span id="nav-passenger-route" class="text-[11px] text-on-surface-variant">Destination: Gateway Mall</span>
             </div>
           </div>
           <div class="flex items-center gap-1.5">
-            <a href="tel:+265991234567" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high">
+            <a id="nav-passenger-phone-link" href="tel:+265991234567" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high">
               <span class="material-symbols-outlined text-[18px]">phone</span>
             </a>
             <button onclick="alert('Passenger message drawer opened.')" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high">
@@ -354,22 +354,48 @@
         <div class="bg-surface-container rounded-xl p-2.5 flex items-center justify-between">
           <div>
             <span class="text-[10px] text-on-surface-variant font-bold uppercase block">Guaranteed Net Fare</span>
-            <span class="text-base font-extrabold text-primary" id="nav-guaranteed-net-fare">MWK 4,340</span>
-            <span class="text-[10px] text-outline">(70% net after 30% Gaman commission)</span>
+            <span class="text-base font-extrabold text-primary" id="nav-guaranteed-net-fare">MWK 1,050</span>
+            <span class="text-[10px] text-outline">(70% net after 30% AArohan commission)</span>
           </div>
-          <span class="bg-primary-fixed text-primary text-[10px] px-2 py-0.5 rounded font-bold uppercase">Airtel Pre-Auth</span>
+          <span class="bg-primary-fixed text-primary text-[10px] px-2 py-0.5 rounded font-bold uppercase" id="nav-payment-badge">Cash Ride</span>
         </div>
 
-        <!-- TACTILE SLIDE TO COMPLETE TRIP WIDGET -->
-        <div id="slider-track" class="relative w-full h-14 bg-surface-container-highest rounded-xl p-1 overflow-hidden select-none touch-none">
-          <div id="slider-progress" class="absolute left-0 top-0 bottom-0 bg-primary w-12 rounded-xl transition-all duration-75"></div>
-          <div class="relative w-full h-full flex items-center justify-center pointer-events-none">
-            <span id="slider-label" class="text-xs tracking-wider font-extrabold text-on-surface pl-8">SLIDE TO COMPLETE TRIP &gt;&gt;</span>
+        <!-- Stage 1: Heading to Pickup -> Arrived Button -->
+        <div id="driver-arriving-controls" class="flex flex-col gap-2">
+          <button id="btn-driver-arrived" onclick="handleDriverArrived()" class="w-full h-12 bg-primary text-on-primary rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:bg-primary/90 active:scale-[0.98] transition-all">
+            <span class="material-symbols-outlined text-[18px]">location_on</span>
+            <span>I Have Arrived at Pickup</span>
+          </button>
+        </div>
+
+        <!-- Stage 2: Arrived at Pickup -> Enter Rider Safety PIN -->
+        <div id="driver-pin-controls" class="hidden flex flex-col gap-2 bg-surface-container-low p-3 rounded-xl border border-primary/20">
+          <span class="text-xs font-bold text-on-surface">Enter Passenger 4-Digit Safety PIN:</span>
+          <div class="flex gap-2">
+            <input id="driver-pin-input" type="text" maxlength="6" placeholder="PIN (e.g. 1234)" class="w-full px-3 py-2 bg-surface-container-lowest text-on-surface font-mono font-bold text-base rounded-lg border border-outline-variant text-center tracking-widest focus:outline-primary" />
+            <button id="btn-verify-pin" onclick="handleDriverStartTransit()" class="px-4 py-2 bg-primary text-on-primary font-bold text-xs rounded-lg uppercase tracking-wider hover:bg-primary/90 active:scale-95 transition-all">
+              Verify &amp; Start
+            </button>
           </div>
-          <!-- Draggable Knob -->
-          <div id="slider-knob" class="absolute left-1 top-1 bottom-1 w-12 bg-primary rounded-lg text-on-primary flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing active:scale-95 transition-transform">
-            <span class="material-symbols-outlined text-[24px]">chevron_right</span>
+          <span id="driver-pin-error" class="text-[11px] text-error font-medium hidden"></span>
+        </div>
+
+        <!-- Stage 3: In Transit -> Complete Trip -->
+        <div id="driver-transit-controls" class="hidden flex flex-col gap-2">
+          <!-- TACTILE SLIDE TO COMPLETE TRIP WIDGET -->
+          <div id="slider-track" class="relative w-full h-14 bg-surface-container-highest rounded-xl p-1 overflow-hidden select-none touch-none">
+            <div id="slider-progress" class="absolute left-0 top-0 bottom-0 bg-primary w-12 rounded-xl transition-all duration-75"></div>
+            <div class="relative w-full h-full flex items-center justify-center pointer-events-none">
+              <span id="slider-label" class="text-xs tracking-wider font-extrabold text-on-surface pl-8">SLIDE TO COMPLETE TRIP &gt;&gt;</span>
+            </div>
+            <!-- Draggable Knob -->
+            <div id="slider-knob" class="absolute left-1 top-1 bottom-1 w-12 bg-primary rounded-lg text-on-primary flex items-center justify-center shadow-lg cursor-grab active:cursor-grabbing active:scale-95 transition-transform">
+              <span class="material-symbols-outlined text-[24px]">chevron_right</span>
+            </div>
           </div>
+          <button id="btn-complete-trip" onclick="handleDriverComplete()" class="w-full h-11 bg-primary text-on-primary rounded-xl font-bold text-xs uppercase tracking-wider shadow active:scale-[0.98] transition-all">
+            Complete Ride (Cash Collected)
+          </button>
         </div>
 
       </div>
@@ -606,7 +632,7 @@
 
       <!-- Action Buttons -->
       <div class="flex flex-col gap-1.5">
-        <button onclick="acceptIncomingTrip()" class="w-full h-13 bg-primary text-on-primary rounded-xl font-extrabold text-sm flex items-center justify-between px-4 shadow-lg active:scale-[0.98] transition-transform">
+        <button id="btn-accept-trip" onclick="acceptIncomingTrip()" class="w-full h-13 bg-primary text-on-primary rounded-xl font-extrabold text-sm flex items-center justify-between px-4 shadow-lg active:scale-[0.98] transition-transform">
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[20px]">electric_bolt</span>
             <span>ACCEPT TRIP</span>
@@ -804,22 +830,44 @@
       if (window.mwendoSound) window.mwendoSound.playClick();
     }
 
-    // Auto-start telemetry on initial page load if online
-    if (isOnline) {
-      startDriverTelemetry();
+    // Telemetry started only after authentication check
+    let pendingIncomingTrip = null;
+
+    function updateDriverNavControls(status) {
+      const arrivingControls = document.getElementById('driver-arriving-controls');
+      const pinControls = document.getElementById('driver-pin-controls');
+      const transitControls = document.getElementById('driver-transit-controls');
+      const stageBadge = document.getElementById('nav-stage-badge');
+
+      if (arrivingControls) arrivingControls.classList.add('hidden');
+      if (pinControls) pinControls.classList.add('hidden');
+      if (transitControls) transitControls.classList.add('hidden');
+
+      if (status === 'DRIVER_ARRIVING' || status === 'ACCEPTED') {
+        if (arrivingControls) arrivingControls.classList.remove('hidden');
+        if (stageBadge) stageBadge.innerText = 'Heading to Pickup';
+      } else if (status === 'ARRIVED') {
+        if (pinControls) pinControls.classList.remove('hidden');
+        if (stageBadge) stageBadge.innerText = 'At Pickup - Enter PIN';
+      } else if (status === 'IN_TRANSIT') {
+        if (transitControls) transitControls.classList.remove('hidden');
+        if (stageBadge) stageBadge.innerText = 'In Transit to Destination';
+      }
     }
 
     // Incoming Request Modal
-    function showIncomingRequest() {
+    function showIncomingRequest(tripData) {
       if (!isOnline) return;
+      if (tripData) pendingIncomingTrip = tripData;
       const modal = document.getElementById('incoming-request-modal');
-      modal.classList.remove('hidden');
+      if (modal) modal.classList.remove('hidden');
 
-      // Populate dynamic trip data from Real-Time Store
-      const currentTrip = (window.mwendoStore && window.mwendoStore.getState()) ? window.mwendoStore.getState().activeTrip : null;
+      // Populate dynamic trip data from Real-Time Store or incoming payload
+      const currentTrip = tripData || (window.mwendoStore ? window.mwendoStore.getState()?.activeTrip : null);
       if (currentTrip) {
-        const fare = currentTrip.finalFare || 1500;
-        const net = Math.round(fare * 0.70); // 70% Captain Share (30% Gaman Commission)
+        pendingIncomingTrip = currentTrip;
+        const fare = currentTrip.fareMWK || currentTrip.finalFare || 1500;
+        const net = Math.round(fare * 0.70); // 70% Captain Share (30% Platform Commission)
         const pEl = document.getElementById('incoming-pickup-text');
         const dEl = document.getElementById('incoming-dest-text');
         const fEl = document.getElementById('incoming-fare-num');
@@ -827,23 +875,40 @@
         const tEl = document.getElementById('incoming-tier-badge');
         const distEl = document.getElementById('incoming-dist-badge');
 
-        if (pEl) pEl.innerText = currentTrip.pickup || 'Gateway Mall, Kaunda Rd, Area 47';
-        if (dEl) dEl.innerText = currentTrip.destination || 'EPTL Malawi (Area 4 Industrial)';
+        const pickupStr = (typeof currentTrip.pickup === 'string') ? currentTrip.pickup : (currentTrip.pickupAddress || currentTrip.pickup?.name || 'Lilongwe Pickup');
+        const destStr = (typeof currentTrip.destination === 'string') ? currentTrip.destination : (currentTrip.dropoffAddress || currentTrip.destination?.name || 'Lilongwe Destination');
+
+        if (pEl) pEl.innerText = pickupStr;
+        if (dEl) dEl.innerText = destStr;
         if (fEl) fEl.innerText = 'MK ' + fare.toLocaleString();
         if (nEl) nEl.innerText = 'MK ' + net.toLocaleString();
-        if (tEl) tEl.innerText = currentTrip.tier || 'Bike Lift';
-        if (distEl) distEl.innerText = (currentTrip.distanceKm || 2.8) + ' km trip';
+        if (tEl) tEl.innerText = currentTrip.tier || 'Moto Partner';
+        if (distEl) distEl.innerText = (currentTrip.distanceKm || 3.5) + ' km trip';
 
         // Also update navigation view labels for when driver accepts
         const navDest = document.getElementById('nav-dest-label');
         if (navDest) {
-          const destName = (typeof currentTrip.destination === 'string')
-            ? currentTrip.destination.split(',')[0]
-            : (currentTrip.destination?.name || 'Lilongwe');
-          navDest.innerText = 'Destination: ' + destName;
+          navDest.innerText = 'Destination: ' + destStr.split(',')[0];
         }
-        const navPin = document.getElementById('nav-verified-pin');
-        if (navPin) navPin.innerText = currentTrip.isPinVerified ? 'Verified' : '••••';
+        const navPassengerRoute = document.getElementById('nav-passenger-route');
+        if (navPassengerRoute) {
+          navPassengerRoute.innerText = 'Destination: ' + destStr.split(',')[0];
+        }
+        const navGuaranteed = document.getElementById('nav-guaranteed-net-fare');
+        if (navGuaranteed) {
+          navGuaranteed.innerText = 'MWK ' + net.toLocaleString();
+        }
+        const navPayment = document.getElementById('nav-payment-badge');
+        if (navPayment && currentTrip.paymentMethod) {
+          navPayment.innerText = currentTrip.paymentMethod;
+        }
+        const riderName = currentTrip.rider?.name || 'AArohan Passenger';
+        const pName = document.getElementById('nav-passenger-name');
+        if (pName) pName.innerText = riderName;
+        const pAvatar = document.getElementById('nav-passenger-avatar');
+        if (pAvatar) {
+          pAvatar.innerText = riderName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        }
       }
 
       countdownSecs = 15;
@@ -872,17 +937,96 @@
 
     function hideIncomingRequest() {
       clearInterval(countdownInterval);
-      document.getElementById('incoming-request-modal').classList.add('hidden');
+      const modal = document.getElementById('incoming-request-modal');
+      if (modal) modal.classList.add('hidden');
     }
 
     function acceptIncomingTrip() {
       hideIncomingRequest();
-      window.mwendoStore.acceptTrip();
-      switchDriverView('navigation');
+      const currentTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const tripId = currentTrip?.id || currentTrip?.tripId;
+      if (!tripId) {
+        console.warn('[DriverApp] No active tripId to accept');
+        return;
+      }
+      if (window.mwendoStore) {
+        window.mwendoStore.acceptTrip(tripId, (res) => {
+          if (res && res.success) {
+            updateDriverNavControls('DRIVER_ARRIVING');
+            switchDriverView('navigation');
+          } else {
+            alert(res?.error || 'Failed to accept trip');
+          }
+        });
+      }
     }
 
     function declineIncomingTrip() {
       hideIncomingRequest();
+    }
+
+    function handleDriverArrived() {
+      const trip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const tripId = trip?.id || trip?.tripId;
+      if (!tripId) return;
+
+      if (window.mwendoStore) {
+        window.mwendoStore.driverArrived(tripId, (res) => {
+          if (res && res.success) {
+            updateDriverNavControls('ARRIVED');
+          } else {
+            alert(res?.error || 'Failed to update arrival');
+          }
+        });
+      }
+    }
+
+    function handleDriverStartTransit() {
+      const pinInput = document.getElementById('driver-pin-input');
+      const pin = (pinInput ? pinInput.value : '').trim();
+      const errEl = document.getElementById('driver-pin-error');
+      if (errEl) errEl.classList.add('hidden');
+
+      if (!pin) {
+        if (errEl) { errEl.innerText = 'Please enter 4-digit safety PIN'; errEl.classList.remove('hidden'); }
+        return;
+      }
+
+      const trip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const tripId = trip?.id || trip?.tripId;
+      if (!tripId) return;
+
+      if (window.mwendoStore) {
+        window.mwendoStore.startTransit({ tripId, pin }, (res) => {
+          if (res && res.success) {
+            updateDriverNavControls('IN_TRANSIT');
+          } else {
+            const msg = res?.error || 'Invalid passenger safety PIN';
+            if (errEl) { errEl.innerText = msg; errEl.classList.remove('hidden'); }
+            else alert(msg);
+          }
+        });
+      }
+    }
+
+    function handleDriverComplete() {
+      const trip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const tripId = trip?.id || trip?.tripId;
+      if (!tripId) return;
+
+      if (window.mwendoStore) {
+        window.mwendoStore.completeTrip({ tripId, paymentMethod: 'CASH' }, (res) => {
+          if (res && res.success) {
+            const fare = res.trip?.fareMWK || res.trip?.finalFare || 1500;
+            const net = Math.round(fare * 0.70);
+            alert(`Trip completed successfully! MWK ${net.toLocaleString()} net earnings (70%) settled to your driver wallet.`);
+            updateDriverNavControls('COMPLETED');
+            switchDriverView('earnings');
+          } else {
+            alert(res?.error || 'Failed to complete trip');
+          }
+        });
+      }
     }
 
     function simulateTestRequest() {
@@ -947,20 +1091,12 @@
           label.innerText = 'TRIP COMPLETED ✓';
           label.classList.add('text-on-primary');
 
-          window.mwendoStore.completeTrip();
-
-          setTimeout(() => {
-            const currentTrip = (window.mwendoStore && window.mwendoStore.getState()) ? window.mwendoStore.getState().activeTrip : null;
-            const fare = (currentTrip && currentTrip.finalFare) ? currentTrip.finalFare : 6200;
-            const net = Math.round(fare * 0.70);
-            alert(`Trip completed successfully! MWK ${net.toLocaleString()} net earnings (70%) settled to your Gaman driver wallet.`);
-            switchDriverView('earnings');
-            currentX = 0;
-            knob.style.transform = 'translateX(0px)';
-            progress.style.width = '48px';
-            label.innerText = 'SLIDE TO COMPLETE TRIP >>';
-            label.classList.remove('text-on-primary');
-          }, 300);
+          handleDriverComplete();
+          currentX = 0;
+          knob.style.transform = 'translateX(0px)';
+          if (progress) progress.style.width = '48px';
+          label.innerText = 'SLIDE TO COMPLETE TRIP >>';
+          label.classList.remove('text-on-primary');
         } else {
           currentX = 0;
           knob.style.transform = 'translateX(0px)';
@@ -1030,7 +1166,7 @@
     }
 
     // Reactive State Subscriptions
-    window.mwendoStore.subscribe((state, eventName) => {
+    window.mwendoStore.subscribe((state, eventName, payload) => {
       // Update Header Balance & Today Earnings
       const hEarn = document.getElementById('header-today-earnings');
       if (hEarn) hEarn.innerText = 'MWK ' + state.driver.todayEarnings.toLocaleString();
@@ -1073,9 +1209,20 @@
         `).join('');
       }
 
-      // Handle Cross-App Events
-      if (eventName === 'TRIP_REQUESTED') {
-        showIncomingRequest();
+      // Handle Cross-App & Socket Events
+      if (eventName === 'TRIP_REQUESTED' || eventName === 'TRIP_OFFERED') {
+        showIncomingRequest(payload || state.activeTrip);
+      } else if (eventName === 'TRIP_ACCEPTED') {
+        const trip = state.activeTrip;
+        if (trip && (trip.status === 'DRIVER_ARRIVING' || trip.status === 'ACCEPTED')) {
+          updateDriverNavControls(trip.status);
+        }
+      } else if (eventName === 'DRIVER_ARRIVED') {
+        updateDriverNavControls('ARRIVED');
+      } else if (eventName === 'TRIP_IN_TRANSIT') {
+        updateDriverNavControls('IN_TRANSIT');
+      } else if (eventName === 'TRIP_COMPLETED') {
+        updateDriverNavControls('COMPLETED');
       } else if (eventName === 'TRIP_CANCELLED') {
         hideIncomingRequest();
       } else if (eventName === 'STATE_RESET') {
@@ -1091,6 +1238,7 @@
           role: 'DRIVER',
           onAuthenticated: (user) => {
             console.log('[DriverApp] Authenticated driver:', user.phone, user.name);
+            startDriverTelemetry();
             const nameEl = document.getElementById('driver-profile-name');
             if (nameEl) nameEl.innerText = user.name || 'Captain Partner';
             const phoneEl = document.getElementById('driver-session-phone');

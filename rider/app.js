@@ -128,12 +128,26 @@
     initLocationSearch();
     initChatDrawer();
     subscribeToRealtimeStore();
-    loadFrequentPlaces();
-    loadSavedPlaces();
     fetchServerMapConfig();
     initNetworkResilienceMonitor();
     initStaleTelemetryWatchdog();
-    recoverActiveRideSession();
+
+    const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
+    if (token) {
+      loadFrequentPlaces();
+      loadSavedPlaces();
+      recoverActiveRideSession();
+    }
+
+    if (typeof window !== 'undefined' && window.aarohanAuth) {
+      window.aarohanAuth.onAuthChange((user) => {
+        if (user && window.aarohanAuth.getAccessToken()) {
+          loadFrequentPlaces();
+          loadSavedPlaces();
+          recoverActiveRideSession();
+        }
+      });
+    }
   });
 
   // =========================================================================
@@ -1156,6 +1170,19 @@
         durationMins: activeQuote.route.durationMins,
         routeGeometry: activeQuote.route.polyline,
         paymentMethod: activePaymentMethod
+      }, (res) => {
+        if (!res.success) {
+          clearInterval(dispatchCountdownInterval);
+          const errorMsg = res.error || 'Failed to request ride';
+          if (typeof showToast === 'function') {
+            showToast('❌ ' + errorMsg);
+          } else {
+            alert('❌ ' + errorMsg);
+          }
+          window.switchView('booking');
+        } else {
+          console.log('[AArohanBooking] Trip confirmed by server:', res.trip?.id, 'PIN:', res.trip?.pin);
+        }
       });
     }
 
@@ -1485,7 +1512,7 @@
       startDispatchCountdown();
       window.switchView('dispatching');
     }
-    else if (trip.status === 'ACCEPTED') {
+    else if (trip.status === 'ACCEPTED' || trip.status === 'DRIVER_ARRIVING') {
       clearInterval(dispatchCountdownInterval);
       window.switchView('tracking');
 
@@ -1496,7 +1523,7 @@
       if (eta) eta.innerText = `Arriving in ${trip.etaMins || 4} mins`;
 
       const turnText = document.getElementById('turn-instruction-text');
-      if (turnText) turnText.innerText = `Captain ${state.driver?.name || 'Chikondi'} is approaching`;
+      if (turnText) turnText.innerText = `Captain ${state.driver?.name || 'Captain'} is approaching`;
 
       if (window.initTrackingMap) window.initTrackingMap();
     }
@@ -1510,7 +1537,7 @@
       const destName = (typeof trip.destination === 'string') ? trip.destination.split(',')[0] : (trip.destination?.name || 'Destination');
 
       const turnText = document.getElementById('turn-instruction-text');
-      if (turnText) turnText.innerText = `Show PIN ${trip.pin} to Captain ${state.driver?.name || 'Chikondi'}`;
+      if (turnText) turnText.innerText = `Show PIN ${trip.pin} to Captain ${state.driver?.name || 'Captain'}`;
 
       const turnDist = document.getElementById('turn-dist-text');
       if (turnDist) turnDist.innerText = `Waiting at ${pickupName}`;
@@ -1639,7 +1666,11 @@
   // =========================================================================
   async function loadFrequentPlaces() {
     try {
-      const res = await fetch('/api/user/frequent-places');
+      const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
+      if (!token) return; // Delayed until after login
+      const res = await fetch('/api/user/frequent-places', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) {
         const places = await res.json();
         // Dynamically update quick chips if present
@@ -1649,7 +1680,11 @@
 
   async function loadSavedPlaces() {
     try {
-      const res = await fetch('/api/user/saved-places');
+      const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
+      if (!token) return; // Delayed until after login
+      const res = await fetch('/api/user/saved-places', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (res.ok) {
         const saved = await res.json();
       }
@@ -2010,12 +2045,17 @@
     }
 
     // Verify with authoritative server state
-    fetch('/api/trips/active')
-      .then(r => r.json())
+    fetch('/api/trips/active', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => {
+        if (!r.ok) return null;
+        return r.json();
+      })
       .then(serverState => {
         if (serverState && serverState.activeTrip) {
           const trip = serverState.activeTrip;
-          if (['REQUESTED', 'ACCEPTED', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) {
+          if (['REQUESTED', 'ACCEPTED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) {
             console.log('[AArohanRecovery] Server confirmed active trip:', trip.id, trip.status);
             handleStateUpdate(serverState, 'SESSION_RECOVERED', trip);
           }

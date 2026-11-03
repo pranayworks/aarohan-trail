@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node tests/test_financial_engine.js && node tests/verify_e2e.js && node tests/test_rider_audit.js && node tests/test_concurrent_riders.js && node tests/test_e2e_real_sockets.js && node tests/test_backend_auth.js && node tests/test_dispatch_concurrency.js",
+    "test:playwright": "node tests/test_playwright_booking.js",
     "seed": "node prisma/seed.js"
   },
   "prisma": {
@@ -30,6 +31,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "playwright": "^1.64.1",
     "prisma": "6.4.1"
   }
 }

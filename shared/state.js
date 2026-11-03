@@ -73,12 +73,16 @@
       this.channel = null;
       this.socket = null;
       this.isRealtimeConnected = false;
+      this._authListenerAttached = false;
 
-      // 1. Fetch initial state from server API immediately for 0-latency hydration
-      this.fetchInitialState();
+      // 1. Attach auth lifecycle to delay socket & active trip fetch until token exists
+      this.attachAuthLifecycle();
 
-      // 2. Initialize WebSocket Connection
-      this.initSocketIo();
+      // If token already present, initialize immediately
+      if (typeof window !== 'undefined' && window.aarohanAuth && window.aarohanAuth.getAccessToken()) {
+        this.fetchInitialState();
+        this.initSocketIo();
+      }
 
       // 3. BroadcastChannel fallback
       try {
@@ -103,30 +107,85 @@
       });
     }
 
-    fetchInitialState() {
-      const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
-      const headers = {};
-      if (typeof window !== 'undefined' && window.aarohanAuth && window.aarohanAuth.getAccessToken()) {
-        headers['Authorization'] = `Bearer ${window.aarohanAuth.getAccessToken()}`;
+    attachAuthLifecycle() {
+      const tryAttach = () => {
+        if (typeof window !== 'undefined' && window.aarohanAuth && !this._authListenerAttached) {
+          this._authListenerAttached = true;
+          window.aarohanAuth.onAuthChange((user) => {
+            const token = window.aarohanAuth.getAccessToken();
+            if (user && token) {
+              if (!this.socket) {
+                this.initSocketIo();
+              } else {
+                this.socket.auth = { token };
+                if (!this.socket.connected) this.socket.connect();
+              }
+              this.fetchInitialState();
+            } else {
+              if (this.socket) {
+                this.socket.disconnect();
+                this.socket = null;
+                this.isRealtimeConnected = false;
+                this.updateConnectionBadge(false);
+              }
+            }
+          });
+
+          if (window.aarohanAuth.getAccessToken() && !this.socket) {
+            this.fetchInitialState();
+            this.initSocketIo();
+          }
+        }
+      };
+
+      if (typeof window !== 'undefined') {
+        if (window.aarohanAuth) {
+          tryAttach();
+        } else {
+          window.addEventListener('DOMContentLoaded', tryAttach);
+          setTimeout(tryAttach, 0);
+          setTimeout(tryAttach, 50);
+          setTimeout(tryAttach, 200);
+        }
       }
+    }
+
+    fetchInitialState() {
+      const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
+      if (!token) return; // Delay until after login
+
+      const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
+      const headers = { 'Authorization': `Bearer ${token}` };
+
       fetch(`${origin}/api/trips/active`, { headers })
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) return null;
+          return r.json();
+        })
         .then(serverState => {
-          if (serverState) {
-            this.saveState(serverState);
-            this.notifyListeners(serverState, 'SYNC', null);
+          if (serverState && !serverState.error && serverState.activeTrip) {
+            const current = this.getState();
+            const merged = Object.assign({}, current, serverState);
+            this.saveState(merged);
+            this.notifyListeners(merged, 'SYNC', null);
           }
         })
         .catch(err => console.warn('Could not fetch initial server state:', err));
     }
 
     initSocketIo() {
+      this.attachAuthLifecycle();
+      const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
+      if (!token) {
+        // Connect only after access token exists
+        return;
+      }
+
       // Connect to Socket.IO if available
       const setupSocket = () => {
         if (typeof window.io === 'function' && !this.socket) {
           try {
             const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
-            const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
             this.socket = window.io(origin, {
               transports: ['websocket'],
               auth: { token },
@@ -134,6 +193,10 @@
               reconnectionDelay: 1000,
               timeout: 6000
             });
+
+            if (window.aarohanAuth) {
+              window.aarohanAuth.activeSocket = this.socket;
+            }
 
             this.socket.on('connect_error', async (err) => {
               console.warn('[MwendoStateStore] ⚠️ Socket handshake error:', err.message);
@@ -161,24 +224,58 @@
 
             // Synchronize full state from server
             this.socket.on('state:sync', (serverState) => {
-              if (serverState) {
-                this.saveState(serverState);
-                this.notifyListeners(serverState, 'SYNC', null);
+              if (serverState && !serverState.error) {
+                const current = this.getState();
+                const merged = Object.assign({}, current, serverState);
+                this.saveState(merged);
+                this.notifyListeners(merged, 'SYNC', null);
               }
             });
 
             // Real-Time Events
             this.socket.on('trip:requested', (trip) => {
               const state = this.getState();
-              state.activeTrip = trip;
+              state.activeTrip = Object.assign({}, state.activeTrip, trip);
               this.saveState(state);
               this.notifyListeners(state, 'TRIP_REQUESTED', trip);
               if (window.mwendoSound) window.mwendoSound.playDispatchAlert();
             });
 
+            this.socket.on('trip:offered', (offerPayload) => {
+              const state = this.getState();
+              if (offerPayload && offerPayload.tripId) {
+                state.activeTrip.id = offerPayload.tripId;
+                state.activeTrip.status = 'OFFERED';
+              }
+              this.saveState(state);
+              this.notifyListeners(state, 'TRIP_OFFERED', offerPayload);
+              if (window.mwendoSound) window.mwendoSound.playDispatchAlert();
+            });
+
+            this.socket.on('trip:offer', (payload) => {
+              const state = this.getState();
+              if (payload && payload.trip) {
+                state.activeTrip = Object.assign({}, state.activeTrip, payload.trip);
+              }
+              this.saveState(state);
+              this.notifyListeners(state, 'TRIP_OFFERED', payload);
+              if (window.mwendoSound) window.mwendoSound.playDispatchAlert();
+            });
+
             this.socket.on('trip:accepted', (payload) => {
               const state = this.getState();
-              state.activeTrip = payload.trip || state.activeTrip;
+              const trip = payload.trip || payload;
+              state.activeTrip = Object.assign({}, state.activeTrip, trip);
+              if (payload.driver) {
+                state.driver = Object.assign({}, state.driver, {
+                  id: payload.driver.id,
+                  name: payload.driver.user?.name || payload.driver.name || state.driver.name,
+                  phone: payload.driver.user?.phone || payload.driver.phone || state.driver.phone,
+                  plate: payload.driver.vehicle?.plateNumber || payload.driver.plate || state.driver.plate,
+                  car: payload.driver.vehicle?.model || payload.driver.vehicle?.make || payload.driver.car || 'Partner Vehicle',
+                  rating: payload.driver.rating || state.driver.rating || 5.0
+                });
+              }
               this.saveState(state);
               this.notifyListeners(state, 'TRIP_ACCEPTED', payload);
               if (window.mwendoSound) window.mwendoSound.playAcceptChime();
@@ -193,7 +290,17 @@
 
             this.socket.on('trip:arrived', (trip) => {
               const state = this.getState();
-              state.activeTrip = trip;
+              state.activeTrip = Object.assign({}, state.activeTrip, trip);
+              if (trip.driver) {
+                state.driver = Object.assign({}, state.driver, {
+                  id: trip.driver.id,
+                  name: trip.driver.user?.name || trip.driver.name || state.driver.name,
+                  phone: trip.driver.user?.phone || trip.driver.phone || state.driver.phone,
+                  plate: trip.driver.vehicle?.plateNumber || trip.driver.plate || state.driver.plate,
+                  car: trip.driver.vehicle?.model || trip.driver.vehicle?.make || trip.driver.car || 'Partner Vehicle',
+                  rating: trip.driver.rating || state.driver.rating || 5.0
+                });
+              }
               this.saveState(state);
               this.notifyListeners(state, 'DRIVER_ARRIVED', trip);
               if (window.mwendoSound) window.mwendoSound.playTone(600, 'triangle', 0.2);
@@ -201,16 +308,17 @@
 
             this.socket.on('trip:in_transit', (trip) => {
               const state = this.getState();
-              state.activeTrip = trip;
+              state.activeTrip = Object.assign({}, state.activeTrip, trip);
               this.saveState(state);
               this.notifyListeners(state, 'TRIP_IN_TRANSIT', trip);
             });
 
             this.socket.on('trip:completed', (payload) => {
               const state = this.getState();
-              state.activeTrip = payload.trip || state.activeTrip;
-              if (payload.rider) state.rider = payload.rider;
-              if (payload.driver) state.driver = payload.driver;
+              const trip = payload.trip || payload;
+              state.activeTrip = Object.assign({}, state.activeTrip, trip);
+              if (payload.rider) state.rider = Object.assign({}, state.rider, payload.rider);
+              if (payload.driver) state.driver = Object.assign({}, state.driver, payload.driver);
               this.saveState(state);
               this.notifyListeners(state, 'TRIP_COMPLETED', payload);
               if (window.mwendoSound) window.mwendoSound.playTripCompleteFanfare();
@@ -296,13 +404,19 @@
       }
       try {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.activeTrip) {
-          if (parsed.activeTrip.destination && typeof parsed.activeTrip.destination !== 'string') {
-            parsed.activeTrip.destination = parsed.activeTrip.destination.name || parsed.activeTrip.destination.address || 'Destination';
+        if (!parsed || typeof parsed !== 'object' || parsed.error || !parsed.activeTrip) {
+          const healed = Object.assign({}, defaultInitialState, (parsed && typeof parsed === 'object' && !parsed.error) ? parsed : {});
+          if (!healed.activeTrip || typeof healed.activeTrip !== 'object') {
+            healed.activeTrip = Object.assign({}, defaultInitialState.activeTrip);
           }
-          if (parsed.activeTrip.pickup && typeof parsed.activeTrip.pickup !== 'string') {
-            parsed.activeTrip.pickup = parsed.activeTrip.pickup.name || parsed.activeTrip.pickup.address || 'Pickup Point';
-          }
+          this.saveState(healed);
+          return healed;
+        }
+        if (parsed.activeTrip.destination && typeof parsed.activeTrip.destination !== 'string') {
+          parsed.activeTrip.destination = parsed.activeTrip.destination.name || parsed.activeTrip.destination.address || 'Destination';
+        }
+        if (parsed.activeTrip.pickup && typeof parsed.activeTrip.pickup !== 'string') {
+          parsed.activeTrip.pickup = parsed.activeTrip.pickup.name || parsed.activeTrip.pickup.address || 'Pickup Point';
         }
         return parsed;
       } catch (e) {
@@ -312,13 +426,15 @@
 
     saveState(state) {
       try {
-        if (state && state.activeTrip) {
-          if (state.activeTrip.destination && typeof state.activeTrip.destination !== 'string') {
-            state.activeTrip.destination = state.activeTrip.destination.name || state.activeTrip.destination.address || 'Destination';
-          }
-          if (state.activeTrip.pickup && typeof state.activeTrip.pickup !== 'string') {
-            state.activeTrip.pickup = state.activeTrip.pickup.name || state.activeTrip.pickup.address || 'Pickup Point';
-          }
+        if (!state || typeof state !== 'object' || state.error) return;
+        if (!state.activeTrip) {
+          state.activeTrip = Object.assign({}, defaultInitialState.activeTrip);
+        }
+        if (state.activeTrip.destination && typeof state.activeTrip.destination !== 'string') {
+          state.activeTrip.destination = state.activeTrip.destination.name || state.activeTrip.destination.address || 'Destination';
+        }
+        if (state.activeTrip.pickup && typeof state.activeTrip.pickup !== 'string') {
+          state.activeTrip.pickup = state.activeTrip.pickup.name || state.activeTrip.pickup.address || 'Pickup Point';
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (e) {}
@@ -366,41 +482,107 @@
 
     // --- Action Methods ---
 
-    requestTrip({ pickup, destination, tier, fare, paymentMethod, distanceKm, quoteId, tierId, routeGeometry, durationMins, pickupCoords, dropoffCoords }) {
+    requestTrip(params = {}, callback) {
       const state = this.getState();
+      if (!state.activeTrip) {
+        state.activeTrip = Object.assign({}, defaultInitialState.activeTrip);
+      }
+      const {
+        pickup,
+        destination,
+        tier,
+        fare,
+        paymentMethod,
+        distanceKm,
+        quoteId,
+        tierId,
+        routeGeometry,
+        durationMins,
+        pickupCoords,
+        dropoffCoords
+      } = params;
+
+      const pickupStr = (typeof pickup === 'string') ? pickup : (pickup?.name || pickup?.address || 'Pickup Point');
+      const destStr = (typeof destination === 'string') ? destination : (destination?.name || destination?.address || 'Destination');
+
       state.activeTrip.status = 'REQUESTED';
-      const pickupStr = (typeof pickup === 'string') ? pickup : (pickup?.name || pickup?.address || state.activeTrip.pickup || 'Pickup');
-      const destStr = (typeof destination === 'string') ? destination : (destination?.name || destination?.address || state.activeTrip.destination || 'Destination');
       state.activeTrip.pickup = pickupStr;
       state.activeTrip.destination = destStr;
-      state.activeTrip.tier = tier || state.activeTrip.tier;
-      state.activeTrip.tierId = tierId || 'moto';
+      state.activeTrip.tier = tier || state.activeTrip.tier || 'Moto';
+      state.activeTrip.tierId = (tierId || 'moto').toLowerCase();
       state.activeTrip.quoteId = quoteId || null;
-      state.activeTrip.finalFare = fare || state.activeTrip.finalFare;
-      state.activeTrip.paymentMethod = paymentMethod || state.activeTrip.paymentMethod;
-      state.activeTrip.distanceKm = distanceKm || 6.8;
-      state.activeTrip.durationMins = durationMins || 15;
+      state.activeTrip.finalFare = fare || state.activeTrip.finalFare || 1500;
+      state.activeTrip.paymentMethod = paymentMethod || 'CASH';
+      state.activeTrip.distanceKm = distanceKm || 3.5;
+      state.activeTrip.durationMins = durationMins || 8;
       state.activeTrip.routeGeometry = routeGeometry || null;
       state.activeTrip.pickupCoords = pickupCoords || null;
       state.activeTrip.dropoffCoords = dropoffCoords || null;
       state.activeTrip.requestedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      state.activeTrip.pin = Math.floor(1000 + Math.random() * 9000).toString();
 
       this.saveState(state);
       this.broadcast('TRIP_REQUESTED', state.activeTrip);
       this.notifyListeners(state, 'TRIP_REQUESTED', state.activeTrip);
 
+      const requestPayload = {
+        quoteId: quoteId || undefined,
+        tierId: (tierId || 'moto').toLowerCase(),
+        fare: fare ? Math.round(fare) : undefined,
+        paymentMethod: paymentMethod || 'CASH',
+        pickup: (pickupCoords && typeof pickupCoords.lat === 'number') ? {
+          name: pickupStr,
+          lat: pickupCoords.lat,
+          lng: pickupCoords.lng
+        } : pickupStr,
+        destination: (dropoffCoords && typeof dropoffCoords.lat === 'number') ? {
+          name: destStr,
+          lat: dropoffCoords.lat,
+          lng: dropoffCoords.lng
+        } : destStr,
+        distanceKm: distanceKm || 3.5,
+        durationMins: durationMins || 8
+      };
+
       if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('trip:request', state.activeTrip);
+        this.socket.emit('trip:request', requestPayload, (res) => {
+          if (res && res.success && res.trip) {
+            const curState = this.getState();
+            curState.activeTrip = Object.assign({}, curState.activeTrip, res.trip);
+            this.saveState(curState);
+            this.broadcast('TRIP_REQUESTED', curState.activeTrip);
+            this.notifyListeners(curState, 'TRIP_REQUESTED', curState.activeTrip);
+            if (typeof callback === 'function') callback({ success: true, trip: res.trip });
+          } else {
+            const errorMsg = (res && res.error) ? res.error : 'Trip request failed';
+            console.error('[MwendoStateStore] trip:request failed:', errorMsg);
+            if (typeof callback === 'function') callback({ success: false, error: errorMsg });
+            if (typeof window.showToast === 'function') window.showToast('⚠️ ' + errorMsg);
+          }
+        });
+      } else {
+        const errorMsg = 'Not connected to real-time server. Please log in or check connection.';
+        console.warn('[MwendoStateStore]', errorMsg);
+        if (typeof callback === 'function') callback({ success: false, error: errorMsg });
+        if (typeof window.showToast === 'function') window.showToast('⚠️ ' + errorMsg);
       }
 
       if (window.mwendoSound) window.mwendoSound.playDispatchAlert();
       return state.activeTrip;
     }
 
-    acceptTrip() {
+    acceptTrip(tripIdOrData, callback) {
       const state = this.getState();
-      state.activeTrip.status = 'ACCEPTED';
+      const id = (typeof tripIdOrData === 'string')
+        ? tripIdOrData
+        : (tripIdOrData?.tripId || tripIdOrData?.id || state.activeTrip?.id);
+
+      if (!id) {
+        if (typeof callback === 'function') callback({ success: false, error: 'tripId is required' });
+        return;
+      }
+
+      state.activeTrip.id = id;
+      state.activeTrip.status = 'DRIVER_ARRIVING';
       state.activeTrip.acceptedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       this.saveState(state);
@@ -408,7 +590,21 @@
       this.notifyListeners(state, 'TRIP_ACCEPTED', state.activeTrip);
 
       if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('trip:accept', state.activeTrip);
+        this.socket.emit('trip:accept', { tripId: id }, (res) => {
+          if (res && res.success && res.trip) {
+            const cur = this.getState();
+            cur.activeTrip = Object.assign({}, cur.activeTrip, res.trip);
+            this.saveState(cur);
+            this.broadcast('TRIP_ACCEPTED', cur.activeTrip);
+            this.notifyListeners(cur, 'TRIP_ACCEPTED', cur.activeTrip);
+            if (typeof callback === 'function') callback({ success: true, trip: res.trip });
+          } else {
+            const errorMsg = res?.error || 'Failed to accept trip';
+            if (typeof callback === 'function') callback({ success: false, error: errorMsg });
+          }
+        });
+      } else {
+        if (typeof callback === 'function') callback({ success: false, error: 'Not connected to server' });
       }
 
       if (window.mwendoSound) window.mwendoSound.playAcceptChime();
@@ -426,100 +622,124 @@
       }
     }
 
-    driverArrived() {
+    driverArrived(tripIdOrData, callback) {
       const state = this.getState();
+      const id = (typeof tripIdOrData === 'string')
+        ? tripIdOrData
+        : (tripIdOrData?.tripId || tripIdOrData?.id || state.activeTrip?.id);
+
       state.activeTrip.status = 'ARRIVED';
       this.saveState(state);
       this.broadcast('DRIVER_ARRIVED', state.activeTrip);
       this.notifyListeners(state, 'DRIVER_ARRIVED', state.activeTrip);
 
-      if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('trip:arrived');
+      if (this.socket && this.isRealtimeConnected && id) {
+        this.socket.emit('trip:arrived', { tripId: id }, (res) => {
+          if (res && res.success && res.trip) {
+            const cur = this.getState();
+            cur.activeTrip = Object.assign({}, cur.activeTrip, res.trip);
+            this.saveState(cur);
+            this.broadcast('DRIVER_ARRIVED', cur.activeTrip);
+            this.notifyListeners(cur, 'DRIVER_ARRIVED', cur.activeTrip);
+            if (typeof callback === 'function') callback({ success: true, trip: res.trip });
+          } else {
+            if (typeof callback === 'function') callback({ success: false, error: res?.error || 'Failed to update arrival' });
+          }
+        });
+      } else {
+        if (typeof callback === 'function') callback({ success: true, trip: state.activeTrip });
       }
     }
 
-    startTransit() {
+    startTransit(data = {}, callback) {
       const state = this.getState();
-      state.activeTrip.status = 'IN_TRANSIT';
+      const id = (typeof data === 'string')
+        ? data
+        : (data.tripId || data.id || state.activeTrip?.id);
+      const pinStr = (data.pin || state.activeTrip?.pin || '').toString().trim();
 
-      this.saveState(state);
-      this.broadcast('TRIP_IN_TRANSIT', state.activeTrip);
-      this.notifyListeners(state, 'TRIP_IN_TRANSIT', state.activeTrip);
+      if (!id || !pinStr) {
+        const msg = 'tripId and 4-digit PIN required';
+        if (typeof callback === 'function') callback({ success: false, error: msg });
+        return;
+      }
 
       if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('trip:start_transit');
+        this.socket.emit('trip:start_transit', { tripId: id, pin: pinStr }, (res) => {
+          if (res && res.success && res.trip) {
+            const cur = this.getState();
+            cur.activeTrip = Object.assign({}, cur.activeTrip, res.trip);
+            cur.activeTrip.status = 'IN_TRANSIT';
+            this.saveState(cur);
+            this.broadcast('TRIP_IN_TRANSIT', cur.activeTrip);
+            this.notifyListeners(cur, 'TRIP_IN_TRANSIT', cur.activeTrip);
+            if (typeof callback === 'function') callback({ success: true, trip: res.trip });
+          } else {
+            const err = res?.error || 'PIN verification failed';
+            if (typeof callback === 'function') callback({ success: false, error: err });
+          }
+        });
+      } else {
+        state.activeTrip.status = 'IN_TRANSIT';
+        this.saveState(state);
+        this.broadcast('TRIP_IN_TRANSIT', state.activeTrip);
+        this.notifyListeners(state, 'TRIP_IN_TRANSIT', state.activeTrip);
+        if (typeof callback === 'function') callback({ success: true, trip: state.activeTrip });
       }
 
       return state.activeTrip;
     }
 
-    completeTrip() {
+    completeTrip(params = {}, callback) {
       const state = this.getState();
+      const id = (typeof params === 'string')
+        ? params
+        : (params.tripId || params.id || state.activeTrip?.id);
+      const paymentMethod = params.paymentMethod || state.activeTrip?.paymentMethod || 'CASH';
+      const driverTip = params.driverTip || 0;
+
       state.activeTrip.status = 'COMPLETED';
       state.activeTrip.completedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      const fare = state.activeTrip.finalFare || 6200;
-      const netDriverEarnings = Math.round(fare * 0.70); // 70% Driver Share
-      const platformCommission = fare - netDriverEarnings; // 30% Gaman Commission
-
-      state.rider.walletBalance = Math.max(0, state.rider.walletBalance - fare);
-      state.rider.tripsCompleted += 1;
-
-      state.driver.availableBalance += netDriverEarnings;
-      state.driver.todayEarnings += netDriverEarnings;
-      state.driver.todayTrips += 1;
-      state.driver.tripsCompleted += 1;
-
-      const destStr = typeof state.activeTrip.destination === 'string'
-        ? state.activeTrip.destination
-        : (state.activeTrip.destination?.name || state.activeTrip.destination?.address || 'Destination');
-      const pickupStr = typeof state.activeTrip.pickup === 'string'
-        ? state.activeTrip.pickup
-        : (state.activeTrip.pickup?.name || state.activeTrip.pickup?.address || 'Pickup');
-      const methodStr = typeof state.activeTrip.paymentMethod === 'string'
-        ? state.activeTrip.paymentMethod.split(' ')[0]
-        : 'Digital';
-
-      state.transactionLogs.unshift({
-        id: 'TX-' + Math.floor(100 + Math.random() * 900),
-        type: 'TRIP',
-        title: `Trip to ${destStr.split(',')[0]}`,
-        amount: -fare,
-        method: methodStr,
-        time: 'Just now',
-        status: 'Completed'
-      });
-
-      state.driverSettlements.unshift({
-        id: 'DS-' + Math.floor(200 + Math.random() * 800),
-        title: `${pickupStr.split(',')[0]} to ${destStr.split(',')[0]}`,
-        amount: netDriverEarnings,
-        method: '70% Driver Share (30% AArohan Escrow)',
-        time: 'Just now',
-        status: 'Instant Settled'
-      });
 
       this.saveState(state);
       this.broadcast('TRIP_COMPLETED', state.activeTrip);
       this.notifyListeners(state, 'TRIP_COMPLETED', state.activeTrip);
 
-      if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('trip:complete');
+      if (this.socket && this.isRealtimeConnected && id) {
+        this.socket.emit('trip:complete', { tripId: id, paymentMethod, driverTip }, (res) => {
+          if (res && res.success && res.trip) {
+            const cur = this.getState();
+            cur.activeTrip = Object.assign({}, cur.activeTrip, res.trip);
+            this.saveState(cur);
+            this.broadcast('TRIP_COMPLETED', cur.activeTrip);
+            this.notifyListeners(cur, 'TRIP_COMPLETED', cur.activeTrip);
+            if (typeof callback === 'function') callback({ success: true, trip: res.trip });
+          } else {
+            if (typeof callback === 'function') callback({ success: false, error: res?.error || 'Failed to complete trip' });
+          }
+        });
+      } else {
+        if (typeof callback === 'function') callback({ success: true, trip: state.activeTrip });
       }
 
       if (window.mwendoSound) window.mwendoSound.playTripCompleteFanfare();
       return state;
     }
 
-    cancelTrip(reason = 'Cancelled by user') {
+    cancelTrip(reason = 'Cancelled by user', callback) {
       const state = this.getState();
+      const id = state.activeTrip?.id;
       state.activeTrip.status = 'IDLE';
       this.saveState(state);
       this.broadcast('TRIP_CANCELLED', { reason });
       this.notifyListeners(state, 'TRIP_CANCELLED', { reason });
 
       if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('trip:cancel', reason);
+        this.socket.emit('trip:cancel', { tripId: id, reason }, (res) => {
+          if (typeof callback === 'function') callback(res);
+        });
+      } else if (typeof callback === 'function') {
+        callback({ success: true });
       }
     }
 
