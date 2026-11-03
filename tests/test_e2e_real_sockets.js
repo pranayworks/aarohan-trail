@@ -23,15 +23,17 @@
 const assert = require('assert');
 const ioClient = require('socket.io-client');
 const prisma = require('../lib/prisma');
+const authService = require('../services/auth');
 const { app, server } = require('../server');
 
 const BASE_URL = 'http://127.0.0.1:3000';
 
 function connectSocket(userId, role, driverId = null) {
+  const token = authService.issueAccessToken({ id: userId, role, driverProfile: driverId ? { id: driverId } : null });
   return new Promise((resolve, reject) => {
     const socket = ioClient(BASE_URL, {
       transports: ['websocket'],
-      auth: { userId, role, driverId }
+      auth: { token, userId, role, driverId }
     });
 
     const timeout = setTimeout(() => {

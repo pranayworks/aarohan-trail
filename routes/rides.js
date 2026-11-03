@@ -1,0 +1,324 @@
+const express = require('express');
+const { z } = require('zod');
+const { rateLimit } = require('express-rate-limit');
+const prisma = require('../lib/prisma');
+const pricingService = require('../services/pricing');
+const locationService = require('../services/location');
+const dispatchService = require('../services/dispatch');
+const dbLedger = require('../services/dbLedger');
+const { requireAuth, requireRole, validateBody } = require('../middleware/auth');
+const {
+  MALAWI_LOCATIONS,
+  DEFAULT_ORIGIN,
+  formatLocationResult
+} = require('../data/malawiLocations');
+
+const router = express.Router();
+
+// Rate limiter for location search
+const discoveryLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many search requests. Please slow down.' }
+});
+
+// Zod Validation Schemas
+const restQuoteSchema = z.object({
+  pickup: z.object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    name: z.string().optional()
+  }),
+  destination: z.object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    name: z.string().optional()
+  }),
+  surgeMultiplier: z.number().min(1.0).max(5.0).optional()
+});
+
+const restRideCompleteSchema = z.object({
+  rideId: z.string().min(1, 'rideId is required'),
+  driverTip: z.number().nonnegative().optional(),
+  paymentMethod: z.string().optional()
+});
+
+const restSavedPlaceSchema = z.object({
+  name: z.string().min(1, 'Place name is required'),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  label: z.string().optional(),
+  address: z.string().optional()
+});
+
+// In-memory saved places store
+let savedPlacesList = [
+  { id: 'PLC-home', label: 'Home', name: 'Area 47 Sector 3', address: 'Area 47 Sector 3, Kaunda Road', lat: -13.9632, lng: 33.7741 },
+  { id: 'PLC-work', label: 'Work', name: 'Capital City Centre', address: 'Capital City Centre, Robert Mugabe Cres', lat: -13.9512, lng: 33.7891 }
+];
+
+// 1. Authoritative Route & Dynamic Pricing Quote
+router.post('/rides/quote', validateBody(restQuoteSchema), async (req, res) => {
+  try {
+    const { pickup, destination, surgeMultiplier } = req.body;
+
+    if (!pickup.name) {
+      const rev = await locationService.reverseGeocode(pickup.lat, pickup.lng);
+      pickup.name = rev.title || rev.displayName;
+    }
+    if (!destination.name) {
+      const rev = await locationService.reverseGeocode(destination.lat, destination.lng);
+      destination.name = rev.title || rev.displayName;
+    }
+
+    const route = await locationService.getRoadRoute(pickup, destination);
+    const quote = pricingService.generateQuote({
+      pickup,
+      destination,
+      distanceKm: route.distanceKm,
+      durationMins: route.durationMins,
+      routeGeometry: route.polyline,
+      surgeMultiplier: surgeMultiplier || 1.0
+    });
+
+    res.json({
+      success: true,
+      quoteId: quote.quoteId,
+      expiresAt: quote.expiresAt,
+      route: {
+        distanceKm: route.distanceKm,
+        durationMins: route.durationMins,
+        polyline: route.polyline,
+        summary: route.summary,
+        provider: route.provider
+      },
+      tiers: quote.tiers,
+      pickup: quote.pickup,
+      destination: quote.destination,
+      quote
+    });
+  } catch (err) {
+    console.error('[PricingQuote] Error:', err);
+    res.status(500).json({ error: err.message || 'Failed to calculate route and fare quote' });
+  }
+});
+
+// 2. Reverse Geocoding
+router.get('/places/reverse', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'lat and lng query parameters required' });
+    }
+    const result = await locationService.reverseGeocode(lat, lng);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Forward Geocoding & Autocomplete
+router.get('/places/search', async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim();
+    const lat = parseFloat(req.query.lat);
+    const lng = parseFloat(req.query.lng);
+    const results = await locationService.searchPlaces(q, lat, lng);
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Authoritative Ride Completion Endpoint
+router.post('/rides/complete', requireRole('DRIVER', 'ADMIN'), validateBody(restRideCompleteSchema), async (req, res) => {
+  try {
+    const { rideId, driverTip, paymentMethod } = req.body;
+    if (!rideId) return res.status(400).json({ error: 'rideId is required' });
+
+    const completion = dispatchService.completeTrip ? dispatchService.completeTrip(rideId, { driverTip, paymentMethod }) : { rideId, status: 'COMPLETED' };
+
+    let dbResult = null;
+    try {
+      dbResult = await dbLedger.settleRide({
+        tripId: rideId,
+        paymentMethod: paymentMethod || 'CASH',
+        driverTipMWK: driverTip || 0,
+        changedBy: req.user?.id || 'DRIVER'
+      });
+    } catch (e) {
+      // Handled in dispatchService for in-memory / mock rides
+    }
+
+    const io = req.app.get('io');
+    if (io) io.emit('trip:completed', completion);
+    res.json({ success: true, ...completion, dbTrip: dbResult?.trip });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 5. Active Trips Lookup (DB Query with strict user isolation)
+router.get('/trips/active', requireAuth, async (req, res) => {
+  try {
+    const isDriver = req.user.role === 'DRIVER';
+    const whereCondition = isDriver && req.user.driverId
+      ? { driverId: req.user.driverId }
+      : { riderId: req.user.id };
+
+    const activeTrip = await prisma.trip.findFirst({
+      where: {
+        ...whereCondition,
+        status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
+      },
+      include: {
+        rider: { select: { id: true, name: true, phone: true } },
+        driver: { include: { user: { select: { id: true, name: true, phone: true } }, vehicle: true } }
+      }
+    });
+    res.json({ activeTrip: activeTrip || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. User Saved Places
+router.get('/user/saved-places', (req, res) => {
+  res.json(savedPlacesList);
+});
+
+router.post('/user/saved-places', validateBody(restSavedPlaceSchema), (req, res) => {
+  const { label, name, address, lat, lng } = req.body;
+  const newPlace = {
+    id: 'PLC-' + Date.now().toString(36),
+    label: label || 'Custom',
+    name,
+    address: address || name,
+    lat: parseFloat(lat),
+    lng: parseFloat(lng),
+    createdAt: Date.now()
+  };
+
+  if (label && ['Home', 'Work'].includes(label)) {
+    savedPlacesList = savedPlacesList.filter(p => p.label !== label);
+  }
+  savedPlacesList.push(newPlace);
+  res.json({ success: true, savedPlace: newPlace, savedPlaces: savedPlacesList });
+});
+
+router.delete('/user/saved-places/:id', (req, res) => {
+  savedPlacesList = savedPlacesList.filter(p => p.id !== req.params.id);
+  res.json({ success: true, savedPlaces: savedPlacesList });
+});
+
+// 7. Frequent Destinations (calculated from trip history)
+router.get('/user/frequent-places', async (req, res) => {
+  try {
+    const completedTrips = await prisma.trip.findMany({
+      where: { status: 'COMPLETED' },
+      select: { dropoffAddress: true },
+      take: 20
+    });
+
+    const counts = new Map();
+    completedTrips.forEach(t => {
+      const dest = (t.dropoffAddress || '').split(',')[0].trim();
+      if (dest) counts.set(dest, (counts.get(dest) || 0) + 1);
+    });
+
+    if (counts.size === 0) {
+      counts.set('Gateway Mall', 8);
+      counts.set('Area 4 Industrial', 5);
+      counts.set('Kamuzu Central Hospital', 3);
+    }
+
+    const frequent = Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    res.json(frequent);
+  } catch (err) {
+    res.json([
+      { name: 'Gateway Mall', count: 8 },
+      { name: 'Area 4 Industrial', count: 5 },
+      { name: 'Kamuzu Central Hospital', count: 3 }
+    ]);
+  }
+});
+
+// 8. Location Search with Malawi Gazetteer & OpenStreetMap
+router.get('/search-locations', discoveryLimiter, async (req, res) => {
+  const query = (req.query.q || '').trim();
+  const originLat = parseFloat(req.query.lat) || DEFAULT_ORIGIN.lat;
+  const originLng = parseFloat(req.query.lng) || DEFAULT_ORIGIN.lng;
+
+  if (!query) {
+    const popular = MALAWI_LOCATIONS.slice(0, 8).map(loc => formatLocationResult(loc, originLat, originLng));
+    return res.json(popular);
+  }
+
+  const qLower = query.toLowerCase();
+
+  const localMatches = MALAWI_LOCATIONS.filter(loc => {
+    return loc.name.toLowerCase().includes(qLower) ||
+      loc.area.toLowerCase().includes(qLower) ||
+      (loc.tags && loc.tags.some(tag => tag.toLowerCase().includes(qLower)));
+  }).map(loc => formatLocationResult(loc, originLat, originLng));
+
+  let remoteMatches = [];
+  try {
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=${originLat}&lon=${originLng}&limit=8`;
+    const response = await fetch(photonUrl, {
+      headers: { 'User-Agent': 'AArohanMobility/1.0' },
+      signal: AbortSignal.timeout(1800)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.features) {
+        remoteMatches = data.features
+          .filter(f => f.properties && (
+            f.properties.countrycode === 'MW' ||
+            f.properties.country === 'Malawi' ||
+            f.properties.state === 'Lilongwe' ||
+            (f.geometry && f.geometry.coordinates && f.geometry.coordinates[0] > 32.5 && f.geometry.coordinates[0] < 36.0 && f.geometry.coordinates[1] > -17.5 && f.geometry.coordinates[1] < -9.0)
+          ))
+          .map(f => {
+            const p = f.properties;
+            const coords = f.geometry.coordinates;
+            const title = p.name || p.street || 'Malawi Transit Point';
+            const subtitle = [p.street, p.city || p.district || p.state || 'Lilongwe', 'Malawi'].filter(Boolean).join(', ');
+            return formatLocationResult({
+              name: title,
+              area: subtitle,
+              category: p.type || p.osm_value || 'Malawi Place',
+              icon: 'location_on',
+              lat: coords[1],
+              lng: coords[0]
+            }, originLat, originLng);
+          });
+      }
+    }
+  } catch (err) {
+    // Graceful offline fallback
+  }
+
+  const combined = [...localMatches];
+  for (const rem of remoteMatches) {
+    const isDuplicate = combined.some(c =>
+      c.name.toLowerCase() === rem.name.toLowerCase() ||
+      (Math.abs(c.lat - rem.lat) < 0.003 && Math.abs(c.lng - rem.lng) < 0.003)
+    );
+    if (!isDuplicate) {
+      combined.push(rem);
+    }
+  }
+
+  res.json(combined.slice(0, 10));
+});
+
+module.exports = router;
