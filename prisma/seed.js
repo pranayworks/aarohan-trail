@@ -7,8 +7,10 @@ require('dotenv').config();
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
 
+const bcrypt = require('bcryptjs');
+
 function hashPassword(password) {
-  return crypto.scryptSync(password, 'aarohan_salt_lilongwe', 64).toString('hex');
+  return bcrypt.hashSync(password, 12);
 }
 
 async function main() {

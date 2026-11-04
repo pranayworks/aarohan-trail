@@ -806,6 +806,13 @@
 
     // Online / Offline Switch
     function toggleOnlineStatus() {
+      const user = window.aarohanAuth ? window.aarohanAuth.getUser() : null;
+      if (!user || !user.driverProfile || user.driverProfile.approvalStatus !== 'APPROVED') {
+        const status = user?.driverProfile?.approvalStatus || 'PENDING';
+        alert(`Your driver account is ${status}. You cannot go online until administrative approval is granted.`);
+        return;
+      }
+
       isOnline = !isOnline;
       const ring = document.getElementById('ping-ring');
       const dot = document.getElementById('ping-dot');
@@ -1238,7 +1245,20 @@
           role: 'DRIVER',
           onAuthenticated: (user) => {
             console.log('[DriverApp] Authenticated driver:', user.phone, user.name);
-            startDriverTelemetry();
+            if (!user.driverProfile || user.driverProfile.approvalStatus !== 'APPROVED') {
+              isOnline = false;
+              const ring = document.getElementById('ping-ring');
+              const dot = document.getElementById('ping-dot');
+              const label = document.getElementById('status-label');
+              if (ring) ring.className = 'hidden';
+              if (dot) dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500';
+              if (label) {
+                label.innerText = user.driverProfile?.approvalStatus || 'PENDING';
+                label.className = 'text-xs font-black text-amber-600 tracking-wider uppercase';
+              }
+            } else {
+              startDriverTelemetry();
+            }
             const nameEl = document.getElementById('driver-profile-name');
             if (nameEl) nameEl.innerText = user.name || 'Captain Partner';
             const phoneEl = document.getElementById('driver-session-phone');

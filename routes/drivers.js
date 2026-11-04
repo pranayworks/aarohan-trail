@@ -140,4 +140,292 @@ router.post('/driver/payout/request', requireRole('DRIVER'), validateBody(restPa
   }
 });
 
+// =========================================================================
+// 6. DRIVER ONBOARDING & DOCUMENT UPLOAD (SUPABASE PRIVATE STORAGE)
+// =========================================================================
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const supabaseStorage = require('../services/supabaseStorage');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: supabaseStorage.MAX_FILE_SIZE_BYTES
+  },
+  fileFilter: (req, file, cb) => {
+    const mime = (file.mimetype || '').toLowerCase();
+    if (supabaseStorage.ALLOWED_MIME_TYPES.includes(mime)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type "${mime}". Allowed types: JPEG, PNG, PDF`), false);
+    }
+  }
+});
+
+function handleUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File size exceeds maximum allowed limit (5 MB)' });
+      }
+      return res.status(400).json({ error: 'File upload error: ' + err.message });
+    } else if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+}
+
+// Upload driver document
+router.post('/driver/documents', handleUpload, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Document file required' });
+    }
+
+    const { documentType } = req.body;
+    const validTypes = ['DRIVING_LICENSE', 'NATIONAL_ID', 'VEHICLE_REGISTRATION', 'CERTIFICATE_OF_FITNESS', 'INSURANCE_CERTIFICATE', 'DRIVER_PHOTO'];
+    if (!documentType || !validTypes.includes(documentType)) {
+      return res.status(400).json({ error: `Invalid document type "${documentType}". Must be one of [${validTypes.join(', ')}]` });
+    }
+
+    let driver = await prisma.driver.findFirst({
+      where: { userId: req.user.id }
+    });
+
+    if (!driver) {
+      return res.status(400).json({ error: 'Driver profile does not exist. Please register vehicle and profile first.' });
+    }
+
+    const uploadResult = await supabaseStorage.uploadDriverDocument({
+      driverId: driver.id,
+      documentType,
+      file: req.file
+    });
+
+    let savedDoc = null;
+    if (documentType === 'DRIVER_PHOTO') {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { avatarUrl: uploadResult.storagePath }
+      });
+      savedDoc = {
+        type: 'DRIVER_PHOTO',
+        storagePath: uploadResult.storagePath,
+        status: 'PENDING'
+      };
+    } else {
+      const existing = await prisma.driverDocument.findFirst({
+        where: { driverId: driver.id, type: documentType }
+      });
+
+      if (existing) {
+        savedDoc = await prisma.driverDocument.update({
+          where: { id: existing.id },
+          data: {
+            storagePath: uploadResult.storagePath,
+            status: 'PENDING',
+            rejectionReason: null,
+            reviewedAt: null,
+            reviewedBy: null
+          }
+        });
+      } else {
+        savedDoc = await prisma.driverDocument.create({
+          data: {
+            driverId: driver.id,
+            type: documentType,
+            storagePath: uploadResult.storagePath,
+            status: 'PENDING'
+          }
+        });
+      }
+    }
+
+    const signedUrl = await supabaseStorage.getSignedUrl(uploadResult.storagePath, 900);
+
+    return res.json({
+      success: true,
+      message: `${documentType} uploaded successfully`,
+      document: {
+        id: savedDoc.id,
+        type: documentType,
+        storagePath: uploadResult.storagePath,
+        status: savedDoc.status || 'PENDING',
+        signedUrl
+      }
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// View driver documents (Strict ownership: driver can only see own documents, admin/support can view all)
+router.get('/driver/documents', async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Riders cannot view driver documents
+    if (req.user.role === 'RIDER') {
+      return res.status(403).json({ error: 'Forbidden: Riders cannot access driver documents' });
+    }
+
+    let targetDriverId = req.query.driverId || req.user.driverId;
+    if (!targetDriverId) {
+      const driver = await prisma.driver.findFirst({ where: { userId: req.user.id } });
+      if (driver) targetDriverId = driver.id;
+    }
+
+    // Driver can strictly only view their own documents
+    if (req.user.role === 'DRIVER') {
+      const myDriver = await prisma.driver.findFirst({ where: { userId: req.user.id } });
+      if (!myDriver || (req.query.driverId && req.query.driverId !== myDriver.id)) {
+        return res.status(403).json({ error: 'Forbidden: You cannot access another driver\'s documents' });
+      }
+      targetDriverId = myDriver.id;
+    } else if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPPORT') {
+      return res.status(403).json({ error: 'Forbidden: Insufficient privileges' });
+    }
+
+    if (!targetDriverId) {
+      return res.json({ documents: [] });
+    }
+
+    const docs = await prisma.driverDocument.findMany({
+      where: { driverId: targetDriverId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const driverUser = await prisma.driver.findUnique({
+      where: { id: targetDriverId },
+      include: { user: true }
+    });
+
+    const enriched = await Promise.all(docs.map(async (doc) => {
+      const signedUrl = await supabaseStorage.getSignedUrl(doc.storagePath, 900);
+      return {
+        id: doc.id,
+        type: doc.type,
+        storagePath: doc.storagePath,
+        status: doc.status,
+        rejectionReason: doc.rejectionReason,
+        signedUrl,
+        createdAt: doc.createdAt
+      };
+    }));
+
+    if (driverUser?.user?.avatarUrl) {
+      const photoSignedUrl = await supabaseStorage.getSignedUrl(driverUser.user.avatarUrl, 900);
+      enriched.push({
+        id: 'avatar',
+        type: 'DRIVER_PHOTO',
+        storagePath: driverUser.user.avatarUrl,
+        status: 'PENDING',
+        signedUrl: photoSignedUrl,
+        createdAt: driverUser.user.createdAt
+      });
+    }
+
+    return res.json({
+      success: true,
+      driverId: targetDriverId,
+      documents: enriched
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Raw file streaming for local offline fallback with strict ownership protection
+router.get('/driver/documents/raw', async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const relPath = req.query.path;
+    if (!relPath || relPath.includes('..')) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+
+    const parts = relPath.split('/');
+    const pathDriverId = parts[0];
+
+    if (req.user.role === 'RIDER') {
+      return res.status(403).json({ error: 'Forbidden: Riders cannot access driver documents' });
+    }
+
+    if (req.user.role === 'DRIVER') {
+      const myDriver = await prisma.driver.findFirst({ where: { userId: req.user.id } });
+      if (!myDriver || myDriver.id !== pathDriverId) {
+        return res.status(403).json({ error: 'Forbidden: You cannot access another driver\'s documents' });
+      }
+    } else if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPPORT') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const fullPath = path.join(supabaseStorage.LOCAL_STORAGE_DIR, relPath);
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Document file not found' });
+    }
+
+    const ext = path.extname(fullPath).toLowerCase();
+    const contentType = ext === '.pdf' ? 'application/pdf' : (ext === '.png' ? 'image/png' : 'image/jpeg');
+    res.setHeader('Content-Type', contentType);
+    return fs.createReadStream(fullPath).pipe(res);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Driver Onboarding Status
+router.get('/driver/onboarding/status', async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const driver = await prisma.driver.findFirst({
+      where: { userId: req.user.id },
+      include: {
+        vehicle: true,
+        documents: true,
+        user: { select: { id: true, name: true, phone: true, avatarUrl: true, emergencyContactName: true, emergencyContactPhone: true } }
+      }
+    });
+
+    if (!driver) {
+      return res.json({
+        hasProfile: false,
+        approvalStatus: 'NOT_STARTED',
+        documents: []
+      });
+    }
+
+    return res.json({
+      hasProfile: true,
+      driverId: driver.id,
+      approvalStatus: driver.approvalStatus,
+      rejectionReason: driver.rejectionReason,
+      vehicle: driver.vehicle,
+      documents: driver.documents.map(d => ({
+        id: d.id,
+        type: d.type,
+        status: d.status,
+        rejectionReason: d.rejectionReason
+      })),
+      avatarUrl: driver.user.avatarUrl
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

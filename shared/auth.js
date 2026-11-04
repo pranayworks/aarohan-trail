@@ -393,18 +393,105 @@
             </button>
           </form>
 
+          <!-- STEP 2b: Driver Onboarding Sign-Up & Document Upload -->
+          <form id="auth-step-onboard" class="hidden space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+            <div class="border-b border-outline-variant/30 pb-2">
+              <span class="text-xs font-black uppercase text-primary tracking-wider">Step 1: Driver & Vehicle Details</span>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Full Name *</label>
+              <input type="text" id="onboard-name" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none" placeholder="e.g. Kondwani Banda" required />
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Vehicle Type *</label>
+                <select id="onboard-vehicle-type" class="w-full h-11 px-2.5 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none">
+                  <option value="MOTO">MOTO (Motorcycle)</option>
+                  <option value="AUTO">AUTO (Tuk-Tuk)</option>
+                  <option value="CAB" selected>CAB (Sedan/Car)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Make / Model *</label>
+                <input type="text" id="onboard-make-model" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none" placeholder="Toyota Passo" required />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Colour *</label>
+                <input type="text" id="onboard-color" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none" placeholder="White" required />
+              </div>
+              <div>
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Plate No. *</label>
+                <input type="text" id="onboard-plate" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none uppercase" placeholder="BW 4920" required />
+              </div>
+              <div>
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Year *</label>
+                <input type="number" id="onboard-year" min="1990" max="2027" class="w-full h-11 px-2 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none" placeholder="2018" required />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Emergency Contact *</label>
+                <input type="text" id="onboard-emergency-name" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none" placeholder="Next of Kin Name" required />
+              </div>
+              <div>
+                <label class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">Emergency Phone *</label>
+                <input type="tel" id="onboard-emergency-phone" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-xs font-bold text-on-surface outline-none" placeholder="+265 99 111 2233" required />
+              </div>
+            </div>
+
+            <div class="border-b border-outline-variant/30 pt-2 pb-1">
+              <span class="text-xs font-black uppercase text-primary tracking-wider">Step 2: Upload Documents (Max 5MB each)</span>
+              <p class="text-[10px] text-on-surface-variant">Formats: JPEG, PNG, PDF</p>
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-extrabold uppercase text-on-surface-variant mb-0.5">1. Driving Licence *</label>
+              <input type="file" id="onboard-doc-license" accept="image/jpeg,image/png,image/jpg,application/pdf" class="w-full text-xs text-on-surface file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-surface-container-high file:text-on-surface" required />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-extrabold uppercase text-on-surface-variant mb-0.5">2. National ID *</label>
+              <input type="file" id="onboard-doc-id" accept="image/jpeg,image/png,image/jpg,application/pdf" class="w-full text-xs text-on-surface file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-surface-container-high file:text-on-surface" required />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-extrabold uppercase text-on-surface-variant mb-0.5">3. Vehicle Registration (Blue Book) *</label>
+              <input type="file" id="onboard-doc-veh" accept="image/jpeg,image/png,image/jpg,application/pdf" class="w-full text-xs text-on-surface file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-surface-container-high file:text-on-surface" required />
+            </div>
+
+            <div>
+              <label class="block text-[10px] font-extrabold uppercase text-on-surface-variant mb-0.5">4. Driver Photo *</label>
+              <input type="file" id="onboard-doc-photo" accept="image/jpeg,image/png,image/jpg" class="w-full text-xs text-on-surface file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-surface-container-high file:text-on-surface" required />
+            </div>
+
+            <button type="submit" id="onboard-submit-btn" class="w-full h-12 mt-2 bg-primary hover:bg-primary/90 text-on-primary font-black text-xs rounded-2xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+              <span id="onboard-submit-btn-text">Submit Application & Upload Documents</span>
+              <span class="material-symbols-outlined text-base">cloud_upload</span>
+            </button>
+          </form>
+
           <!-- STEP 3: Driver PENDING Status Banner -->
           <div id="auth-step-pending" class="hidden text-center py-4 space-y-3">
             <div class="w-14 h-14 mx-auto rounded-full bg-amber-500/15 text-amber-500 flex items-center justify-center text-2xl">
               <span class="material-symbols-outlined text-3xl">pending_actions</span>
             </div>
-            <h3 class="text-base font-black text-on-surface">${i18n.t('driverPendingTitle')}</h3>
-            <p class="text-xs text-on-surface-variant font-medium leading-relaxed px-2">
-              ${i18n.t('driverPendingSub')}
+            <h3 class="text-base font-black text-on-surface" id="pending-title">Application Pending Approval</h3>
+            <p class="text-xs text-on-surface-variant font-medium leading-relaxed px-2" id="pending-desc">
+              Your driver application and verification documents have been securely uploaded to Lilongwe Central Operations for compliance review. You cannot go online until approved.
             </p>
-            <div class="pt-2">
-              <button type="button" onclick="window.aarohanAuth.logout()" class="px-5 py-2.5 rounded-xl bg-surface-container border border-outline-variant/40 text-xs font-extrabold text-on-surface hover:bg-surface-container-high transition-colors">
-                ${i18n.t('logoutBtn')}
+            <div class="pt-2 flex items-center justify-center gap-2">
+              <button type="button" id="auth-check-status-btn" class="px-4 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-black shadow-md hover:bg-primary/90 transition-colors flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">refresh</span>
+                <span>Check Status</span>
+              </button>
+              <button type="button" onclick="window.aarohanAuth.logout()" class="px-4 py-2.5 rounded-xl bg-surface-container border border-outline-variant/40 text-xs font-extrabold text-on-surface hover:bg-surface-container-high transition-colors">
+                Sign Out
               </button>
             </div>
           </div>
@@ -423,6 +510,7 @@
       const alertBox = document.getElementById('auth-alert');
       const stepPhone = document.getElementById('auth-step-phone');
       const stepOtp = document.getElementById('auth-step-otp');
+      const stepOnboard = document.getElementById('auth-step-onboard');
       const stepPending = document.getElementById('auth-step-pending');
       const phoneInput = document.getElementById('auth-phone-input');
       const otpInput = document.getElementById('auth-otp-input');
@@ -430,6 +518,7 @@
       const changePhoneBtn = document.getElementById('auth-change-phone-btn');
       const langBtn = document.getElementById('auth-lang-btn');
       const langLabel = document.getElementById('auth-lang-label');
+      const checkStatusBtn = document.getElementById('auth-check-status-btn');
 
       let currentPhoneE164 = '';
 
@@ -443,6 +532,42 @@
 
       function hideAlert() {
         alertBox.classList.add('hidden');
+      }
+
+      if (checkStatusBtn) {
+        checkStatusBtn.addEventListener('click', async () => {
+          checkStatusBtn.disabled = true;
+          checkStatusBtn.classList.add('opacity-70');
+          try {
+            const res = await this.fetchWithAuth('/api/auth/me');
+            if (res && res.ok) {
+              const data = await res.json();
+              const u = data.user;
+              if (u && u.driverProfile) {
+                this.setSession(this.getAccessToken(), this.getRefreshToken(), u);
+                if (u.driverProfile.approvalStatus === 'APPROVED') {
+                  showAlert('Your account has been APPROVED! Reloading...', false);
+                  setTimeout(() => {
+                    modalEl.remove();
+                    location.reload();
+                  }, 800);
+                  return;
+                } else if (u.driverProfile.approvalStatus === 'REJECTED') {
+                  document.getElementById('pending-title').innerText = 'Application Rejected';
+                  document.getElementById('pending-desc').innerText = `Rejection reason: ${u.driverProfile.rejectionReason || 'Documents did not meet compliance requirements'}`;
+                  showAlert('Application rejected by admin.', true);
+                } else {
+                  showAlert('Application is still under review. Please check back shortly.', false);
+                }
+              }
+            }
+          } catch (e) {
+            showAlert('Error checking status: ' + e.message);
+          } finally {
+            checkStatusBtn.disabled = false;
+            checkStatusBtn.classList.remove('opacity-70');
+          }
+        });
       }
 
       // Language Switcher within Modal
@@ -564,12 +689,20 @@
             console.warn('[Auth] Post-login profile fetch error:', e);
           }
 
-          // For driver portal: verify approvalStatus
+          // For driver portal: verify driverProfile & approvalStatus
           if (role === 'DRIVER') {
-            if (!fullUser.driverProfile || fullUser.driverProfile.approvalStatus !== 'APPROVED') {
+            if (!fullUser.driverProfile) {
+              stepOtp.classList.add('hidden');
+              stepOnboard.classList.remove('hidden');
+              document.getElementById('auth-title').innerText = 'Driver Onboarding';
+              document.getElementById('auth-sub').innerText = 'Complete vehicle registration and upload your compliance documents';
+              const card = modalEl.querySelector('#aarohan-auth-modal > div');
+              if (card) { card.classList.remove('max-w-sm'); card.classList.add('max-w-md'); }
+              return;
+            } else if (fullUser.driverProfile.approvalStatus !== 'APPROVED') {
               stepOtp.classList.add('hidden');
               stepPending.classList.remove('hidden');
-              document.getElementById('auth-title').innerText = i18n.t('driverPendingTitle');
+              document.getElementById('auth-title').innerText = 'Application Pending Approval';
               document.getElementById('auth-sub').innerText = '';
               return;
             }
@@ -585,6 +718,128 @@
         } finally {
           submitBtn.disabled = false;
           submitBtn.classList.remove('opacity-70');
+        }
+      });
+
+      // Submit Onboarding Form (Register driver + Upload 4 documents)
+      stepOnboard.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideAlert();
+
+        const name = document.getElementById('onboard-name').value.trim();
+        const vehicleType = document.getElementById('onboard-vehicle-type').value;
+        const makeModel = document.getElementById('onboard-make-model').value.trim();
+        const color = document.getElementById('onboard-color').value.trim();
+        const plateNumber = document.getElementById('onboard-plate').value.trim().toUpperCase();
+        const year = parseInt(document.getElementById('onboard-year').value.trim(), 10);
+        const emergencyContactName = document.getElementById('onboard-emergency-name').value.trim();
+        const emergencyContactPhone = document.getElementById('onboard-emergency-phone').value.trim();
+
+        const licenseFile = document.getElementById('onboard-doc-license').files[0];
+        const idFile = document.getElementById('onboard-doc-id').files[0];
+        const regFile = document.getElementById('onboard-doc-veh').files[0];
+        const photoFile = document.getElementById('onboard-doc-photo').files[0];
+
+        if (!licenseFile || !idFile || !regFile || !photoFile) {
+          showAlert('Please select all 4 required verification documents');
+          return;
+        }
+
+        const maxBytes = 5 * 1024 * 1024;
+        const allowedDocMimes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+        const allowedPhotoMimes = ['image/jpeg', 'image/png', 'image/jpg'];
+
+        for (const f of [licenseFile, idFile, regFile]) {
+          if (f.size > maxBytes) {
+            showAlert(`File "${f.name}" exceeds 5 MB limit`);
+            return;
+          }
+          if (!allowedDocMimes.includes(f.type.toLowerCase())) {
+            showAlert(`File "${f.name}" has invalid type. Only JPEG, PNG, PDF allowed.`);
+            return;
+          }
+        }
+
+        if (photoFile.size > maxBytes) {
+          showAlert('Driver photo exceeds 5 MB limit');
+          return;
+        }
+        if (!allowedPhotoMimes.includes(photoFile.type.toLowerCase())) {
+          showAlert('Driver photo must be JPEG or PNG');
+          return;
+        }
+
+        const submitBtn = document.getElementById('onboard-submit-btn');
+        const btnText = document.getElementById('onboard-submit-btn-text');
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-70');
+        btnText.innerText = 'Registering vehicle...';
+
+        try {
+          // 1. Register driver and vehicle
+          const regRes = await this.fetchWithAuth('/api/auth/driver/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              vehicleType,
+              makeModel,
+              color,
+              plateNumber,
+              year,
+              emergencyContactName,
+              emergencyContactPhone,
+              emergencyContact: `${emergencyContactName} (${emergencyContactPhone})`
+            })
+          });
+
+          const regData = await regRes.json();
+          if (!regRes.ok) throw new Error(regData.error || 'Failed to register driver profile');
+
+          // 2. Upload documents
+          const docs = [
+            { type: 'DRIVING_LICENSE', file: licenseFile, label: 'Driving Licence' },
+            { type: 'NATIONAL_ID', file: idFile, label: 'National ID' },
+            { type: 'VEHICLE_REGISTRATION', file: regFile, label: 'Vehicle Registration' },
+            { type: 'DRIVER_PHOTO', file: photoFile, label: 'Driver Photo' }
+          ];
+
+          for (let i = 0; i < docs.length; i++) {
+            btnText.innerText = `Uploading ${docs[i].label} (${i + 1}/4)...`;
+            const fd = new FormData();
+            fd.append('documentType', docs[i].type);
+            fd.append('file', docs[i].file);
+
+            const upRes = await this.fetchWithAuth('/api/driver/documents', {
+              method: 'POST',
+              body: fd
+            });
+
+            const upData = await upRes.json();
+            if (!upRes.ok) throw new Error(upData.error || `Failed to upload ${docs[i].label}`);
+          }
+
+          // 3. Refresh user session
+          btnText.innerText = 'Finalizing submission...';
+          const meRes = await this.fetchWithAuth('/api/auth/me');
+          if (meRes && meRes.ok) {
+            const meData = await meRes.json();
+            if (meData.user) {
+              this.setSession(this.getAccessToken(), this.getRefreshToken(), meData.user);
+            }
+          }
+
+          // 4. Transition to Pending
+          stepOnboard.classList.add('hidden');
+          stepPending.classList.remove('hidden');
+          document.getElementById('auth-title').innerText = 'Application Pending Approval';
+          document.getElementById('auth-sub').innerText = '';
+        } catch (err) {
+          showAlert(err.message);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('opacity-70');
+          btnText.innerText = 'Submit Application & Upload Documents';
         }
       });
     }
@@ -608,6 +863,20 @@
                   if (typeof onAuthenticated === 'function') onAuthenticated(u);
                 }
               });
+
+              if (!user.driverProfile) {
+                document.getElementById('auth-step-phone')?.classList.add('hidden');
+                document.getElementById('auth-step-onboard')?.classList.remove('hidden');
+                document.getElementById('auth-title').innerText = 'Driver Onboarding';
+                document.getElementById('auth-sub').innerText = 'Complete vehicle registration and upload your compliance documents';
+                const card = document.querySelector('#aarohan-auth-modal > div');
+                if (card) { card.classList.remove('max-w-sm'); card.classList.add('max-w-md'); }
+              } else if (user.driverProfile.approvalStatus !== 'APPROVED') {
+                document.getElementById('auth-step-phone')?.classList.add('hidden');
+                document.getElementById('auth-step-pending')?.classList.remove('hidden');
+                document.getElementById('auth-title').innerText = 'Application Pending Approval';
+                document.getElementById('auth-sub').innerText = '';
+              }
               return;
             }
 

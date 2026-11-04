@@ -47,11 +47,15 @@ const refreshTokenSchema = z.object({
 });
 
 const driverRegisterSchema = z.object({
+  name: z.string().min(2, 'Name is required').optional(),
   makeModel: z.string().min(2, 'Make and model required'),
   color: z.string().min(2, 'Color required'),
   plateNumber: z.string().min(3, 'Plate number required'),
   vehicleType: z.enum(['MOTO', 'AUTO', 'CAB']),
-  year: z.number().int().min(1990).max(new Date().getFullYear() + 1).optional()
+  year: z.number().int().min(1970).max(new Date().getFullYear() + 1).optional(),
+  emergencyContact: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional()
 });
 
 
@@ -299,7 +303,7 @@ router.post('/driver/register', requireAuth, validateBody(driverRegisterSchema),
       });
     }
 
-    const { makeModel, color, plateNumber, vehicleType, year } = req.body;
+    const { makeModel, color, plateNumber, vehicleType, year, name, emergencyContact, emergencyContactName, emergencyContactPhone } = req.body;
 
     // Check plate number uniqueness
     const existingPlate = await prisma.vehicle.findUnique({
@@ -330,9 +334,18 @@ router.post('/driver/register', requireAuth, validateBody(driverRegisterSchema),
         }
       });
 
+      const userUpdateData = { role: 'DRIVER' };
+      if (name) userUpdateData.name = name;
+      if (emergencyContactName) userUpdateData.emergencyContactName = emergencyContactName;
+      if (emergencyContactPhone) userUpdateData.emergencyContactPhone = emergencyContactPhone;
+      if (emergencyContact && !emergencyContactName) {
+        userUpdateData.emergencyContactName = emergencyContact;
+        userUpdateData.emergencyContactPhone = emergencyContact;
+      }
+
       await tx.user.update({
         where: { id: req.user.id },
-        data: { role: 'DRIVER' }
+        data: userUpdateData
       });
 
       await tx.auditLog.create({
