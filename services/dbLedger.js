@@ -421,6 +421,114 @@ class DbLedgerService {
   }
 
   /**
+   * Driver Commission Settlement:
+   * Approves a settlement payment from driver to platform, reducing Driver.commissionDebtMWK
+   * and writing a balanced double-entry ledger journal in ONE database transaction.
+   *
+   * Balanced Legs:
+   *   1. DRIVER account (DEBT_SETTLEMENT): +amountMWK (reduces liability/debt)
+   *   2. PLATFORM_REVENUE account (DEBT_SETTLEMENT): -amountMWK (offsetting leg)
+   *   Sum: +amountMWK + (-amountMWK) = 0
+   */
+  async recordCommissionSettlement({
+    driverId,
+    amountMWK,
+    reference,
+    settlementId = null,
+    verifiedByUserId = null,
+    notes = ''
+  }) {
+    const amount = Math.max(0, parseInt(amountMWK, 10));
+    if (amount <= 0) throw new Error('Settlement amount must be strictly greater than 0 MWK');
+
+    const journalId = this.generateJournalId();
+    const idemKey = `SETTLE-${driverId}-${settlementId || Date.now()}`;
+
+    return await prisma.$transaction(async (tx) => {
+      // 1. Fetch authoritative driver
+      const driver = await tx.driver.findUnique({
+        where: { id: driverId },
+        include: { user: true }
+      });
+      if (!driver) throw new Error(`Driver ${driverId} not found`);
+
+      const previousDebt = driver.commissionDebtMWK;
+      const newDebt = Math.max(0, previousDebt - amount);
+
+      // 2. Atomically reduce Driver.commissionDebtMWK
+      const updatedDriver = await tx.driver.update({
+        where: { id: driver.id },
+        data: { commissionDebtMWK: newDebt }
+      });
+
+      // 3. Leg 1: DRIVER account credit
+      const driverLeg = await tx.ledgerEntry.create({
+        data: {
+          journalId,
+          account: 'DRIVER',
+          userId: driver.userId,
+          type: 'DEBT_SETTLEMENT',
+          amountMWK: amount,
+          balanceAfterMWK: newDebt,
+          currency: 'MWK',
+          description: `Commission settlement verification (Ref: ${reference || 'N/A'})`,
+          idempotencyKey: `${idemKey}-DRIVER`,
+          reference: reference || null
+        }
+      });
+
+      // 4. Leg 2: PLATFORM_REVENUE offsetting leg
+      const platformLeg = await tx.ledgerEntry.create({
+        data: {
+          journalId,
+          account: 'PLATFORM_REVENUE',
+          userId: null,
+          type: 'DEBT_SETTLEMENT',
+          amountMWK: -amount,
+          balanceAfterMWK: 0,
+          currency: 'MWK',
+          description: `Platform collection of driver commission remittance (Ref: ${reference || 'N/A'})`,
+          idempotencyKey: `${idemKey}-PLATFORM`,
+          reference: reference || null
+        }
+      });
+
+      // 5. Create immutable AuditLog row
+      const auditLog = await tx.auditLog.create({
+        data: {
+          userId: verifiedByUserId,
+          action: 'COMMISSION_SETTLED',
+          entityType: 'DRIVER',
+          entityId: driver.id,
+          details: {
+            settlementId,
+            amountMWK: amount,
+            reference,
+            previousDebtMWK: previousDebt,
+            newDebtMWK: newDebt,
+            journalId,
+            notes
+          }
+        }
+      });
+
+      const entries = [driverLeg, platformLeg];
+      const netBalanceSum = driverLeg.amountMWK + platformLeg.amountMWK;
+
+      return {
+        journalId,
+        driver: updatedDriver,
+        previousDebtMWK: previousDebt,
+        newDebtMWK: newDebt,
+        settledAmountMWK: amount,
+        entries,
+        netBalanceSum, // Strictly 0
+        auditLog
+      };
+    }, { maxWait: 10000, timeout: 30000 });
+  }
+
+  /**
    * Helper to verify that all ledger entries for a journalId sum to exactly zero.
    */
   async verifyJournalBalance(journalId) {

@@ -8,43 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            "primary": "#004328",
-            "primary-container": "#0d5c3a",
-            "primary-fixed": "#a9f3c5",
-            "on-primary": "#ffffff",
-            "secondary": "#855300",
-            "secondary-container": "#fea619",
-            "secondary-fixed": "#ffddb8",
-            "on-secondary": "#ffffff",
-            "background": "#faf8ff",
-            "surface": "#faf8ff",
-            "surface-container-lowest": "#ffffff",
-            "surface-container-low": "#f2f3ff",
-            "surface-container": "#eaedff",
-            "surface-container-high": "#e2e7ff",
-            "surface-container-highest": "#dae2fd",
-            "on-surface": "#131b2e",
-            "on-surface-variant": "#404942",
-            "outline": "#707971",
-            "outline-variant": "#bfc9c0",
-            "error": "#ba1a1a",
-            "error-container": "#ffdad6",
-            "surface-tint": "#226b47"
-          },
-          fontFamily: {
-            sans: ['Plus Jakarta Sans', 'sans-serif']
-          }
-        }
-      }
-    };
-  </script>
+  <link rel="stylesheet" href="/shared/tailwind.built.css" />
   <style>
     body {
       font-family: 'Plus Jakarta Sans', sans-serif;
@@ -585,6 +549,28 @@
           </div>
         </div>
 
+        <!-- PENDING DRIVER COMMISSION SETTLEMENTS QUEUE -->
+        <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+          <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="font-bold text-base text-on-surface">Pending Driver Commission Settlements</h3>
+                <span id="pending-settlements-badge" class="text-xs bg-amber-500/20 text-amber-800 px-2.5 py-0.5 rounded-full font-bold">0 Pending</span>
+              </div>
+              <p class="text-xs text-on-surface-variant">Review mobile money remittances submitted by drivers. Approving writes a balanced double-entry ledger journal and atomically reduces driver debt in one transaction.</p>
+            </div>
+            <button onclick="refreshPendingSettlements()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors">
+              <span class="material-symbols-outlined text-[16px]">refresh</span>
+              <span>Refresh Queue</span>
+            </button>
+          </div>
+
+          <!-- Pending Settlements List -->
+          <div id="pending-settlements-container" class="flex flex-col gap-2.5">
+            <div class="p-6 text-center text-xs text-on-surface-variant font-medium">Click to load pending settlements...</div>
+          </div>
+        </div>
+
       </section>
 
       <!-- ============================================== -->
@@ -747,6 +733,9 @@
       if (tabName === 'drivers') {
         refreshPendingDrivers();
         refreshFleetDrivers();
+      } else if (tabName === 'cash-reconciliation') {
+        refreshPendingSettlements();
+        refreshCashReconciliation();
       }
     }
 
@@ -1195,6 +1184,120 @@
       } catch (e) {}
     }
 
+    async function refreshPendingSettlements() {
+      const container = document.getElementById('pending-settlements-container');
+      const badge = document.getElementById('pending-settlements-badge');
+      if (!container) return;
+
+      try {
+        const res = await authFetch('/api/admin/settlements/pending');
+        if (!res.ok) {
+          container.innerHTML = '<div class="p-4 text-center text-xs text-error font-medium">Failed to load settlements queue</div>';
+          return;
+        }
+
+        const data = await res.json();
+        const list = data.settlements || [];
+        if (badge) badge.innerText = `${list.length} Pending`;
+
+        if (list.length === 0) {
+          container.innerHTML = `
+            <div class="p-6 text-center text-xs text-on-surface-variant bg-surface-container-low rounded-xl">
+              <span class="material-symbols-outlined text-2xl text-primary block mb-1">check_circle</span>
+              <span>All driver settlements are reconciled. Zero pending submissions.</span>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = list.map(s => `
+          <div class="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+            <div class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-xl bg-primary-fixed/50 text-primary flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[20px]">payments</span>
+              </div>
+              <div class="flex flex-col">
+                <div class="flex items-center gap-2">
+                  <span class="font-extrabold text-sm text-on-surface">${s.driverName || 'Driver Partner'}</span>
+                  <span class="text-xs text-on-surface-variant font-mono">(${s.driverPhone || 'N/A'})</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-secondary-fixed text-secondary">${s.remittanceMethod || 'MOBILE_MONEY'}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-on-surface-variant text-[11px] mt-1">
+                  <span>Ref: <strong class="font-mono text-on-surface">${s.remittanceReference || 'N/A'}</strong></span>
+                  <span>Amount: <strong class="text-primary font-bold">MWK ${parseInt(s.amount || 0).toLocaleString()}</strong></span>
+                  <span>Current Debt: <strong class="${s.currentDebtMWK > 15000 ? 'text-error font-extrabold' : 'text-on-surface font-bold'}">MWK ${(s.currentDebtMWK || 0).toLocaleString()}</strong></span>
+                  <span>Submitted: <em>${new Date(s.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</em></span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 self-end md:self-center shrink-0">
+              <button onclick="approveSettlementAction('${s.settlementId}', '${s.driverName}', ${s.amount})" class="px-3.5 py-1.5 bg-primary text-on-primary font-bold rounded-lg hover:bg-primary/90 shadow-sm active:scale-95 transition-all flex items-center gap-1">
+                <span class="material-symbols-outlined text-[16px]">check</span>
+                <span>Approve & Settle</span>
+              </button>
+              <button onclick="rejectSettlementAction('${s.settlementId}', '${s.driverName}')" class="px-3.5 py-1.5 bg-error-container hover:bg-error/20 text-error font-bold rounded-lg border border-error/20 active:scale-95 transition-all">
+                Reject
+              </button>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.innerHTML = `<div class="p-4 text-center text-xs text-error font-medium">Error: ${err.message}</div>`;
+      }
+    }
+
+    async function approveSettlementAction(settlementId, name, amount) {
+      if (!confirm(`Approve commission settlement of MWK ${amount.toLocaleString()} from ${name}?\n\nThis writes a balanced ledger journal and reduces the driver's commission debt in one transaction.`)) {
+        return;
+      }
+
+      try {
+        const res = await authFetch(`/api/admin/settlements/${settlementId}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: 'Approved via Admin Cash Reconciliation Hub' })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`Settlement approved!\n• Balanced Journal ID: ${data.journalId}\n• Previous Debt: MWK ${data.previousDebtMWK.toLocaleString()}\n• New Debt: MWK ${data.newDebtMWK.toLocaleString()}\n• Journal Net Sum: ${data.netBalanceSum} (Strictly Balanced)`);
+          refreshPendingSettlements();
+          refreshCashReconciliation();
+          refreshFinancialLedger();
+        } else {
+          alert('Approval failed: ' + (data.error || 'Server error'));
+        }
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      }
+    }
+
+    async function rejectSettlementAction(settlementId, name) {
+      const reason = prompt(`Enter rejection reason for settlement from ${name}:`, 'Invalid mobile money reference number');
+      if (reason === null) return;
+      if (!reason.trim()) {
+        alert('A reason is required to reject a settlement');
+        return;
+      }
+
+      try {
+        const res = await authFetch(`/api/admin/settlements/${settlementId}/reject`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason.trim() })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(`Settlement rejected with reason: "${reason}". Audit log created.`);
+          refreshPendingSettlements();
+          refreshCashReconciliation();
+        } else {
+          alert('Rejection failed: ' + (data.error || 'Server error'));
+        }
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      }
+    }
+
     // Initial load guarded by AArohan Auth
     window.addEventListener('DOMContentLoaded', () => {
       if (window.aarohanAuth) {
@@ -1207,6 +1310,7 @@
             refreshFinancialLedger();
             loadActivePricing();
             refreshCashReconciliation();
+            refreshPendingSettlements();
             refreshPendingDrivers();
             refreshFleetDrivers();
           }
@@ -1215,6 +1319,7 @@
         refreshFinancialLedger();
         loadActivePricing();
         refreshCashReconciliation();
+        refreshPendingSettlements();
         refreshPendingDrivers();
         refreshFleetDrivers();
       }

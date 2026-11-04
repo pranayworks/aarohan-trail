@@ -86,6 +86,14 @@ router.post('/drivers/location', requireDriverApproval, validateBody(restDriverL
     : (req.user.driverId || req.driver?.id);
   const { lat, lng, heading, accuracy, speed } = req.body;
 
+  const MAX_COMMISSION_DEBT_MWK = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
+  if (req.driver && req.driver.commissionDebtMWK > MAX_COMMISSION_DEBT_MWK) {
+    return res.status(403).json({
+      error: `Forbidden: Commission debt (MK ${req.driver.commissionDebtMWK.toLocaleString()}) exceeds limit of MK ${MAX_COMMISSION_DEBT_MWK.toLocaleString()}. Pay commission to go online.`,
+      code: 'COMMISSION_DEBT_EXCEEDED'
+    });
+  }
+
   const updatedDriver = await dispatchService.updateDriverLocation(driverId, { lat, lng, heading, accuracy, speed });
   if (updatedDriver) {
     res.json({ success: true, driver: updatedDriver });
@@ -103,10 +111,83 @@ router.get('/driver/financial-summary/:driverId', (req, res) => {
   res.json(summary);
 });
 
-// 4. Submit Cash Commission Settlement
-router.post('/driver/cash-settlement/submit', requireRole('DRIVER'), (req, res) => {
+// 3b. Driver Commission & Earnings Summary
+router.get('/driver/commission-summary', async (req, res) => {
   try {
-    const settlement = financeService.submitCashCommissionSettlement(req.body);
+    if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+
+    let driver = null;
+    if (req.user.role === 'DRIVER') {
+      driver = await prisma.driver.findFirst({
+        where: { userId: req.user.id }
+      });
+    } else if (req.query.driverId && (req.user.role === 'ADMIN' || req.user.role === 'SUPPORT' || req.user.role === 'FINANCE')) {
+      driver = await prisma.driver.findUnique({
+        where: { id: req.query.driverId }
+      });
+    }
+
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayTrips = await prisma.trip.findMany({
+      where: {
+        driverId: driver.id,
+        status: 'COMPLETED',
+        completedAt: { gte: todayStart }
+      },
+      select: { driverShareMWK: true, driverTipMWK: true }
+    });
+
+    const todayEarningsMWK = todayTrips.reduce((sum, t) => sum + (t.driverShareMWK || 0) + (t.driverTipMWK || 0), 0);
+    const maxDebtLimitMWK = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
+    const canGoOnline = driver.approvalStatus === 'APPROVED' && driver.commissionDebtMWK <= maxDebtLimitMWK;
+
+    res.json({
+      success: true,
+      driverId: driver.id,
+      commissionDebtMWK: driver.commissionDebtMWK,
+      tripsCompleted: driver.tripsCompleted,
+      todayEarningsMWK,
+      todayTripsCount: todayTrips.length,
+      maxDebtLimitMWK,
+      canGoOnline,
+      debtLimitExceeded: driver.commissionDebtMWK > maxDebtLimitMWK
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Submit Cash Commission Settlement (Supports /driver/settlements and /driver/cash-settlement/submit)
+const handleSettlementSubmission = async (req, res) => {
+  try {
+    const driver = await prisma.driver.findFirst({ where: { userId: req.user.id } });
+    const driverId = driver ? driver.id : (req.body.driverId || req.user.driverId);
+    if (!driverId) {
+      return res.status(400).json({ error: 'Driver identity required' });
+    }
+
+    const amount = parseInt(req.body.amount, 10);
+    const reference = (req.body.mobileMoneyReference || req.body.remittanceReference || req.body.reference || '').trim();
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: 'Valid settlement amount required (must be > 0)' });
+    }
+    if (!reference) {
+      return res.status(400).json({ error: 'Mobile money reference required' });
+    }
+
+    const remittanceMethod = req.body.provider || req.body.remittanceMethod || 'AIRTEL_MONEY';
+    const settlement = financeService.submitCashCommissionSettlement({
+      driverId,
+      amount,
+      remittanceMethod,
+      remittanceReference: reference,
+      notes: req.body.notes || `Settlement submitted by driver ${driverId}`
+    });
+
     if (req.app.get('io')) {
       req.app.get('io').emit('commission:settlement_submitted', settlement);
     }
@@ -114,7 +195,10 @@ router.post('/driver/cash-settlement/submit', requireRole('DRIVER'), (req, res) 
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
-});
+};
+
+router.post('/driver/settlements', requireRole('DRIVER'), handleSettlementSubmission);
+router.post('/driver/cash-settlement/submit', requireRole('DRIVER'), handleSettlementSubmission);
 
 // 5. Driver Payout Request
 router.post('/driver/payout/request', requireRole('DRIVER'), validateBody(restPayoutRequestSchema), async (req, res) => {

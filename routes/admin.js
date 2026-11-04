@@ -2,6 +2,7 @@ const express = require('express');
 const { z } = require('zod');
 const prisma = require('../lib/prisma');
 const financeService = require('../services/finance');
+const dbLedger = require('../services/dbLedger');
 const pricingService = require('../services/pricing');
 const dispatchService = require('../services/dispatch');
 const supabaseStorage = require('../services/supabaseStorage');
@@ -459,6 +460,165 @@ router.post('/admin/drivers/:driverId/suspend', requireRole('ADMIN', 'SUPPORT'),
     }
 
     res.json({ success: true, message: 'Driver suspended', driver: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. List Pending Driver Commission Settlements (ADMIN, FINANCE, SUPPORT)
+router.get('/admin/settlements/pending', requireRole('ADMIN', 'FINANCE', 'SUPPORT'), async (req, res) => {
+  try {
+    const rawSettlements = (financeService.ledger.cashSettlements || []).filter(s => s.status === 'PENDING_VERIFICATION');
+
+    const enriched = await Promise.all(rawSettlements.map(async (s) => {
+      let driver = null;
+      if (s.driverId) {
+        driver = await prisma.driver.findFirst({
+          where: { OR: [{ id: s.driverId }, { userId: s.driverId }] },
+          include: { user: { select: { name: true, phone: true } }, vehicle: true }
+        });
+      }
+      return {
+        ...s,
+        driverName: driver?.user?.name || 'Driver Partner',
+        driverPhone: driver?.user?.phone || 'N/A',
+        currentDebtMWK: driver?.commissionDebtMWK ?? s.amount,
+        plateNumber: driver?.vehicle?.plateNumber || 'N/A',
+        realDriverId: driver?.id || s.driverId
+      };
+    }));
+
+    res.json({
+      success: true,
+      count: enriched.length,
+      settlements: enriched
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 7. Approve Commission Settlement (ADMIN, FINANCE)
+// "Approval writes a balanced ledger journal and reduces Driver.commissionDebtMWK in one transaction."
+router.post('/admin/settlements/:settlementId/approve', requireRole('ADMIN', 'FINANCE'), async (req, res) => {
+  try {
+    const { settlementId } = req.params;
+    const { notes } = req.body || {};
+
+    const rawSettlement = (financeService.ledger.cashSettlements || []).find(s => s.settlementId === settlementId);
+    if (!rawSettlement) {
+      return res.status(404).json({ error: `Settlement ${settlementId} not found` });
+    }
+    if (rawSettlement.status === 'VERIFIED') {
+      return res.status(400).json({ error: 'Settlement is already verified' });
+    }
+
+    // Resolve Postgres driver ID
+    let driver = await prisma.driver.findFirst({
+      where: { OR: [{ id: rawSettlement.driverId }, { userId: rawSettlement.driverId }] }
+    });
+
+    if (!driver) {
+      return res.status(404).json({ error: 'Driver associated with settlement not found in database' });
+    }
+
+    // Atomic transaction: write balanced ledger journal and reduce Driver.commissionDebtMWK
+    const ledgerResult = await dbLedger.recordCommissionSettlement({
+      driverId: driver.id,
+      amountMWK: rawSettlement.amount,
+      reference: rawSettlement.remittanceReference,
+      settlementId: rawSettlement.settlementId,
+      verifiedByUserId: req.user.id,
+      notes: notes || 'Admin verified commission remittance'
+    });
+
+    // Update in-memory finance service
+    financeService.verifyCashCommissionSettlement({
+      settlementId: rawSettlement.settlementId,
+      adminId: req.user.id,
+      approved: true,
+      notes
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('commission:settled', {
+        settlementId,
+        driverId: driver.id,
+        amountMWK: rawSettlement.amount,
+        newDebtMWK: ledgerResult.newDebtMWK
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Settlement approved, balanced ledger journal written, and driver debt reduced.',
+      journalId: ledgerResult.journalId,
+      driver: ledgerResult.driver,
+      previousDebtMWK: ledgerResult.previousDebtMWK,
+      newDebtMWK: ledgerResult.newDebtMWK,
+      settledAmountMWK: ledgerResult.settledAmountMWK,
+      netBalanceSum: ledgerResult.netBalanceSum,
+      entriesCount: ledgerResult.entries.length
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 8. Reject Commission Settlement (ADMIN, FINANCE)
+router.post('/admin/settlements/:settlementId/reject', requireRole('ADMIN', 'FINANCE'), async (req, res) => {
+  try {
+    const { settlementId } = req.params;
+    const reason = req.body?.reason || req.body?.notes;
+    if (!reason) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+
+    const rawSettlement = (financeService.ledger.cashSettlements || []).find(s => s.settlementId === settlementId);
+    if (!rawSettlement) {
+      return res.status(404).json({ error: `Settlement ${settlementId} not found` });
+    }
+    if (rawSettlement.status === 'VERIFIED') {
+      return res.status(400).json({ error: 'Cannot reject an already verified settlement' });
+    }
+
+    financeService.verifyCashCommissionSettlement({
+      settlementId: rawSettlement.settlementId,
+      adminId: req.user.id,
+      approved: false,
+      notes: reason
+    });
+
+    // Log AuditLog
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'MANUAL_ADJUSTMENT',
+        entityType: 'COMMISSION_SETTLEMENT',
+        entityId: settlementId,
+        details: {
+          settlementId,
+          reason,
+          driverId: rawSettlement.driverId,
+          amountMWK: rawSettlement.amount
+        },
+        ipAddress: req.ip || null,
+        userAgent: req.headers['user-agent'] || null
+      }
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('commission:rejected', { settlementId, reason });
+    }
+
+    res.json({
+      success: true,
+      message: 'Settlement rejected',
+      reason,
+      settlement: rawSettlement
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -56,9 +56,13 @@ class DispatchService {
     const freshWindowMs = process.env.NODE_ENV === 'development' ? 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
     const freshCutoff = new Date(Date.now() - freshWindowMs);
 
+    const maxDebtLimit = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
     const where = {
       approvalStatus: 'APPROVED',
       availability: 'ONLINE',
+      commissionDebtMWK: {
+        lte: maxDebtLimit
+      },
       currentLat: {
         gte: pLat - latDelta,
         lte: pLat + latDelta

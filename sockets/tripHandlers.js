@@ -282,6 +282,11 @@ function registerTripHandlers(io, socket) {
         throw new Error('Driver profile is not active and approved');
       }
 
+      const MAX_COMMISSION_DEBT_MWK = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
+      if (parsed.data.status === 'ONLINE' && driver.commissionDebtMWK > MAX_COMMISSION_DEBT_MWK) {
+        throw new Error(`Driver cannot go online: Outstanding commission debt (MK ${driver.commissionDebtMWK.toLocaleString()}) exceeds the limit of MK ${MAX_COMMISSION_DEBT_MWK.toLocaleString()}. Please settle your commission.`);
+      }
+
       const updated = await prisma.driver.update({
         where: { id: socket.driverId },
         data: { availability: parsed.data.status }

@@ -33,8 +33,12 @@ const devRouter = require('./routes/dev');
 // Modular Socket Handlers
 const setupSockets = require('./sockets');
 
-// Refuse startup if auth secrets are missing or insecure
+const { validateStartupConfig } = require('./services/configValidator');
+const { logger } = require('./services/logger');
+
+// Refuse startup if auth secrets or production configs are missing or insecure
 authService.assertAuthSecrets();
+validateStartupConfig();
 
 const app = express();
 const server = http.createServer(app);
@@ -169,6 +173,7 @@ const generalApiLimiter = rateLimit({
 app.use('/api/', generalApiLimiter);
 
 app.use(express.json());
+app.use(logger.httpMiddleware());
 
 // Public API endpoints whitelist
 const PUBLIC_API_ROUTES = [
@@ -198,8 +203,27 @@ app.use('/api', (req, res, next) => {
 // Favicon handler
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Health check endpoint
-app.get('/api/health', (req, res) => res.json({ status: 'HEALTHY', platform: 'AArohan Mobility', timestamp: new Date().toISOString() }));
+// Health check endpoint (Zero secrets returned)
+app.get('/api/health', async (req, res) => {
+  let dbStatus = 'CONNECTED';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (err) {
+    dbStatus = 'DISCONNECTED';
+  }
+
+  const isHealthy = dbStatus === 'CONNECTED';
+  const responseData = {
+    status: isHealthy ? 'HEALTHY' : 'DEGRADED',
+    platform: 'AArohan Mobility',
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    database: dbStatus,
+    environment: process.env.NODE_ENV || 'development'
+  };
+
+  return res.status(isHealthy ? 200 : 503).json(responseData);
+});
 
 // Serve static apps
 const noCacheStatic = {

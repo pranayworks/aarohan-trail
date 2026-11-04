@@ -1,0 +1,34 @@
+# Dependencies & Package Managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Secrets (NEVER bake secrets into Docker images)
+.env*
+secrets/
+
+# Git & Repository metadata
+.git/
+.gitignore
+
+# Tests & Coverage
+tests/
+coverage/
+
+# IDE & Agents
+.gemini/
+.agent/
+.agents/
+.gsd/
+.vscode/
+.idea/
+
+# Local data & temporary uploads
+uploads/
+data/*.json
+
+# Scratch & build artifacts
+*.md
+!README.md
+!DEPLOYMENT.md
