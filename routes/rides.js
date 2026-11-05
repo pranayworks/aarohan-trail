@@ -29,13 +29,21 @@ const restQuoteSchema = z.object({
   pickup: z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
-    name: z.string().optional()
+    name: z.string().optional(),
+    address: z.string().optional()
   }),
   destination: z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
-    name: z.string().optional()
-  }),
+    name: z.string().optional(),
+    address: z.string().optional()
+  }).optional(),
+  dropoff: z.object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    name: z.string().optional(),
+    address: z.string().optional()
+  }).optional(),
   stops: z.array(z.object({
     lat: z.number().min(-90).max(90),
     lng: z.number().min(-180).max(180),
@@ -45,7 +53,13 @@ const restQuoteSchema = z.object({
   serviceType: z.enum(['RIDE', 'PARCEL']).optional(),
   parcelSize: z.enum(['SMALL', 'MEDIUM', 'LARGE']).optional(),
   surgeMultiplier: z.number().min(1.0).max(5.0).optional()
-});
+}).refine(data => data.destination || data.dropoff, {
+  message: "Either 'destination' or 'dropoff' must be provided",
+  path: ['destination']
+}).transform(data => ({
+  ...data,
+  destination: data.destination || data.dropoff
+}));
 
 const restRideCompleteSchema = z.object({
   rideId: z.string().min(1, 'rideId is required'),

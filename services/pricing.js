@@ -16,6 +16,7 @@
 // ============================================================================
 
 const crypto = require('crypto');
+const prisma = require('../lib/prisma');
 
 // Initial Verified Launch Pricing Version (AAROHAN-PRICE-V1)
 const INITIAL_PRICING_VERSIONS = [
@@ -29,11 +30,16 @@ const INITIAL_PRICING_VERSIONS = [
     driverShareRate: 0.70, // 70% Driver Share
     roundingUnit: 50,
     bookingFee: 150,
+    bookingFeeMWK: 150,
     demandMultiplierEnabled: false,
     defaultDemandMultiplier: 1.00,
     waitingChargePerMin: 50,
     freeWaitingMins: 3,
     cancellationFee: 1000,
+    stopFeeMWK: 500,
+    parcelSmallMult: 1.0,
+    parcelMediumMult: 1.35,
+    parcelLargeMult: 1.8,
     notes: 'Approved launch baseline pricing version for Lilongwe district',
     categories: {
       moto: {
@@ -93,6 +99,83 @@ class PricingService {
         }
       }
     }, 60000);
+
+    // Initial database sync (non-blocking)
+    if (prisma && prisma.pricingConfig) {
+      this.syncFromDatabase().catch(err => {
+        console.warn('[PricingService] Initial DB sync caught:', err.message);
+      });
+    }
+  }
+
+  _dbRowToVersion(row) {
+    let categories = row.categoryRules;
+    if (typeof categories === 'string') {
+      try { categories = JSON.parse(categories); } catch (e) { categories = {}; }
+    }
+    return {
+      versionId: row.versionId,
+      versionName: row.versionName,
+      effectiveFrom: row.effectiveFrom ? new Date(row.effectiveFrom).toISOString() : new Date().toISOString(),
+      isActive: Boolean(row.isActive),
+      currency: row.currency || 'MWK',
+      commissionRate: row.commissionRate !== undefined ? row.commissionRate : 0.30,
+      driverShareRate: row.driverShareRate !== undefined ? row.driverShareRate : 0.70,
+      roundingUnit: row.roundingUnit || 50,
+      bookingFee: row.bookingFeeMWK !== undefined ? row.bookingFeeMWK : 150,
+      bookingFeeMWK: row.bookingFeeMWK !== undefined ? row.bookingFeeMWK : 150,
+      waitingChargePerMin: row.waitingChargePerMinMWK !== undefined ? row.waitingChargePerMinMWK : 50,
+      freeWaitingMins: row.freeWaitingMins !== undefined ? row.freeWaitingMins : 3,
+      cancellationFee: row.cancellationFeeMWK !== undefined ? row.cancellationFeeMWK : 1000,
+      demandMultiplierEnabled: Boolean(row.demandMultiplierEnabled),
+      stopFeeMWK: row.stopFeeMWK !== undefined ? row.stopFeeMWK : 500,
+      parcelSmallMult: row.parcelSmallMult !== undefined ? row.parcelSmallMult : 1.0,
+      parcelMediumMult: row.parcelMediumMult !== undefined ? row.parcelMediumMult : 1.35,
+      parcelLargeMult: row.parcelLargeMult !== undefined ? row.parcelLargeMult : 1.8,
+      notes: row.notes || '',
+      categories: categories || {}
+    };
+  }
+
+  async syncFromDatabase() {
+    try {
+      const rows = await prisma.pricingConfig.findMany({
+        orderBy: { createdAt: 'desc' }
+      });
+      if (rows && rows.length > 0) {
+        this.versions = rows.map(r => this._dbRowToVersion(r));
+        return this.versions;
+      }
+      // If DB is empty, seed initial launch version
+      const init = this.versions[0];
+      const created = await prisma.pricingConfig.create({
+        data: {
+          versionId: init.versionId,
+          versionName: init.versionName,
+          isActive: true,
+          currency: init.currency || 'MWK',
+          commissionRate: init.commissionRate || 0.30,
+          driverShareRate: init.driverShareRate || 0.70,
+          roundingUnit: init.roundingUnit || 50,
+          bookingFeeMWK: init.bookingFee || 150,
+          waitingChargePerMinMWK: init.waitingChargePerMin || 50,
+          freeWaitingMins: init.freeWaitingMins || 3,
+          cancellationFeeMWK: init.cancellationFee || 1000,
+          demandMultiplierEnabled: init.demandMultiplierEnabled || false,
+          stopFeeMWK: init.stopFeeMWK || 500,
+          parcelSmallMult: init.parcelSmallMult || 1.0,
+          parcelMediumMult: init.parcelMediumMult || 1.35,
+          parcelLargeMult: init.parcelLargeMult || 1.8,
+          categoryRules: init.categories,
+          notes: init.notes || 'Approved launch baseline pricing version for Lilongwe district'
+        }
+      });
+      this.versions = [this._dbRowToVersion(created)];
+      return this.versions;
+    } catch (err) {
+      console.warn('[PricingService] DB sync warning:', err.message);
+      return this.versions;
+    }
   }
 
   // Get current active pricing version
@@ -106,13 +189,17 @@ class PricingService {
     return this.versions;
   }
 
-  // Create or update pricing version
-  createPricingVersion({
+  // Create or update pricing version with DB persistence
+  async createPricingVersion({
     versionName,
     categories,
     commissionRate = 0.30,
     driverShareRate = 0.70,
     bookingFee = 150,
+    stopFeeMWK = 500,
+    parcelSmallMult = 1.0,
+    parcelMediumMult = 1.35,
+    parcelLargeMult = 1.8,
     demandMultiplierEnabled = false,
     notes = '',
     makeActive = false,
@@ -133,11 +220,16 @@ class PricingService {
       driverShareRate: parseFloat(driverShareRate) || 0.70,
       roundingUnit: 50,
       bookingFee: parseInt(bookingFee, 10) || 150,
+      bookingFeeMWK: parseInt(bookingFee, 10) || 150,
       demandMultiplierEnabled: Boolean(demandMultiplierEnabled),
       defaultDemandMultiplier: 1.00,
       waitingChargePerMin: 50,
       freeWaitingMins: 3,
       cancellationFee: 1000,
+      stopFeeMWK: parseInt(stopFeeMWK, 10) || 500,
+      parcelSmallMult: parseFloat(parcelSmallMult) || 1.0,
+      parcelMediumMult: parseFloat(parcelMediumMult) || 1.35,
+      parcelLargeMult: parseFloat(parcelLargeMult) || 1.8,
       notes,
       categories: mergedCategories,
       createdBy: actorId,
@@ -147,13 +239,43 @@ class PricingService {
     if (makeActive) {
       this.versions.forEach(v => { v.isActive = false; });
     }
+    this.versions.unshift(newVersion);
 
-    this.versions.push(newVersion);
+    try {
+      if (makeActive) {
+        await prisma.pricingConfig.updateMany({ data: { isActive: false } });
+      }
+      await prisma.pricingConfig.create({
+        data: {
+          versionId: newVersion.versionId,
+          versionName: newVersion.versionName,
+          isActive: newVersion.isActive,
+          currency: newVersion.currency,
+          commissionRate: newVersion.commissionRate,
+          driverShareRate: newVersion.driverShareRate,
+          roundingUnit: newVersion.roundingUnit,
+          bookingFeeMWK: newVersion.bookingFee,
+          waitingChargePerMinMWK: newVersion.waitingChargePerMin,
+          freeWaitingMins: newVersion.freeWaitingMins,
+          cancellationFeeMWK: newVersion.cancellationFee,
+          demandMultiplierEnabled: newVersion.demandMultiplierEnabled,
+          stopFeeMWK: newVersion.stopFeeMWK,
+          parcelSmallMult: newVersion.parcelSmallMult,
+          parcelMediumMult: newVersion.parcelMediumMult,
+          parcelLargeMult: newVersion.parcelLargeMult,
+          categoryRules: newVersion.categories,
+          notes: newVersion.notes
+        }
+      });
+    } catch (dbErr) {
+      console.warn('[PricingService] Could not persist new pricing version to DB:', dbErr.message);
+    }
+
     return newVersion;
   }
 
   // Activate an existing pricing version
-  activateVersion(versionId, actorId = 'ADMIN_SUPER') {
+  async activateVersion(versionId, actorId = 'ADMIN_SUPER') {
     const target = this.versions.find(v => v.versionId === versionId);
     if (!target) throw new Error(`Pricing version ${versionId} not found.`);
 
@@ -161,11 +283,22 @@ class PricingService {
     target.isActive = true;
     target.activatedAt = new Date().toISOString();
     target.activatedBy = actorId;
+
+    try {
+      await prisma.pricingConfig.updateMany({ data: { isActive: false } });
+      await prisma.pricingConfig.update({
+        where: { versionId },
+        data: { isActive: true }
+      });
+    } catch (dbErr) {
+      console.warn('[PricingService] Could not update active version in DB:', dbErr.message);
+    }
+
     return target;
   }
 
   // Update rates for a specific vehicle category in active version
-  updateCategoryRates(categoryId, rateUpdates, actorId = 'ADMIN_SUPER') {
+  async updateCategoryRates(categoryId, rateUpdates, actorId = 'ADMIN_SUPER') {
     const version = this.getActiveVersion();
     const cat = version.categories[categoryId];
     if (!cat) throw new Error(`Category ${categoryId} does not exist.`);
@@ -179,12 +312,50 @@ class PricingService {
     if (rateUpdates.bookingFee !== undefined) cat.bookingFee = Math.max(0, parseInt(rateUpdates.bookingFee, 10));
     if (rateUpdates.cancellationFee !== undefined) cat.cancellationFee = Math.max(0, parseInt(rateUpdates.cancellationFee, 10));
 
+    try {
+      await prisma.pricingConfig.update({
+        where: { versionId: version.versionId },
+        data: { categoryRules: version.categories }
+      });
+    } catch (dbErr) {
+      console.warn('[PricingService] Could not update category rates in DB:', dbErr.message);
+    }
+
     return {
       categoryId,
       oldValues,
       newValues: cat,
       versionId: version.versionId
     };
+  }
+
+  // Update global tariffs (Stop Fee & Parcel Multipliers) keeping version history
+  async updateGlobalTariffs({
+    stopFeeMWK,
+    parcelSmallMult,
+    parcelMediumMult,
+    parcelLargeMult,
+    commissionRate,
+    bookingFee,
+    versionName
+  }, actorId = 'ADMIN_SUPER') {
+    const active = this.getActiveVersion();
+    const newVersionName = versionName || `Tariff Update ${new Date().toLocaleDateString()} (Stop Fee & Parcel Mults)`;
+
+    return await this.createPricingVersion({
+      versionName: newVersionName,
+      categories: active.categories,
+      commissionRate: commissionRate !== undefined ? parseFloat(commissionRate) : active.commissionRate,
+      driverShareRate: commissionRate !== undefined ? (1 - parseFloat(commissionRate)) : active.driverShareRate,
+      bookingFee: bookingFee !== undefined ? parseInt(bookingFee, 10) : active.bookingFee,
+      stopFeeMWK: stopFeeMWK !== undefined ? parseInt(stopFeeMWK, 10) : active.stopFeeMWK,
+      parcelSmallMult: parcelSmallMult !== undefined ? parseFloat(parcelSmallMult) : active.parcelSmallMult,
+      parcelMediumMult: parcelMediumMult !== undefined ? parseFloat(parcelMediumMult) : active.parcelMediumMult,
+      parcelLargeMult: parcelLargeMult !== undefined ? parseFloat(parcelLargeMult) : active.parcelLargeMult,
+      notes: `Updated global tariffs by ${actorId}`,
+      makeActive: true,
+      actorId
+    });
   }
 
   // --------------------------------------------------------------------------

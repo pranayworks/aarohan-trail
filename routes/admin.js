@@ -84,28 +84,40 @@ router.get('/admin/financial-ledger', requireRole('ADMIN'), (req, res) => {
 });
 
 // Pricing Endpoints
-router.get('/pricing/versions', (req, res) => {
-  res.json(pricingService.getAllVersions());
-});
-
-router.get('/pricing/active', (req, res) => {
-  res.json(pricingService.getActiveVersion());
-});
-
-router.post('/pricing/versions', requireRole('ADMIN'), validateBody(restPricingVersionSchema), (req, res) => {
+router.get('/pricing/versions', async (req, res) => {
   try {
-    const version = pricingService.createPricingVersion(req.body);
+    await pricingService.syncFromDatabase();
+    res.json(pricingService.getAllVersions());
+  } catch (e) {
+    res.json(pricingService.getAllVersions());
+  }
+});
+
+router.get('/pricing/active', async (req, res) => {
+  try {
+    await pricingService.syncFromDatabase();
+    res.json(pricingService.getActiveVersion());
+  } catch (e) {
+    res.json(pricingService.getActiveVersion());
+  }
+});
+
+router.post('/pricing/versions', requireRole('ADMIN'), validateBody(restPricingVersionSchema), async (req, res) => {
+  try {
+    const version = await pricingService.createPricingVersion(req.body);
+    const io = req.app.get('io');
+    if (io) io.emit('pricing:version_created', version);
     res.json({ success: true, version });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.post('/pricing/activate', requireRole('ADMIN'), validateBody(restPricingActivateSchema), (req, res) => {
+router.post('/pricing/activate', requireRole('ADMIN'), validateBody(restPricingActivateSchema), async (req, res) => {
   try {
     const { versionId } = req.body;
     if (!versionId) return res.status(400).json({ error: 'versionId required' });
-    const activated = pricingService.activateVersion(versionId, req.user?.id || 'ADMIN_SUPER');
+    const activated = await pricingService.activateVersion(versionId, req.user?.id || 'ADMIN_SUPER');
     const io = req.app.get('io');
     if (io) io.emit('pricing:version_activated', activated);
     res.json({ success: true, activated });
@@ -114,12 +126,23 @@ router.post('/pricing/activate', requireRole('ADMIN'), validateBody(restPricingA
   }
 });
 
-router.post('/pricing/rates/:categoryId', requireRole('ADMIN'), (req, res) => {
+router.post('/pricing/rates/:categoryId', requireRole('ADMIN'), async (req, res) => {
   try {
     const { categoryId } = req.params;
-    const result = pricingService.updateCategoryRates(categoryId, req.body, req.user?.id || 'ADMIN_SUPER');
+    const result = await pricingService.updateCategoryRates(categoryId, req.body, req.user?.id || 'ADMIN_SUPER');
     const io = req.app.get('io');
     if (io) io.emit('pricing:rates_updated', result);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/pricing/global', requireRole('ADMIN'), async (req, res) => {
+  try {
+    const result = await pricingService.updateGlobalTariffs(req.body, req.user?.id || 'ADMIN_SUPER');
+    const io = req.app.get('io');
+    if (io) io.emit('pricing:global_updated', result);
     res.json({ success: true, result });
   } catch (err) {
     res.status(400).json({ error: err.message });
