@@ -3250,5 +3250,378 @@
     }, 1200);
   };
 
+  // =========================================================================
+  // 18. ACTIVITY HISTORY, RECEIPTS & SUPPORT DISPUTES (PACKAGE 4)
+  // =========================================================================
+  window.allActivityTrips = [];
+  window.currentReceiptTripId = null;
+  window.activeChatTicketId = null;
+
+  window.loadActivityTrips = async function () {
+    const list = document.getElementById('activity-trips-list');
+    if (!list) return;
+    list.innerHTML = `
+      <div class="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+        <span class="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+        <span>Loading Lilongwe trip history...</span>
+      </div>
+    `;
+
+    try {
+      const res = await fetch('/api/trips/history');
+      if (!res.ok) throw new Error('Failed to load activity');
+      const data = await res.json();
+      window.allActivityTrips = data.trips || [];
+      window.renderActivityTrips(window.allActivityTrips);
+    } catch (err) {
+      list.innerHTML = `<div class="p-8 text-center text-xs text-rose-500 font-bold">Failed to load trip history: ${err.message}</div>`;
+    }
+  };
+
+  window.renderActivityTrips = function (trips) {
+    const list = document.getElementById('activity-trips-list');
+    if (!list) return;
+
+    if (!trips || trips.length === 0) {
+      list.innerHTML = `
+        <div class="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center gap-2">
+          <span class="material-symbols-outlined text-[32px] text-slate-300">receipt_long</span>
+          <span class="text-xs font-bold text-slate-600">No trips recorded yet</span>
+          <span class="text-[10px] text-slate-400">Your completed rides and courier deliveries will appear here.</span>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = trips.map(t => {
+      const isCompleted = t.status === 'COMPLETED';
+      const statusBg = isCompleted ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800';
+      const isParcel = t.serviceType === 'PARCEL';
+      const typeBadge = isParcel
+        ? '<span class="px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 text-[10px] font-bold">📦 Parcel</span>'
+        : '<span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-bold">🚕 Ride</span>';
+
+      const fare = t.fareMWK || t.finalFare || 0;
+      const dateStr = t.createdAt ? new Date(t.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent';
+      const stopsText = (t.stops && t.stops.length > 0) ? `<span class="text-[10px] text-amber-600 font-bold">+${t.stops.length} stop${t.stops.length > 1 ? 's' : ''}</span>` : '';
+
+      return `
+        <div onclick="openActivityTripReceipt('${t.id}')"
+          class="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-emerald-300 cursor-pointer transition-all flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              ${typeBadge}
+              <span class="text-[10px] text-slate-400 font-mono">${dateStr}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-black text-slate-900">MK ${fare.toLocaleString()}</span>
+              <span class="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${statusBg}">${t.status}</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1 text-xs">
+            <div class="flex items-center gap-1.5 text-slate-800 font-bold truncate">
+              <span class="w-2 h-2 rounded-full bg-emerald-600 shrink-0"></span>
+              <span class="truncate">${t.pickupAddress || t.pickup?.name || 'Pickup'}</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-slate-800 font-bold truncate">
+              <span class="w-2 h-2 rounded-sm bg-slate-900 shrink-0"></span>
+              <span class="truncate">${t.dropoffAddress || t.destination?.name || 'Destination'}</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 pt-1.5">
+            <span>${t.driver?.user?.name ? 'Captain ' + t.driver.user.name : (isParcel ? 'Courier Delivery' : 'AArohan Trip')}</span>
+            <div class="flex items-center gap-1 text-emerald-700 font-bold">
+              ${stopsText}
+              <span>Receipt &rarr;</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  window.filterActivityTrips = function (filter, el) {
+    document.querySelectorAll('.activity-filter-btn').forEach(b => {
+      b.classList.remove('bg-slate-900', 'text-white');
+      b.classList.add('bg-slate-100', 'text-slate-600');
+    });
+    if (el) {
+      el.classList.add('bg-slate-900', 'text-white');
+      el.classList.remove('bg-slate-100', 'text-slate-600');
+    }
+
+    if (filter === 'ALL') {
+      window.renderActivityTrips(window.allActivityTrips);
+    } else if (filter === 'COMPLETED') {
+      window.renderActivityTrips(window.allActivityTrips.filter(t => t.status === 'COMPLETED'));
+    } else if (filter === 'CANCELLED') {
+      window.renderActivityTrips(window.allActivityTrips.filter(t => t.status.startsWith('CANCELLED') || t.status === 'EXPIRED'));
+    }
+  };
+
+  window.openActivityTripReceipt = function (tripId) {
+    const trip = window.allActivityTrips.find(t => t.id === tripId);
+    if (!trip) return;
+    window.currentReceiptTripId = tripId;
+
+    const modal = document.getElementById('activity-receipt-modal');
+    if (!modal) return;
+
+    const idEl = document.getElementById('receipt-trip-id-text');
+    if (idEl) idEl.innerText = `TRIP #${trip.id.substring(0, 8).toUpperCase()}`;
+
+    const pEl = document.getElementById('receipt-modal-pickup');
+    const dEl = document.getElementById('receipt-modal-dest');
+    if (pEl) pEl.innerText = trip.pickupAddress || trip.pickup?.name || 'Lilongwe Pickup';
+    if (dEl) dEl.innerText = trip.dropoffAddress || trip.destination?.name || 'Lilongwe Destination';
+
+    const stopsList = document.getElementById('receipt-modal-stops-list');
+    if (stopsList) {
+      if (trip.stops && trip.stops.length > 0) {
+        stopsList.classList.remove('hidden');
+        stopsList.innerHTML = trip.stops.map(s => `
+          <div class="text-[11px] text-amber-700 font-medium">📍 Stop ${s.sequence}: ${s.address}</div>
+        `).join('');
+      } else {
+        stopsList.classList.add('hidden');
+        stopsList.innerHTML = '';
+      }
+    }
+
+    const driverName = document.getElementById('receipt-modal-driver-name');
+    const driverVeh = document.getElementById('receipt-modal-driver-veh');
+    if (driverName) driverName.innerText = trip.driver?.user?.name || (trip.serviceType === 'PARCEL' ? 'Parcel Courier' : 'Verified Captain');
+    if (driverVeh) driverVeh.innerText = `${trip.driver?.vehicle?.make || 'Vehicle'} ${trip.driver?.vehicle?.model || ''} • ${trip.driver?.vehicle?.licensePlate || 'Registered'}`;
+
+    const statusEl = document.getElementById('receipt-modal-status');
+    if (statusEl) statusEl.innerText = trip.status;
+
+    const fare = trip.fareMWK || trip.finalFare || 0;
+    const baseFare = Math.round(fare * 0.35);
+    const distFare = Math.round(fare * 0.50);
+    const stopFee = (trip.stopCount || 0) * (trip.stopFeeMWK || 500);
+    const bookingFee = fare - baseFare - distFare - stopFee;
+
+    const bBase = document.getElementById('receipt-breakdown-base');
+    const bDistKm = document.getElementById('receipt-breakdown-dist-km');
+    const bDistMwk = document.getElementById('receipt-breakdown-dist-mwk');
+    const bStopRow = document.getElementById('receipt-breakdown-stop-row');
+    const bStopCount = document.getElementById('receipt-breakdown-stop-count');
+    const bStopFee = document.getElementById('receipt-breakdown-stop-fee');
+    const bBooking = document.getElementById('receipt-breakdown-booking-fee');
+    const bTotal = document.getElementById('receipt-breakdown-total');
+    const bPayment = document.getElementById('receipt-breakdown-payment');
+
+    if (bBase) bBase.innerText = `MK ${baseFare.toLocaleString()}`;
+    if (bDistKm) bDistKm.innerText = `${trip.distanceKm || 3.5}`;
+    if (bDistMwk) bDistMwk.innerText = `MK ${distFare.toLocaleString()}`;
+
+    if (bStopRow) {
+      if (trip.stopCount > 0) {
+        bStopRow.classList.remove('hidden');
+        if (bStopCount) bStopCount.innerText = trip.stopCount;
+        if (bStopFee) bStopFee.innerText = `MK ${stopFee.toLocaleString()}`;
+      } else {
+        bStopRow.classList.add('hidden');
+      }
+    }
+
+    if (bBooking) bBooking.innerText = `MK ${(bookingFee > 0 ? bookingFee : 200).toLocaleString()}`;
+    if (bTotal) bTotal.innerText = `MK ${fare.toLocaleString()}`;
+    if (bPayment) bPayment.innerText = trip.paymentMethod || 'CASH';
+
+    const ratingBox = document.getElementById('receipt-modal-rating-box');
+    const ratingStars = document.getElementById('receipt-modal-rating-stars');
+    if (trip.ratings && trip.ratings.length > 0) {
+      const r = trip.ratings[0];
+      if (ratingBox) ratingBox.classList.remove('hidden');
+      if (ratingStars) ratingStars.innerText = `⭐ ${r.stars}.0 ${r.comment ? '• "' + r.comment + '"' : ''}`;
+    } else {
+      if (ratingBox) ratingBox.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  };
+
+  window.closeActivityTripReceipt = function () {
+    const modal = document.getElementById('activity-receipt-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  };
+
+  window.handleReportIssueFromReceipt = function () {
+    window.closeActivityTripReceipt();
+    window.openCreateTicketModal(window.currentReceiptTripId);
+  };
+
+  // Support Tickets
+  window.openCreateTicketModal = function (tripId = null) {
+    const modal = document.getElementById('create-ticket-modal');
+    if (!modal) return;
+    const tripInput = document.getElementById('ticket-trip-id');
+    const tripBadge = document.getElementById('ticket-linked-trip-badge');
+    const tripText = document.getElementById('ticket-linked-trip-text');
+
+    if (tripId) {
+      if (tripInput) tripInput.value = tripId;
+      if (tripText) tripText.innerText = tripId.substring(0, 8).toUpperCase();
+      if (tripBadge) tripBadge.classList.remove('hidden');
+    } else {
+      if (tripInput) tripInput.value = '';
+      if (tripBadge) tripBadge.classList.add('hidden');
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  };
+
+  window.closeCreateTicketModal = function () {
+    const modal = document.getElementById('create-ticket-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  };
+
+  window.submitSupportTicket = async function () {
+    const tripInput = document.getElementById('ticket-trip-id');
+    const catSelect = document.getElementById('ticket-category-select');
+    const subjInput = document.getElementById('ticket-subject-input');
+    const descInput = document.getElementById('ticket-description-input');
+
+    const tripId = tripInput?.value || undefined;
+    const category = catSelect?.value || 'OTHER';
+    const subject = subjInput?.value.trim();
+    const description = descInput?.value.trim();
+
+    if (!subject || !description) {
+      alert('Please enter both subject and description for your dispute.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tripId, category, subject, description, priority: 'NORMAL' })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (window.showToast) window.showToast('✅ Ticket submitted to Lilongwe Support desk');
+        else alert('Support ticket submitted successfully!');
+        window.closeCreateTicketModal();
+        window.loadUserSupportTickets();
+      } else {
+        alert(data.error || 'Failed to submit ticket');
+      }
+    } catch (err) {
+      alert('Network error submitting ticket: ' + err.message);
+    }
+  };
+
+  window.loadUserSupportTickets = async function () {
+    const list = document.getElementById('profile-tickets-list');
+    if (!list) return;
+
+    try {
+      const res = await fetch('/api/tickets');
+      if (!res.ok) return;
+      const data = await res.json();
+      const tickets = data.tickets || [];
+
+      if (tickets.length === 0) {
+        list.innerHTML = '<div class="text-[11px] text-slate-400 text-center py-2">No active support disputes.</div>';
+        return;
+      }
+
+      list.innerHTML = tickets.map(t => {
+        const statusColor = t.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' : (t.status === 'OPEN' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-800');
+        return `
+          <div onclick="openTicketChatModal('${t.id}')"
+            class="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 cursor-pointer flex items-center justify-between transition-colors">
+            <div class="min-w-0">
+              <span class="font-bold text-slate-900 block truncate">${t.subject}</span>
+              <span class="text-[10px] text-slate-400">${t.category.replace(/_/g, ' ')} &bull; ${new Date(t.createdAt).toLocaleDateString()}</span>
+            </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${statusColor}">${t.status}</span>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      console.warn('Failed to load tickets:', err);
+    }
+  };
+
+  window.openTicketChatModal = async function (ticketId) {
+    window.activeChatTicketId = ticketId;
+    const modal = document.getElementById('ticket-chat-modal');
+    if (!modal) return;
+
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        const container = document.getElementById('ticket-chat-messages-container');
+        if (container) {
+          container.innerHTML = (data.messages || []).map(m => {
+            const isAdmin = m.authorRole === 'ADMIN' || m.authorRole === 'SUPPORT';
+            const bg = isAdmin ? 'bg-purple-100 text-purple-950 ml-6' : 'bg-slate-100 text-slate-900 mr-6';
+            return `
+              <div class="p-2.5 rounded-xl text-xs flex flex-col gap-0.5 ${bg}">
+                <div class="flex items-center justify-between text-[9px] font-bold text-slate-500">
+                  <span>${isAdmin ? 'AArohan Support' : 'You'}</span>
+                  <span>${new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <span>${m.body}</span>
+              </div>
+            `;
+          }).join('') || '<div class="text-slate-400 text-center py-4">No messages yet.</div>';
+        }
+      }
+    } catch (_) {}
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  };
+
+  window.closeTicketChatModal = function () {
+    const modal = document.getElementById('ticket-chat-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  };
+
+  window.sendTicketReplyMessage = async function () {
+    if (!window.activeChatTicketId) return;
+    const input = document.getElementById('ticket-reply-input');
+    const body = input?.value.trim();
+    if (!body) return;
+
+    try {
+      const res = await fetch(`/api/tickets/${window.activeChatTicketId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body })
+      });
+      if (res.ok) {
+        if (input) input.value = '';
+        window.openTicketChatModal(window.activeChatTicketId);
+      }
+    } catch (err) {
+      alert('Failed to send message: ' + err.message);
+    }
+  };
+
+  window.handleLanguageChange = function (lang) {
+    if (typeof window.applyLanguage === 'function') {
+      window.applyLanguage(lang);
+    }
+    if (window.showToast) window.showToast(lang === 'ny' ? 'Chilankhulo chasinthidwa ku Chichewa' : 'Language set to English');
+  };
+
 })();
 

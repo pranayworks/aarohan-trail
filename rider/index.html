@@ -1207,6 +1207,37 @@
     </section>
 
     <!-- ============================================== -->
+    <!-- VIEW: ACTIVITY & ITEMIZED RECEIPTS             -->
+    <!-- ============================================== -->
+    <section id="view-activity" class="view-panel hidden flex flex-col w-full px-4 py-4 gap-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-black text-slate-900">Activity</h2>
+          <p class="text-xs text-slate-500">Your trips, courier deliveries & itemized receipts</p>
+        </div>
+        <button type="button" onclick="loadActivityTrips()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 active:scale-95 transition-all">
+          <span class="material-symbols-outlined text-[18px]">refresh</span>
+        </button>
+      </div>
+
+      <!-- Filter Chips -->
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="filterActivityTrips('ALL', this)"
+          class="activity-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition-all bg-slate-900 text-white">All</button>
+        <button type="button" onclick="filterActivityTrips('COMPLETED', this)"
+          class="activity-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Completed</button>
+        <button type="button" onclick="filterActivityTrips('CANCELLED', this)"
+          class="activity-filter-btn px-3 py-1.5 rounded-full text-xs font-bold transition-all bg-slate-100 text-slate-600 hover:bg-slate-200">Cancelled</button>
+      </div>
+
+      <!-- Trips List Container -->
+      <div id="activity-trips-list" class="flex flex-col gap-2.5 min-h-[300px]">
+        <div class="p-8 text-center text-xs text-slate-400">Loading your trip history...</div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
     <!-- VIEW 8: PROFILE & WALLET                       -->
     <!-- ============================================== -->
     <section id="view-profile" class="view-panel hidden flex flex-col w-full px-4 py-4 gap-3">
@@ -1224,7 +1255,11 @@
               <span
                 class="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">✓</span>
             </div>
-            <span class="text-xs text-slate-400 font-medium" id="profile-rider-sub">+265 &bull; Verified Lilongwe</span>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-xs text-slate-400 font-medium" id="profile-rider-sub">+265 &bull; Verified Lilongwe</span>
+              <span id="profile-rider-rating-badge"
+                class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold">⭐ 5.0 (0 rides)</span>
+            </div>
           </div>
         </div>
         <button onclick="openProfileEditModal()"
@@ -1331,6 +1366,93 @@
         <div id="wallet-tx-list" class="flex flex-col gap-2"></div>
       </div>
 
+      <!-- Emergency Contacts Card -->
+      <div class="bg-rose-50 border border-rose-200 rounded-3xl p-4 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-rose-600 text-[20px]">emergency</span>
+            <span class="text-xs font-extrabold text-rose-900">Lilongwe Emergency Dispatch</span>
+          </div>
+          <span class="text-[10px] font-bold text-rose-700 bg-rose-200/60 px-2 py-0.5 rounded-full">24/7 Helpline</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 mt-1">
+          <a href="tel:997" class="py-2 px-3 bg-white hover:bg-rose-100 border border-rose-300 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black text-rose-800 transition-colors">
+            <span class="material-symbols-outlined text-[16px]">local_police</span>
+            <span>Police (997)</span>
+          </a>
+          <a href="tel:998" class="py-2 px-3 bg-white hover:bg-rose-100 border border-rose-300 rounded-xl flex items-center justify-center gap-1.5 text-xs font-black text-rose-800 transition-colors">
+            <span class="material-symbols-outlined text-[16px]">medical_services</span>
+            <span>Ambulance (998)</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Support & Disputes Tickets Card -->
+      <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/90 flex flex-col gap-2.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[18px]">support_agent</span>
+            </div>
+            <div>
+              <h4 class="font-extrabold text-xs text-slate-900">Support & Disputes</h4>
+              <span class="text-[10px] text-slate-400">Resolution desk for trips & payments</span>
+            </div>
+          </div>
+          <button type="button" onclick="openCreateTicketModal()" class="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-bold transition-all">
+            + New Ticket
+          </button>
+        </div>
+        <div id="profile-tickets-list" class="flex flex-col gap-2 pt-1 text-xs">
+          <div class="text-[11px] text-slate-400 text-center py-2">No active support disputes.</div>
+        </div>
+      </div>
+
+      <!-- Language Preference Card -->
+      <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/90 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="material-symbols-outlined text-slate-600 text-[20px]">translate</span>
+          <div>
+            <span class="text-xs font-bold text-slate-900 block">Language / Chilankhulo</span>
+            <span class="text-[10px] text-slate-400">English &bull; Chichewa</span>
+          </div>
+        </div>
+        <select id="language-switcher-select" onchange="handleLanguageChange(this.value)" class="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 outline-none">
+          <option value="en">English</option>
+          <option value="ny">Chichewa</option>
+        </select>
+      </div>
+
+      <!-- Earn by Driving Driver Link -->
+      <a href="/driver/" class="bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-3xl p-4 shadow-md flex items-center justify-between hover:opacity-95 transition-opacity">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+            <span class="material-symbols-outlined text-[22px]">two_wheeler</span>
+          </div>
+          <div>
+            <h4 class="font-extrabold text-xs">Earn by Driving</h4>
+            <span class="text-[10px] text-emerald-100">Join verified captains &bull; 70% net share</span>
+          </div>
+        </div>
+        <span class="text-xs font-black bg-white/20 px-2.5 py-1 rounded-xl">Portal &rarr;</span>
+      </a>
+
+      <!-- Legal Notice & Policy Links (Draft v0.1) -->
+      <div class="bg-slate-50 rounded-3xl p-4 border border-slate-200/90 flex flex-col gap-2 text-xs">
+        <div class="flex items-center gap-1.5 text-slate-500 font-semibold text-[11px]">
+          <span class="material-symbols-outlined text-[16px]">gavel</span>
+          <span>Legal & Compliance (Draft v0.1)</span>
+        </div>
+        <p class="text-[10px] text-slate-400 leading-relaxed">
+          Notice: Terms of Service and Privacy Policy are published in draft version 0.1 for platform operations in Lilongwe, Malawi.
+        </p>
+        <div class="flex items-center gap-3 pt-1 border-t border-slate-200/60 text-[11px]">
+          <a href="/legal/terms" target="_blank" class="font-bold text-slate-700 hover:text-slate-900 underline">Terms of Service</a>
+          <span class="text-slate-300">&bull;</span>
+          <a href="/legal/privacy" target="_blank" class="font-bold text-slate-700 hover:text-slate-900 underline">Privacy Policy</a>
+        </div>
+      </div>
+
       <!-- Account Session & Sign Out Card -->
       <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/90 flex items-center justify-between mt-3">
         <div class="flex items-center gap-3">
@@ -1349,8 +1471,182 @@
       </div>
     </section>
 
-
   </main>
+
+  <!-- ============================================== -->
+  <!-- MODAL: ITEMIZED ACTIVITY TRIP RECEIPT          -->
+  <!-- ============================================== -->
+  <div id="activity-receipt-modal"
+    class="fixed inset-0 z-[110] bg-black/60 hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl flex flex-col gap-3 my-auto max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div>
+          <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[18px] text-emerald-600">receipt_long</span>
+            <span>Trip Receipt</span>
+          </h3>
+          <span class="text-[10px] text-slate-400 font-mono" id="receipt-trip-id-text">TRIP #---</span>
+        </div>
+        <button type="button" onclick="closeActivityTripReceipt()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[16px]">close</span>
+        </button>
+      </div>
+
+      <!-- Route Card -->
+      <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 flex flex-col gap-2 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0"></span>
+          <span class="font-bold text-slate-900 truncate" id="receipt-modal-pickup">Gateway Mall, Area 47</span>
+        </div>
+        <div id="receipt-modal-stops-list" class="flex flex-col gap-1 pl-4 border-l-2 border-dashed border-slate-200 ml-1">
+          <!-- stops populated dynamically -->
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-sm bg-slate-900 shrink-0"></span>
+          <span class="font-bold text-slate-900 truncate" id="receipt-modal-dest">EPTL Printing, Area 4</span>
+        </div>
+      </div>
+
+      <!-- Service & Driver Card -->
+      <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+        <div>
+          <span class="font-bold text-slate-900 block" id="receipt-modal-driver-name">Chikondi Phiri</span>
+          <span class="text-[10px] text-slate-400" id="receipt-modal-driver-veh">TVS King Auto &bull; BT 4421</span>
+        </div>
+        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800" id="receipt-modal-status">COMPLETED</span>
+      </div>
+
+      <!-- Itemized Fare Breakdown -->
+      <div class="flex flex-col gap-1.5 text-xs border-t border-b border-slate-100 py-2">
+        <div class="flex items-center justify-between text-slate-500">
+          <span>Base Fare</span>
+          <span id="receipt-breakdown-base">MK 1,200</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-500">
+          <span>Distance Fare (<span id="receipt-breakdown-dist-km">3.5</span> km)</span>
+          <span id="receipt-breakdown-dist-mwk">MK 1,800</span>
+        </div>
+        <div id="receipt-breakdown-stop-row" class="hidden flex items-center justify-between text-slate-500">
+          <span>Stop Fee (<span id="receipt-breakdown-stop-count">0</span> stops)</span>
+          <span id="receipt-breakdown-stop-fee">MK 0</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-500">
+          <span>Platform Booking Fee</span>
+          <span id="receipt-breakdown-booking-fee">MK 500</span>
+        </div>
+        <div class="flex items-center justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-200">
+          <span>Total Fare Paid</span>
+          <span id="receipt-breakdown-total" class="text-emerald-700">MK 3,500</span>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-slate-400">
+          <span>Payment Method</span>
+          <span id="receipt-breakdown-payment" class="font-bold text-slate-700 uppercase">CASH</span>
+        </div>
+      </div>
+
+      <!-- Ratings Summary -->
+      <div id="receipt-modal-rating-box" class="p-2 rounded-xl bg-amber-50 border border-amber-200 text-xs flex items-center justify-between">
+        <span class="text-amber-900 font-bold">Your Rating:</span>
+        <span class="font-bold text-amber-800" id="receipt-modal-rating-stars">⭐⭐⭐⭐⭐ (5.0)</span>
+      </div>
+
+      <!-- Action: Report an Issue -->
+      <button type="button" id="btn-report-trip-issue" onclick="handleReportIssueFromReceipt()"
+        class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors">
+        <span class="material-symbols-outlined text-[16px] text-rose-600">report_problem</span>
+        <span>Report an Issue with this Trip</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: CREATE SUPPORT TICKET                   -->
+  <!-- ============================================== -->
+  <div id="create-ticket-modal"
+    class="fixed inset-0 z-[120] bg-black/60 hidden items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl flex flex-col gap-3">
+      <div class="flex items-center justify-between border-b pb-2">
+        <h3 class="font-extrabold text-sm text-slate-900 flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-[18px] text-purple-600">support_agent</span>
+          <span>Submit Support Ticket</span>
+        </h3>
+        <button type="button" onclick="closeCreateTicketModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200">
+          <span class="material-symbols-outlined text-[16px]">close</span>
+        </button>
+      </div>
+
+      <input type="hidden" id="ticket-trip-id" value="" />
+      <div id="ticket-linked-trip-badge" class="hidden text-[10px] font-bold text-purple-800 bg-purple-50 p-2 rounded-lg border border-purple-200">
+        Linked Trip: <span id="ticket-linked-trip-text"></span>
+      </div>
+
+      <div class="flex flex-col gap-1 text-xs">
+        <label class="font-bold text-slate-500 uppercase text-[10px]">Issue Category *</label>
+        <select id="ticket-category-select" class="w-full h-9 px-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs outline-none">
+          <option value="PAYMENT_DISPUTE">Payment / Fare Dispute</option>
+          <option value="SAFETY">Safety or Security Concern</option>
+          <option value="LOST_ITEM">Lost Item in Vehicle</option>
+          <option value="DRIVER_CONDUCT">Captain Conduct / Professionalism</option>
+          <option value="WRONG_FARE">Incorrect Route or Overcharge</option>
+          <option value="PARCEL_ISSUE">Parcel Courier Issue</option>
+          <option value="APP_ISSUE">App Technical Issue</option>
+          <option value="OTHER">Other Inquiry</option>
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-1 text-xs">
+        <label class="font-bold text-slate-500 uppercase text-[10px]">Subject *</label>
+        <input id="ticket-subject-input" type="text" placeholder="Brief summary of your dispute..."
+          class="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-medium text-xs outline-none focus:border-purple-600" />
+      </div>
+
+      <div class="flex flex-col gap-1 text-xs">
+        <label class="font-bold text-slate-500 uppercase text-[10px]">Description *</label>
+        <textarea id="ticket-description-input" rows="3" placeholder="Provide full details of what occurred..."
+          class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-xs outline-none focus:border-purple-600 resize-none"></textarea>
+      </div>
+
+      <button type="button" onclick="submitSupportTicket()"
+        class="w-full py-3 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-bold text-xs shadow-md transition-all active:scale-[0.98]">
+        Submit Dispute to Lilongwe Support
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: TICKET CHAT & RESOLUTION THREAD         -->
+  <!-- ============================================== -->
+  <div id="ticket-chat-modal"
+    class="fixed inset-0 z-[125] bg-black/60 hidden items-center justify-center p-4">
+    <div class="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl flex flex-col gap-3 max-h-[85vh]">
+      <div class="flex items-center justify-between border-b pb-2">
+        <div class="min-w-0">
+          <h3 class="font-extrabold text-sm text-slate-900 truncate" id="ticket-chat-subject">Ticket Subject</h3>
+          <span class="text-[10px] text-slate-400 font-mono" id="ticket-chat-meta">Status: OPEN &bull; NORMAL</span>
+        </div>
+        <button type="button" onclick="closeTicketChatModal()"
+          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 shrink-0">
+          <span class="material-symbols-outlined text-[16px]">close</span>
+        </button>
+      </div>
+
+      <div id="ticket-chat-messages-container" class="flex flex-col gap-2 overflow-y-auto max-h-[350px] p-1 text-xs">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Reply Box -->
+      <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
+        <input id="ticket-reply-input" type="text" placeholder="Type response to support..."
+          class="flex-1 h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-purple-600" />
+        <button type="button" onclick="sendTicketReplyMessage()"
+          class="px-3 h-9 bg-purple-700 text-white rounded-xl text-xs font-bold hover:bg-purple-800 active:scale-95 transition-all">
+          Send
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============================================== -->
   <!-- MODAL: SEARCH AUTOCOMPLETE (FULL-SCREEN OVERLAY)-->
@@ -2633,39 +2929,27 @@
     </div>
   </div>
 
-  <!-- Bottom Navigation Bar (Matching Reference Image) -->
+  <!-- Bottom Navigation Bar (Strictly 3 Tabs: Home, Activity, Account) -->
   <nav
     class="fixed bottom-0 w-full z-50 pb-safe bg-white/95 backdrop-blur-xl border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
-    <div class="flex justify-around items-center h-16 max-w-md mx-auto px-2">
+    <div class="flex justify-around items-center h-16 max-w-md mx-auto px-4">
 
       <button onclick="switchView('booking')" id="nav-rides"
-        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-900 font-bold transition-all">
-        <span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">near_me</span>
-        <span class="text-[10px]">Ride</span>
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[64px] text-slate-900 font-bold transition-all">
+        <span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">home</span>
+        <span class="text-[10px]">Home</span>
       </button>
 
-      <button onclick="switchView('rentals')" id="nav-rentals" data-feature-flag="ENABLE_OWNLY" style="display: none;"
-        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
-        <span class="material-symbols-outlined text-[22px]">car_rental</span>
-        <span class="text-[10px]">Ownly</span>
-      </button>
-
-      <button onclick="switchView('parcel')" id="nav-parcel" data-feature-flag="ENABLE_PARCEL" style="display: none;"
-        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
-        <span class="material-symbols-outlined text-[22px]">package_2</span>
-        <span class="text-[10px]">Parcel</span>
-      </button>
-
-      <button onclick="switchView('travel')" id="nav-travel" data-feature-flag="ENABLE_TRAVEL" style="display: none;"
-        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
-        <span class="material-symbols-outlined text-[22px]">luggage</span>
-        <span class="text-[10px]">Travel</span>
+      <button onclick="switchView('activity')" id="nav-activity"
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[64px] text-slate-400 hover:text-slate-800 transition-all">
+        <span class="material-symbols-outlined text-[22px]">receipt_long</span>
+        <span class="text-[10px]">Activity</span>
       </button>
 
       <button onclick="switchView('profile')" id="nav-profile"
-        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[56px] text-slate-400 hover:text-slate-800 transition-all">
+        class="nav-item flex flex-col items-center justify-center gap-1 min-w-[64px] text-slate-400 hover:text-slate-800 transition-all">
         <span class="material-symbols-outlined text-[22px]">person</span>
-        <span class="text-[10px]">Profile</span>
+        <span class="text-[10px]">Account</span>
       </button>
 
     </div>
@@ -2677,6 +2961,12 @@
   <script>
     // Navigation UI Handlers
     function switchView(viewName) {
+      if (viewName === 'activity') {
+        if (typeof window.loadActivityTrips === 'function') window.loadActivityTrips();
+      }
+      if (viewName === 'profile') {
+        if (typeof window.loadUserSupportTickets === 'function') window.loadUserSupportTickets();
+      }
       if (viewName === 'rentals' && window.AAROHAN_FLAGS && !window.AAROHAN_FLAGS.ENABLE_OWNLY) {
         if (typeof window.showToast === 'function') window.showToast('Ownly vehicle rentals are currently disabled.');
         return;
@@ -2893,6 +3183,20 @@
               const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AR';
               avatarEl.innerText = initials;
             }
+            const ratingEl = document.getElementById('profile-rider-rating-badge');
+            if (ratingEl && user.riderRating != null) {
+              ratingEl.innerText = `⭐ ${Number(user.riderRating).toFixed(1)} (${user.ratingCount || 0} rides)`;
+            }
+
+            // Record initial consent record for draft v0.1 legal policies
+            try {
+              fetch('/api/consent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'TERMS_AND_PRIVACY', version: '0.1' })
+              }).catch(() => {});
+            } catch (_) {}
+
             const balance = (user.walletBalanceMWK != null)
               ? user.walletBalanceMWK
               : (user.wallet && user.wallet.balanceMWK != null ? user.wallet.balanceMWK : 0);
