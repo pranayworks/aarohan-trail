@@ -180,6 +180,7 @@ function registerTripHandlers(io, socket) {
       // For parcels: generate 4-digit recipient delivery code
       let deliveryCode = null;
       let deliveryCodeHash = null;
+      const parcelDeliveryChannel = (process.env.PARCEL_CODE_DELIVERY || 'sender').toLowerCase(); // 'sms' | 'sender'
       if (serviceType === 'PARCEL') {
         deliveryCode = Math.floor(1000 + Math.random() * 9000).toString();
         deliveryCodeHash = hashDeliveryCode(deliveryCode);
@@ -187,11 +188,11 @@ function registerTripHandlers(io, socket) {
         const parcelRecipientPhone = (reqData.parcelDetail?.recipientPhone || reqData.parcel?.recipientPhone);
         // Simulator logs one-time code in development only
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEV PARCEL DELIVERY CODE] Recipient: ${parcelRecipientPhone || 'N/A'} | Code: ${deliveryCode}`);
+          console.log(`[DEV PARCEL DELIVERY CODE] Channel: ${parcelDeliveryChannel} | Recipient: ${parcelRecipientPhone || 'N/A'} | Code: ${deliveryCode}`);
         }
 
-        // Send SMS to recipient
-        if (parcelRecipientPhone) {
+        // If sms delivery configured, dispatch SMS to recipient
+        if (parcelDeliveryChannel === 'sms' && parcelRecipientPhone) {
           notificationService.sendMessage({
             to: parcelRecipientPhone,
             message: `📦 AArohan Parcel Delivery: Your package is on the way! Give delivery code [ ${deliveryCode} ] to the captain upon arrival to confirm receipt.`,
@@ -278,6 +279,11 @@ function registerTripHandlers(io, socket) {
 
         return created;
       }, { maxWait: 10000, timeout: 30000 });
+
+      // When PARCEL_CODE_DELIVERY === 'sender' (default), provide the code to the sender in app until SMS works
+      if (serviceType === 'PARCEL' && deliveryCode && parcelDeliveryChannel === 'sender') {
+        trip.deliveryCode = deliveryCode;
+      }
 
       socket.join(`trip:${trip.id}`);
       io.emit('trip:requested', trip);
