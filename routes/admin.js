@@ -7,6 +7,7 @@ const pricingService = require('../services/pricing');
 const dispatchService = require('../services/dispatch');
 const supabaseStorage = require('../services/supabaseStorage');
 const { requireRole, validateBody } = require('../middleware/auth');
+const { getFullTripRecord, logAdminTripAccess } = require('../services/tripRecord');
 
 const router = express.Router();
 
@@ -619,6 +620,192 @@ router.post('/admin/settlements/:settlementId/reject', requireRole('ADMIN', 'FIN
       reason,
       settlement: rawSettlement
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// 9. TRIPS MANAGEMENT & FULL LEGAL/SAFETY AUDIT DESK (ADMIN & SUPPORT)
+// ============================================================================
+
+// 9a. List & Search Trips
+router.get('/admin/trips', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+  try {
+    const { query, status, serviceType, startDate, endDate, page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const take = parseInt(limit, 10);
+
+    const where = {};
+    if (status) where.status = status;
+    if (serviceType) where.serviceType = serviceType;
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    if (query && query.trim()) {
+      const q = query.trim();
+      where.OR = [
+        { id: { contains: q, mode: 'insensitive' } },
+        { rider: { phone: { contains: q } } },
+        { driver: { user: { phone: { contains: q } } } },
+        { pickupAddress: { contains: q, mode: 'insensitive' } },
+        { dropoffAddress: { contains: q, mode: 'insensitive' } }
+      ];
+    }
+
+    const [trips, total] = await Promise.all([
+      prisma.trip.findMany({
+        where,
+        include: {
+          rider: { select: { id: true, name: true, phone: true } },
+          driver: { include: { user: { select: { id: true, name: true, phone: true } }, vehicle: true } },
+          stops: { orderBy: { sequence: 'asc' } },
+          parcelDetail: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take
+      }),
+      prisma.trip.count({ where })
+    ]);
+
+    res.json({
+      success: true,
+      trips,
+      total,
+      page: parseInt(page, 10),
+      totalPages: Math.ceil(total / take)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9b. CSV Export for Legal & Operations Audit
+router.get('/admin/trips/export/csv', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+  try {
+    const { status, serviceType, startDate, endDate } = req.query;
+    const where = {};
+    if (status) where.status = status;
+    if (serviceType) where.serviceType = serviceType;
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    const trips = await prisma.trip.findMany({
+      where,
+      include: {
+        rider: { select: { name: true, phone: true } },
+        driver: { include: { user: { select: { name: true, phone: true } }, vehicle: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 2000
+    });
+
+    const headers = [
+      'TripID', 'ServiceType', 'Status', 'Date', 'RiderPhone', 'DriverPhone',
+      'VehiclePlate', 'Pickup', 'Destination', 'DistanceKm', 'FareMWK',
+      'CommissionMWK', 'DriverShareMWK', 'PaymentMethod', 'PaymentStatus'
+    ];
+
+    const rows = trips.map(t => [
+      t.id,
+      t.serviceType,
+      t.status,
+      new Date(t.createdAt).toISOString(),
+      t.rider?.phone || '',
+      t.driver?.user?.phone || '',
+      t.driver?.vehicle?.plateNumber || '',
+      `"${(t.pickupAddress || '').replace(/"/g, '""')}"`,
+      `"${(t.dropoffAddress || '').replace(/"/g, '""')}"`,
+      t.distanceKm,
+      t.fareMWK,
+      t.commissionMWK,
+      t.driverShareMWK,
+      t.paymentMethod,
+      t.paymentStatus
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="aarohan-trips-${Date.now()}.csv"`);
+    res.send(csvContent);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9c. Full Authoritative Trip Record (Audit-Logged)
+router.get('/admin/trips/:tripId', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const record = await getFullTripRecord(tripId);
+    if (!record) {
+      return res.status(404).json({ error: `Trip ${tripId} not found` });
+    }
+
+    await logAdminTripAccess(
+      tripId,
+      req.user.id,
+      'FULL_RECORD',
+      req.ip || req.headers['x-forwarded-for'],
+      req.headers['user-agent']
+    );
+
+    res.json({ success: true, ...record });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9d. GPS Trail Viewer (Audit-Logged)
+router.get('/admin/trips/:tripId/gps-trail', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const points = await prisma.tripLocationPoint.findMany({
+      where: { tripId },
+      orderBy: { recordedAt: 'asc' }
+    });
+
+    await logAdminTripAccess(
+      tripId,
+      req.user.id,
+      'GPS_TRAIL',
+      req.ip || req.headers['x-forwarded-for'],
+      req.headers['user-agent']
+    );
+
+    res.json({ success: true, tripId, count: points.length, points });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9e. Chat History Viewer (Audit-Logged)
+router.get('/admin/trips/:tripId/chat', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const messages = await prisma.chatMessage.findMany({
+      where: { tripId },
+      include: { sender: { select: { id: true, name: true, role: true } } },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    await logAdminTripAccess(
+      tripId,
+      req.user.id,
+      'CHAT',
+      req.ip || req.headers['x-forwarded-for'],
+      req.headers['user-agent']
+    );
+
+    res.json({ success: true, tripId, count: messages.length, messages });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -36,6 +36,14 @@ const restQuoteSchema = z.object({
     lng: z.number().min(-180).max(180),
     name: z.string().optional()
   }),
+  stops: z.array(z.object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    name: z.string().optional(),
+    address: z.string().optional()
+  })).max(2).optional(),
+  serviceType: z.enum(['RIDE', 'PARCEL']).optional(),
+  parcelSize: z.enum(['SMALL', 'MEDIUM', 'LARGE']).optional(),
   surgeMultiplier: z.number().min(1.0).max(5.0).optional()
 });
 
@@ -56,13 +64,47 @@ const restSavedPlaceSchema = z.object({
 // In-memory saved places store
 let savedPlacesList = [
   { id: 'PLC-home', label: 'Home', name: 'Area 47 Sector 3', address: 'Area 47 Sector 3, Kaunda Road', lat: -13.9632, lng: 33.7741 },
-  { id: 'PLC-work', label: 'Work', name: 'Capital City Centre', address: 'Capital City Centre, Robert Mugabe Cres', lat: -13.9512, lng: 33.7891 }
+  { id: 'PLC-work', label: 'Work', name: 'Capital City Centre', address: 'Capital City Centre, Robert Mugabe Cres', lat: -13.9512, lng: 33.7891 },
+  { id: 'PLC-eptl', label: 'Work', name: 'Entire Printers & Traders Limited (EPTL)', address: 'Area 4 Industrial Corridor, Lilongwe', lat: -13.9933, lng: 33.6777 }
 ];
 
-// 1. Authoritative Route & Dynamic Pricing Quote
+// 1. Authoritative Route & Dynamic Pricing Quote (with Service Area & Stops)
 router.post('/rides/quote', validateBody(restQuoteSchema), async (req, res) => {
   try {
-    const { pickup, destination, surgeMultiplier } = req.body;
+    const { pickup, destination, stops = [], serviceType = 'RIDE', parcelSize = 'SMALL', surgeMultiplier } = req.body;
+
+    // Service-area check: Lilongwe Bounding Box enforcement
+    if (!locationService.isWithinServiceArea(pickup.lat, pickup.lng)) {
+      return res.status(400).json({
+        error: 'Pickup location is outside the AArohan Lilongwe service area. Service is currently only available within the greater Lilongwe corridor.',
+        code: 'OUTSIDE_SERVICE_AREA',
+        point: 'pickup',
+        coords: { lat: pickup.lat, lng: pickup.lng }
+      });
+    }
+
+    if (!locationService.isWithinServiceArea(destination.lat, destination.lng)) {
+      return res.status(400).json({
+        error: 'Destination is outside the AArohan Lilongwe service area. Service is currently only available within the greater Lilongwe corridor.',
+        code: 'OUTSIDE_SERVICE_AREA',
+        point: 'destination',
+        coords: { lat: destination.lat, lng: destination.lng }
+      });
+    }
+
+    if (Array.isArray(stops)) {
+      for (let i = 0; i < stops.length; i++) {
+        const s = stops[i];
+        if (!locationService.isWithinServiceArea(s.lat, s.lng)) {
+          return res.status(400).json({
+            error: `Stop ${i + 1} (${s.name || 'intermediate'}) is outside the AArohan Lilongwe service area.`,
+            code: 'OUTSIDE_SERVICE_AREA',
+            point: `stop_${i + 1}`,
+            coords: { lat: s.lat, lng: s.lng }
+          });
+        }
+      }
+    }
 
     if (!pickup.name) {
       const rev = await locationService.reverseGeocode(pickup.lat, pickup.lng);
@@ -73,14 +115,17 @@ router.post('/rides/quote', validateBody(restQuoteSchema), async (req, res) => {
       destination.name = rev.title || rev.displayName;
     }
 
-    const route = await locationService.getRoadRoute(pickup, destination);
+    const route = await locationService.getRoadRoute(pickup, destination, stops);
     const quote = pricingService.generateQuote({
       pickup,
       destination,
+      stops,
       distanceKm: route.distanceKm,
       durationMins: route.durationMins,
       routeGeometry: route.polyline,
-      surgeMultiplier: surgeMultiplier || 1.0
+      surgeMultiplier: surgeMultiplier || 1.0,
+      serviceType,
+      parcelSize
     });
 
     res.json({
@@ -97,6 +142,11 @@ router.post('/rides/quote', validateBody(restQuoteSchema), async (req, res) => {
       tiers: quote.tiers,
       pickup: quote.pickup,
       destination: quote.destination,
+      stops: quote.stops || [],
+      stopCount: quote.stopCount || 0,
+      stopFeeMWK: quote.stopFeeMWK || 0,
+      serviceType: quote.serviceType,
+      parcelSize: quote.parcelSize,
       quote
     });
   } catch (err) {
@@ -175,11 +225,44 @@ router.get('/trips/active', requireAuth, async (req, res) => {
         status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
       },
       include: {
+        stops: { orderBy: { sequence: 'asc' } },
+        parcelDetail: true,
         rider: { select: { id: true, name: true, phone: true } },
         driver: { include: { user: { select: { id: true, name: true, phone: true } }, vehicle: true } }
       }
     });
     res.json({ activeTrip: activeTrip || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5b. User Past & Cancelled Trips History
+router.get('/trips/history', requireAuth, async (req, res) => {
+  try {
+    const isDriver = req.user.role === 'DRIVER';
+    const whereCondition = isDriver && req.user.driverId
+      ? { driverId: req.user.driverId }
+      : { riderId: req.user.id };
+
+    const trips = await prisma.trip.findMany({
+      where: {
+        ...whereCondition,
+        status: { in: ['COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED'] }
+      },
+      include: {
+        stops: { orderBy: { sequence: 'asc' } },
+        driver: { include: { user: { select: { id: true, name: true, phone: true } }, vehicle: true } },
+        rider: { select: { id: true, name: true, phone: true } },
+        ratings: { where: { fromUserId: req.user.id } },
+        supportTickets: { select: { id: true, status: true, subject: true } },
+        parcelDetail: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+
+    res.json({ success: true, trips });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

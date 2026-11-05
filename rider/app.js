@@ -783,90 +783,34 @@
     try {
       let data = null;
 
-      // If user has an intermediate waypoint, route via waypoint
-      if (currentWaypoint) {
-        try {
-          const [res1, res2] = await Promise.all([
-            fetch('/api/rides/quote', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                pickup: currentPickup,
-                destination: {
-                  lat: currentWaypoint.lat,
-                  lng: currentWaypoint.lng,
-                  name: currentWaypoint.name,
-                  address: currentWaypoint.name
-                }
-              })
-            }),
-            fetch('/api/rides/quote', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                pickup: {
-                  lat: currentWaypoint.lat,
-                  lng: currentWaypoint.lng,
-                  name: currentWaypoint.name,
-                  address: currentWaypoint.name
-                },
-                destination: currentDestination
-              })
-            })
-          ]);
+      const stopsPayload = (window.plannerStops && window.plannerStops.length > 0)
+        ? window.plannerStops.map((s, idx) => ({ sequence: idx + 1, address: s.name || s.address, lat: s.lat, lng: s.lng }))
+        : (currentWaypoint ? [{ sequence: 1, address: currentWaypoint.name, lat: currentWaypoint.lat, lng: currentWaypoint.lng }] : undefined);
 
-          const d1 = await res1.json();
-          const d2 = await res2.json();
+      const res = await fetch('/api/rides/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pickup: {
+            lat: currentPickup.lat,
+            lng: currentPickup.lng,
+            name: currentPickup.name,
+            address: currentPickup.address
+          },
+          destination: {
+            lat: currentDestination.lat,
+            lng: currentDestination.lng,
+            name: currentDestination.name,
+            address: currentDestination.area || currentDestination.name
+          },
+          stops: stopsPayload,
+          serviceType: window.currentServiceType || 'RIDE',
+          parcelSize: window.currentParcelSize || undefined
+        })
+      });
 
-          const poly1 = (d1.route && d1.route.polyline) ? d1.route.polyline : [[currentPickup.lat, currentPickup.lng], [currentWaypoint.lat, currentWaypoint.lng]];
-          const poly2 = (d2.route && d2.route.polyline) ? d2.route.polyline : [[currentWaypoint.lat, currentWaypoint.lng], [currentDestination.lat, currentDestination.lng]];
-
-          const combinedPolyline = poly1.concat(poly2);
-          const totalDistanceKm = Number(((d1.route?.distanceKm || 3) + (d2.route?.distanceKm || 3.5)).toFixed(1));
-          const totalDurationMins = Math.round((d1.route?.durationMins || 6) + (d2.route?.durationMins || 7));
-
-          const stopFee = 500;
-          const mult = activeSurge ? activeSurge.surge : 1.0;
-
-          data = {
-            route: {
-              polyline: combinedPolyline,
-              distanceKm: totalDistanceKm,
-              durationMins: totalDurationMins
-            },
-            tiers: {
-              moto: { finalFare: Math.round(((d1.tiers?.moto?.finalFare || 2000) + (d2.tiers?.moto?.finalFare || 2000) * 0.65 + stopFee) * mult) },
-              auto: { finalFare: Math.round(((d1.tiers?.auto?.finalFare || 3500) + (d2.tiers?.auto?.finalFare || 3500) * 0.65 + stopFee) * mult) },
-              cab: { finalFare: Math.round(((d1.tiers?.cab?.finalFare || 6500) + (d2.tiers?.cab?.finalFare || 6500) * 0.65 + stopFee) * mult) }
-            }
-          };
-        } catch (multiErr) {
-          console.warn('[AArohanQuote] Multi-stop segment fetch fallback:', multiErr);
-        }
-      }
-
-      if (!data) {
-        const res = await fetch('/api/rides/quote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pickup: {
-              lat: currentPickup.lat,
-              lng: currentPickup.lng,
-              name: currentPickup.name,
-              address: currentPickup.address
-            },
-            destination: {
-              lat: currentDestination.lat,
-              lng: currentDestination.lng,
-              name: currentDestination.name,
-              address: currentDestination.area || currentDestination.name
-            }
-          })
-        });
-
-        if (!res.ok) throw new Error('Quote request failed');
-        data = await res.json();
+      if (!res.ok) throw new Error('Quote request failed');
+      data = await res.json();
 
         // Apply surge multiplier if applicable
         if (activeSurge && data.tiers) {
@@ -1189,6 +1133,10 @@
 
     // Emit genuine booking via store
     if (window.mwendoStore) {
+      const stopsPayload = (window.plannerStops && window.plannerStops.length > 0)
+        ? window.plannerStops.map((s, idx) => ({ sequence: idx + 1, address: s.name || s.address, lat: s.lat, lng: s.lng }))
+        : (currentWaypoint ? [{ sequence: 1, address: currentWaypoint.name, lat: currentWaypoint.lat, lng: currentWaypoint.lng }] : undefined);
+
       window.mwendoStore.requestTrip({
         quoteId: activeQuote.quoteId,
         tierId: activeTierId,
@@ -1198,6 +1146,9 @@
         destination: currentDestination.name,
         pickupCoords: { lat: currentPickup.lat, lng: currentPickup.lng },
         dropoffCoords: { lat: currentDestination.lat, lng: currentDestination.lng },
+        stops: stopsPayload,
+        serviceType: window.currentServiceType || 'RIDE',
+        parcel: window.currentParcelData || undefined,
         distanceKm: activeQuote.route.distanceKm,
         durationMins: activeQuote.route.durationMins,
         routeGeometry: activeQuote.route.polyline,
@@ -2851,9 +2802,152 @@
   };
 
   // =========================================================================
-  // 16. MULTI-STOP INTERMEDIATE WAYPOINT HANDLERS
+  // 16. PLANNER, GPS GEOLOCATION, STOPS (UP TO 2), SIMULATION & PARCEL COURIER
   // =========================================================================
+  window.currentServiceType = 'RIDE';
+  window.plannerStops = [];
+  window.currentParcelCategory = 'DOCUMENTS';
+  window.currentParcelSize = 'SMALL';
+  window.currentParcelData = null;
+
+  window.switchPlannerTab = function (tab) {
+    const rideSec = document.getElementById('planner-ride-section');
+    const parcelSec = document.getElementById('planner-parcel-section');
+    const rideTab = document.getElementById('planner-tab-ride');
+    const parcelTab = document.getElementById('planner-tab-parcel');
+
+    if (tab === 'parcel') {
+      window.currentServiceType = 'PARCEL';
+      if (rideSec) rideSec.classList.add('hidden');
+      if (parcelSec) parcelSec.classList.remove('hidden');
+      if (rideTab) {
+        rideTab.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+        rideTab.classList.add('text-slate-500');
+      }
+      if (parcelTab) {
+        parcelTab.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+        parcelTab.classList.remove('text-slate-500');
+      }
+    } else {
+      window.currentServiceType = 'RIDE';
+      if (rideSec) rideSec.classList.remove('hidden');
+      if (parcelSec) parcelSec.classList.add('hidden');
+      if (rideTab) {
+        rideTab.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+        rideTab.classList.remove('text-slate-500');
+      }
+      if (parcelTab) {
+        parcelTab.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+        parcelTab.classList.add('text-slate-500');
+      }
+    }
+  };
+
+  window.handleUseCurrentLocation = function () {
+    const btn = document.getElementById('btn-use-current-location');
+    if (btn) btn.classList.add('animate-pulse');
+
+    const isSecure = window.isSecureContext || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (!navigator.geolocation || !isSecure) {
+      if (btn) btn.classList.remove('animate-pulse');
+      alert('Location requires a secure connection (HTTPS or localhost). Please search or drag the pin.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        if (btn) btn.classList.remove('animate-pulse');
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        // Lilongwe service area: -14.25 to -13.70, 33.55 to 34.00
+        if (lat < -14.25 || lat > -13.70 || lng < 33.55 || lng > 34.00) {
+          alert('Current GPS location is outside the Lilongwe service area (-14.25 to -13.70, 33.55 to 34.00). Please select a pickup location within Lilongwe.');
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/places/reverse?lat=${lat}&lng=${lng}`);
+          const data = await res.json();
+          const address = data.address || data.name || `GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+
+          currentPickup = { lat, lng, name: address, address };
+          const pInput = document.getElementById('planner-pickup-input');
+          if (pInput) pInput.value = address;
+          updatePickupDisplayDOM();
+          if (window.showToast) window.showToast('📍 Updated pickup to current GPS location');
+        } catch (err) {
+          currentPickup = { lat, lng, name: 'Current GPS Location', address: 'Current GPS Location' };
+          updatePickupDisplayDOM();
+        }
+      },
+      (err) => {
+        if (btn) btn.classList.remove('animate-pulse');
+        let msg = 'Unable to retrieve location. You can drag the pin on the map or search.';
+        if (err.code === err.PERMISSION_DENIED) {
+          msg = 'Location access was denied. Please allow location permissions or type your pickup point. Fallback: You can drag the pin on the map or search.';
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          msg = 'Location information is unavailable. Please check your GPS signal. Fallback: You can drag the pin on the map or search.';
+        } else if (err.code === err.TIMEOUT) {
+          msg = 'Location request timed out. Please try again or search your pickup. Fallback: You can drag the pin on the map or search.';
+        }
+        alert(msg);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  // Dev simulation
+  window.openDevSimulateModal = function () {
+    const m = document.getElementById('dev-simulate-modal');
+    if (m) {
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+  };
+
+  window.closeDevSimulateModal = function () {
+    const m = document.getElementById('dev-simulate-modal');
+    if (m) {
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+  };
+
+  window.applyDevSimLocation = async function (preset) {
+    try {
+      const res = await fetch('/dev/simulate-location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset })
+      });
+      const data = await res.json();
+      if (data.success && data.location) {
+        currentPickup = {
+          lat: data.location.lat,
+          lng: data.location.lng,
+          name: data.location.name,
+          address: data.location.address
+        };
+        const pInput = document.getElementById('planner-pickup-input');
+        if (pInput) pInput.value = data.location.name;
+        updatePickupDisplayDOM();
+        window.closeDevSimulateModal();
+        if (window.showToast) window.showToast(`🧪 Simulated location: ${data.location.name}`);
+      } else {
+        alert(data.error || 'Failed to simulate location');
+      }
+    } catch (err) {
+      console.error('Dev simulate location error:', err);
+    }
+  };
+
+  // Multi-stop handlers (max 2 stops)
   window.openIntermediateStopModal = function () {
+    if (window.plannerStops && window.plannerStops.length >= 2) {
+      alert('Maximum 2 intermediate stops allowed.');
+      return;
+    }
     const modal = document.getElementById('waypoint-modal');
     if (modal) modal.classList.remove('hidden');
     if (window.aarohanSound) window.aarohanSound.playClick();
@@ -2864,29 +2958,65 @@
     if (modal) modal.classList.add('hidden');
   };
 
+  window.renderPlannerStopsDOM = function () {
+    const container = document.getElementById('planner-stops-container');
+    const countText = document.getElementById('planner-stops-count-text');
+    const addBtn = document.getElementById('btn-add-stop');
+    const count = window.plannerStops ? window.plannerStops.length : 0;
+    if (countText) countText.innerText = `${count} / 2 stops`;
+    if (addBtn) {
+      if (count >= 2) addBtn.classList.add('opacity-40', 'pointer-events-none');
+      else addBtn.classList.remove('opacity-40', 'pointer-events-none');
+    }
+    if (!container) return;
+    container.innerHTML = '';
+    (window.plannerStops || []).forEach((stop, i) => {
+      const div = document.createElement('div');
+      div.className = 'flex items-center justify-between gap-2 p-1.5 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs';
+      div.innerHTML = `
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+          <span class="font-bold text-slate-800 truncate">Stop ${i + 1}: ${stop.name}</span>
+        </div>
+        <button type="button" onclick="removePlannerStop(${i})" class="text-slate-400 hover:text-rose-600 p-0.5">
+          <span class="material-symbols-outlined text-[16px]">close</span>
+        </button>
+      `;
+      container.appendChild(div);
+    });
+  };
+
+  window.removePlannerStop = async function (idx) {
+    if (window.plannerStops && window.plannerStops[idx]) {
+      window.plannerStops.splice(idx, 1);
+      window.renderPlannerStopsDOM();
+      currentWaypoint = window.plannerStops[0] || null;
+      await calculateAuthoritativeQuote();
+    }
+  };
+
   window.selectWaypoint = async function (name) {
+    window.plannerStops = window.plannerStops || [];
+    if (window.plannerStops.length >= 2) {
+      alert('Maximum 2 intermediate stops allowed.');
+      window.closeIntermediateStopModal();
+      return;
+    }
     const coords = KNOWN_LILONGWE_LANDMARKS[name] || {
       name,
       lat: -13.9780,
       lng: 33.7650
     };
-    currentWaypoint = coords;
+    window.plannerStops.push(coords);
+    currentWaypoint = window.plannerStops[0];
+    window.renderPlannerStopsDOM();
 
-    // Update search modal view if visible
-    const viaSearchContainer = document.getElementById('search-via-container');
-    const viaSearchName = document.getElementById('search-via-name-display');
-    if (viaSearchContainer) viaSearchContainer.classList.remove('hidden');
-    if (viaSearchName) viaSearchName.innerText = 'Via: ' + coords.name;
-
-    // Update ride selection sheet view
     const rideSheetViaTag = document.getElementById('ride-sheet-via-stop-tag');
     const rideSheetViaName = document.getElementById('ride-sheet-via-stop-name');
     if (rideSheetViaTag) rideSheetViaTag.classList.remove('hidden');
-    if (rideSheetViaName) rideSheetViaName.innerText = coords.name;
+    if (rideSheetViaName) rideSheetViaName.innerText = window.plannerStops.map(s => s.name).join(' & ');
 
     window.closeIntermediateStopModal();
-
-    // Recalculate route and authoritative quote
     await calculateAuthoritativeQuote();
 
     if (window.showToast) window.showToast(`📍 Added Stop: ${coords.name} (+MK 500)`);
@@ -2894,22 +3024,99 @@
   };
 
   window.removeIntermediateStop = async function () {
+    window.plannerStops = [];
     currentWaypoint = null;
+    window.renderPlannerStopsDOM();
     if (waypointMarker && map) {
       map.removeLayer(waypointMarker);
       waypointMarker = null;
     }
 
-    const viaSearchContainer = document.getElementById('search-via-container');
-    if (viaSearchContainer) viaSearchContainer.classList.add('hidden');
-
     const rideSheetViaTag = document.getElementById('ride-sheet-via-stop-tag');
     if (rideSheetViaTag) rideSheetViaTag.classList.add('hidden');
 
     await calculateAuthoritativeQuote();
-
-    if (window.showToast) window.showToast('Intermediate stop removed');
+    if (window.showToast) window.showToast('All intermediate stops removed');
   };
+
+  // Parcel Category and Size Selectors
+  window.selectModalParcelCategory = function (cat, el) {
+    window.currentParcelCategory = cat;
+    document.querySelectorAll('.modal-parcel-cat').forEach(b => {
+      b.classList.remove('selected', 'border-2', 'border-purple-600', 'bg-purple-50');
+      b.classList.add('border', 'border-slate-200', 'bg-white');
+    });
+    if (el) {
+      el.classList.add('selected', 'border-2', 'border-purple-600', 'bg-purple-50');
+      el.classList.remove('border-slate-200', 'bg-white');
+    }
+  };
+
+  window.selectModalParcelSize = function (size, el) {
+    window.currentParcelSize = size;
+    document.querySelectorAll('.modal-parcel-size').forEach(b => {
+      b.classList.remove('selected', 'border-2', 'border-purple-600', 'bg-purple-50');
+      b.classList.add('border', 'border-slate-200', 'bg-white');
+    });
+    if (el) {
+      el.classList.add('selected', 'border-2', 'border-purple-600', 'bg-purple-50');
+      el.classList.remove('border-slate-200', 'bg-white');
+    }
+  };
+
+  window.handleSubmitModalParcel = async function () {
+    const nameEl = document.getElementById('modal-parcel-recipient-name');
+    const phoneEl = document.getElementById('modal-parcel-recipient-phone');
+    const notesEl = document.getElementById('modal-parcel-notes');
+    const fragileEl = document.getElementById('modal-parcel-fragile');
+    const prohibitedCheck = document.getElementById('modal-parcel-prohibited-check');
+
+    const recipientName = nameEl ? nameEl.value.trim() : '';
+    const recipientPhone = phoneEl ? phoneEl.value.trim() : '';
+    const notes = notesEl ? notesEl.value.trim() : '';
+    const fragile = fragileEl ? fragileEl.checked : false;
+
+    if (!recipientName) {
+      alert('Please enter recipient name.');
+      return;
+    }
+
+    const phoneDigits = recipientPhone.replace(/\D/g, '');
+    const isValidMalawiPhone = /^(\+?265|0)?[89]\d{8}$/.test(recipientPhone) || phoneDigits.length >= 9;
+    if (!isValidMalawiPhone) {
+      alert('Please enter a valid Malawi phone number for the recipient (e.g. +265 99 223 3445 or 0992233445).');
+      return;
+    }
+
+    if (!prohibitedCheck || !prohibitedCheck.checked) {
+      alert('You must acknowledge that the parcel contains no illegal items, cash, flammable/hazardous goods, or prohibited materials under Laws of Malawi.');
+      return;
+    }
+
+    window.currentParcelData = {
+      category: window.currentParcelCategory || 'DOCUMENTS',
+      size: window.currentParcelSize || 'SMALL',
+      fragile,
+      notes,
+      recipientName,
+      recipientPhone
+    };
+
+    window.closeSearchModal();
+    window.openSelectedRideSheet();
+    await calculateAuthoritativeQuote();
+  };
+
+  // Check dev app-config on startup
+  fetch('/api/app-config')
+    .then(r => r.json())
+    .then(cfg => {
+      if (cfg && cfg.allowLocationSimulation) {
+        const btn = document.getElementById('btn-dev-simulate-location');
+        if (btn) btn.classList.remove('hidden');
+      }
+    })
+    .catch(() => {});
 
   // =========================================================================
   // 17. SCHEDULE RIDE FOR LATER (PRE-BOOKING)

@@ -548,5 +548,38 @@
 
     </div>
   </div>
+
+  <!-- Public Verification & SMS Provider Compliance Footer -->
+  <footer class="bg-surface-container-lowest border-t border-outline-variant/30 py-6 px-4 mt-8">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
+      <div class="flex flex-col items-center md:items-start gap-1">
+        <span class="font-black text-sm text-primary">AArohan Smart Urban Mobility Platform</span>
+        <span class="text-on-surface-variant">Real-time ride-hailing and parcel logistics ecosystem for Lilongwe, Malawi</span>
+        <div class="flex items-center gap-1.5 text-[11px] text-outline mt-0.5">
+          <span>Inquiries &amp; Support:</span>
+          <a id="landing-contact-email" href="mailto:support@aarohan.mw" class="font-mono text-primary font-bold hover:underline">support@aarohan.mw</a>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 font-bold">
+        <a href="/legal/terms" class="hover:text-primary transition-colors flex items-center gap-1">
+          <span>Terms of Service</span>
+          <span class="px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-black">DRAFT</span>
+        </a>
+        <span class="text-outline-variant">•</span>
+        <a href="/legal/privacy" class="hover:text-primary transition-colors flex items-center gap-1">
+          <span>Privacy Policy</span>
+          <span class="px-1.5 py-0.5 bg-amber-100 text-amber-900 rounded text-[10px] font-black">DRAFT</span>
+        </a>
+      </div>
+    </div>
+  </footer>
+  <script>
+    fetch('/api/app-config').then(r => r.json()).then(cfg => {
+      if (cfg && cfg.contactEmail) {
+        const el = document.getElementById('landing-contact-email');
+        if (el) { el.textContent = cfg.contactEmail; el.href = 'mailto:' + cfg.contactEmail; }
+      }
+    }).catch(() => {});
+  </script>
 </body>
 </html>

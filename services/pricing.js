@@ -211,6 +211,9 @@ class PricingService {
     demandMultiplier = 1.0,
     waitingMins = 0,
     discountAmount = 0,
+    stopCount = 0,
+    serviceType = 'RIDE',
+    parcelSize = 'SMALL',
     version = null
   }) {
     const pricingVersion = version || this.getActiveVersion();
@@ -224,10 +227,27 @@ class PricingService {
     const waiting = Math.max(0, parseInt(waitingMins, 10) || 0);
     const discount = Math.max(0, parseInt(discountAmount, 10) || 0);
 
+    // Stop Fee: each intermediate stop incurs configured stop fee (default 500 MWK)
+    const validStopCount = Math.min(2, Math.max(0, parseInt(stopCount, 10) || 0));
+    const perStopRate = pricingVersion.stopFeeMWK !== undefined ? pricingVersion.stopFeeMWK : 500;
+    const stopFee = validStopCount * perStopRate;
+
+    // Parcel size multiplier: SMALL (1.0), MEDIUM (1.3), LARGE (1.6)
+    let parcelMultiplier = 1.0;
+    if (serviceType === 'PARCEL') {
+      if (parcelSize === 'MEDIUM') parcelMultiplier = pricingVersion.parcelMediumMult || 1.3;
+      else if (parcelSize === 'LARGE') parcelMultiplier = pricingVersion.parcelLargeMult || 1.6;
+      else parcelMultiplier = pricingVersion.parcelSmallMult || 1.0;
+    }
+
     // 1. Distance & Time Charges
     const distanceCharge = Math.round(dist * category.pricePerKm);
     const timeCharge = Math.round(time * category.pricePerMinute);
-    const baseRideTotal = category.baseFare + distanceCharge + timeCharge;
+    let baseRideTotal = category.baseFare + distanceCharge + timeCharge;
+
+    if (serviceType === 'PARCEL' && parcelMultiplier !== 1.0) {
+      baseRideTotal = Math.round(baseRideTotal * parcelMultiplier);
+    }
 
     // 2. Demand Multiplier (Disabled by default unless explicitly active)
     const effectiveMultiplier = (pricingVersion.demandMultiplierEnabled && demandMultiplier > 1.0)
@@ -242,8 +262,8 @@ class PricingService {
     // 4. Booking Fee
     const bookingFee = category.bookingFee !== undefined ? category.bookingFee : (pricingVersion.bookingFee || 0);
 
-    // 5. Total before minimum fare constraint
-    const unconstrainedSubtotal = surgedBaseTotal + bookingFee + waitingCharge - discount;
+    // 5. Total before minimum fare constraint (including intermediate stop fee)
+    const unconstrainedSubtotal = surgedBaseTotal + bookingFee + stopFee + waitingCharge - discount;
 
     // 6. Minimum Fare Threshold Check
     const isMinimumApplied = unconstrainedSubtotal < category.minimumFare;
@@ -279,6 +299,10 @@ class PricingService {
       distanceFare: distanceCharge,
       minimumFare: category.minimumFare,
       bookingFee,
+      stopFee,
+      stopCount: validStopCount,
+      serviceType,
+      parcelSize,
       breakdown: {
         baseFare: category.baseFare,
         distanceKm: dist,
@@ -290,6 +314,12 @@ class PricingService {
         demandMultiplier: effectiveMultiplier,
         demandMultiplierApplied: effectiveMultiplier > 1.0,
         bookingFee,
+        stopFee,
+        stopCount: validStopCount,
+        perStopRate,
+        serviceType,
+        parcelSize,
+        parcelMultiplier,
         waitingMins,
         waitingCharge,
         discountAmount: discount,
@@ -312,11 +342,14 @@ class PricingService {
   generateQuote({
     pickup,
     destination,
+    stops = [],
     distanceKm,
     durationMins,
     routeGeometry,
     routingProvider = 'mapbox',
-    demandMultiplier = 1.0
+    demandMultiplier = 1.0,
+    serviceType = 'RIDE',
+    parcelSize = 'SMALL'
   }) {
     if (!pickup || !destination) {
       throw new Error('Valid pickup and destination coordinates are required for quote generation.');
@@ -329,9 +362,22 @@ class PricingService {
       throw new Error('Valid road distance required from routing provider.');
     }
 
+    const validStops = Array.isArray(stops)
+      ? stops.slice(0, 2).map((s, idx) => ({
+          sequence: idx + 1,
+          name: s.name || s.address || `Stop ${idx + 1}`,
+          address: s.address || s.name || `Stop ${idx + 1}`,
+          lat: parseFloat(s.lat),
+          lng: parseFloat(s.lng)
+        })).filter(s => !isNaN(s.lat) && !isNaN(s.lng))
+      : [];
+
+    const stopCount = validStops.length;
     const quoteId = 'AAROHAN-QTE-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     const activeVersion = this.getActiveVersion();
     const expiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
+    const perStopFee = activeVersion.stopFeeMWK !== undefined ? activeVersion.stopFeeMWK : 500;
+    const totalStopFeeMWK = stopCount * perStopFee;
 
     // Calculate fare for all supported vehicle categories
     const tierQuotes = {};
@@ -341,6 +387,9 @@ class PricingService {
         distanceKm: dist,
         durationMins: dur,
         demandMultiplier,
+        stopCount,
+        serviceType,
+        parcelSize,
         version: activeVersion
       });
     }
@@ -358,6 +407,11 @@ class PricingService {
       durationMins: dur,
       routingProvider,
       routeGeometry: routeGeometry || null,
+      serviceType,
+      parcelSize,
+      stops: validStops,
+      stopCount,
+      stopFeeMWK: totalStopFeeMWK,
       pickup: {
         name: pickup.name || 'Pickup Point',
         lat: pickup.lat,
@@ -371,7 +425,7 @@ class PricingService {
       demandMultiplier: demandMultiplier || 1.0,
       tiers: tierQuotes,
       signature: crypto.createHmac('sha256', process.env.JWT_SECRET || 'aarohan-platform-secret-lilongwe')
-        .update(`${quoteId}:${dist}:${dur}:${activeVersion.versionId}`)
+        .update(`${quoteId}:${dist}:${dur}:${stopCount}:${activeVersion.versionId}`)
         .digest('hex')
     };
 
@@ -411,7 +465,12 @@ class PricingService {
       routingProvider: quote.routingProvider,
       routeGeometry: quote.routeGeometry,
       pickup: quote.pickup,
-      destination: quote.destination
+      destination: quote.destination,
+      stops: quote.stops || [],
+      stopCount: quote.stopCount || 0,
+      stopFeeMWK: quote.stopFeeMWK || 0,
+      serviceType: quote.serviceType || 'RIDE',
+      parcelSize: quote.parcelSize || 'SMALL'
     };
   }
 }

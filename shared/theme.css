@@ -1,0 +1,110 @@
+/* ============================================================================
+   AAROHAN UNIFIED DESIGN SYSTEM • LILONGWE, MALAWI
+   shared/theme.css
+   Palette: Soft Peach-to-Orange (#F9A86B -> #FFD3B3) + Dark Cards (#1B1B1B)
+   Clean typography, high contrast, large tap targets (>= 48px), 20-24px corners.
+   Strictly performance-optimized for low-end Android mobile devices.
+   ============================================================================ */
+
+:root {
+  /* Canvas Backgrounds (Peach to Soft Orange) */
+  --color-bg-start: #F9A86B;
+  --color-bg-end: #FFD3B3;
+  --color-bg-solid: #F5BC94;
+  --color-bg-soft: #FFF2E8;
+
+  /* Dark Card & Panel Tokens */
+  --color-card: #1B1B1B;
+  --color-card-elevated: #282828;
+  --color-card-subtle: #363636;
+  --color-card-border: rgba(255, 255, 255, 0.14);
+
+  /* Text Contrast Hierarchy */
+  --color-text-on-dark: #FFFFFF;
+  --color-text-on-dark-secondary: #E4E4E4;
+  --color-text-on-dark-muted: #A8A8A8;
+  --color-text-on-light: #1B1B1B;
+  --color-text-on-light-secondary: #4A4A4A;
+  --color-text-on-light-muted: #737373;
+
+  /* Primary Brand Tokens (Warm Orange Accent, No Yellow) */
+  --color-primary: #C0392B;
+  --color-primary-hover: #962D22;
+  --color-accent-orange: #E65100;
+  --color-accent-peach: #F9A86B;
+
+  /* White Pill Chips */
+  --color-pill-bg: #FFFFFF;
+  --color-pill-text: #1B1B1B;
+  --color-pill-border: rgba(27, 27, 27, 0.12);
+
+  /* Functional Status */
+  --color-status-success: #1B5E20;
+  --color-status-error: #B71C1C;
+  --color-status-info: #0D47A1;
+
+  /* Layout, Radii & Touch Targets */
+  --radius-card: 22px;
+  --radius-card-large: 24px;
+  --radius-pill: 9999px;
+  --target-min-height: 48px;
+}
+
+/* Global utility classes matching design tokens */
+.bg-canvas-gradient {
+  background: linear-gradient(180deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
+  background-attachment: fixed;
+}
+
+.bg-dark-card {
+  background-color: var(--color-card) !important;
+  color: var(--color-text-on-dark) !important;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-card-border);
+}
+
+.bg-dark-card-elevated {
+  background-color: var(--color-card-elevated) !important;
+  color: var(--color-text-on-dark) !important;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-card-border);
+}
+
+.pill-chip-white {
+  background-color: var(--color-pill-bg);
+  color: var(--color-pill-text);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-pill-border);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  min-height: 36px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.pill-chip-white:hover {
+  background-color: #F8F8F8;
+}
+
+.touch-target {
+  min-height: var(--target-min-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-primary-dark {
+  background-color: var(--color-card);
+  color: var(--color-text-on-dark);
+  border-radius: var(--radius-pill);
+  min-height: var(--target-min-height);
+  font-weight: 800;
+  transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.btn-primary-dark:active {
+  transform: scale(0.98);
+}
+

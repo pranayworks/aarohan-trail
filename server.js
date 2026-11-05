@@ -30,6 +30,7 @@ const paymentsRouter = require('./routes/payments');
 const notificationsRouter = require('./routes/notifications');
 const devRouter = require('./routes/dev');
 const ticketsRouter = require('./routes/tickets');
+const legalRouter = require('./routes/legal');
 
 // Modular Socket Handlers
 const setupSockets = require('./sockets');
@@ -179,6 +180,7 @@ app.use(logger.httpMiddleware());
 // Public API endpoints whitelist
 const PUBLIC_API_ROUTES = [
   '/api/health',
+  '/api/app-config',
   '/api/network-info',
   '/api/map-config',
   '/api/places/reverse',
@@ -186,7 +188,8 @@ const PUBLIC_API_ROUTES = [
   '/api/search-locations',
   '/api/rides/quote',
   '/api/drivers/nearby',
-  '/api/reset'
+  '/api/reset',
+  '/api/dev/simulate-location'
 ];
 
 // Global Deny-by-Default Middleware for all /api/ Routes
@@ -291,9 +294,27 @@ app.get('/api/map-config', (req, res) => {
   });
 });
 
+// App Configuration (service area, env, flags)
+app.get('/api/app-config', (req, res) => {
+  res.json({
+    platform: 'AArohan Mobility',
+    appName: 'AArohan Smart Urban Mobility Platform',
+    serviceDescription: 'Real-time urban ride-hailing and parcel logistics ecosystem for Lilongwe, Malawi',
+    contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || 'support@aarohan.mw',
+    env: process.env.NODE_ENV || 'development',
+    allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development',
+    serviceArea: {
+      city: 'Lilongwe',
+      country: 'Malawi',
+      bbox: locationService.getServiceAreaBBox ? locationService.getServiceAreaBBox() : locationService.LILONGWE_SERVICE_BBOX
+    }
+  });
+});
+
 // =========================================================================
 // MOUNT MODULAR API ROUTERS
 // =========================================================================
+app.use(legalRouter);
 app.use('/api/auth', authRouter);
 app.use('/api', ridesRouter);
 app.use('/api', driversRouter);

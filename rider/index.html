@@ -1358,86 +1358,234 @@
   <div id="search-modal"
     class="fixed inset-0 z-[100] bg-white hidden flex-col w-full max-w-md mx-auto h-screen overflow-hidden animate-in fade-in duration-150">
 
-    <!-- Full-Screen Top Header Bar -->
+    <!-- Full-Screen Top Header Bar (Planner) -->
     <div class="px-4 pt-safe pt-3 pb-3 border-b border-slate-100 bg-white flex flex-col gap-3 shadow-xs">
       <div class="flex items-center justify-between">
         <button onclick="closeSearchModal()"
           class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 active:scale-95 transition-all">
           <span class="material-symbols-outlined text-[24px]">arrow_back</span>
         </button>
-        <span class="font-extrabold text-base text-slate-900">Where to in Lilongwe?</span>
+
+        <!-- Service Type Switcher: Ride vs Parcel -->
+        <div class="flex items-center bg-slate-100 p-1 rounded-xl gap-1">
+          <button id="planner-tab-ride" type="button" onclick="switchPlannerTab('ride')"
+            class="px-3 py-1 rounded-lg text-xs font-black transition-all bg-white text-slate-900 shadow-xs flex items-center gap-1">
+            <span class="material-symbols-outlined text-[16px]">local_taxi</span>
+            <span>Ride</span>
+          </button>
+          <button id="planner-tab-parcel" type="button" onclick="switchPlannerTab('parcel')"
+            class="px-3 py-1 rounded-lg text-xs font-black transition-all text-slate-500 hover:text-slate-900 flex items-center gap-1">
+            <span class="material-symbols-outlined text-[16px]">package_2</span>
+            <span>Parcel</span>
+          </button>
+        </div>
+
         <button onclick="clearSearchInput()"
           class="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Clear</button>
       </div>
 
-      <!-- Route Inputs Box (Uber / Rapido dual box) -->
-      <div class="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 flex flex-col gap-2">
-        <!-- Pickup Display -->
-        <div class="flex items-center gap-3">
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0 ring-4 ring-emerald-100"></span>
-          <div class="flex-1 min-w-0">
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pickup</span>
-            <span class="text-xs font-bold text-slate-800 truncate block" id="search-pickup-display">Gateway Mall,
-              Kaunda Road, Area 47</span>
-          </div>
-        <!-- Intermediate Stop (Via Waypoint) -->
-        <div id="search-via-container" class="hidden flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 ring-4 ring-amber-100"></span>
-            <div class="min-w-0">
-              <span class="text-[9px] font-bold text-amber-600 uppercase tracking-wider block" data-i18n="viaStopLabel">Intermediate Stop</span>
-              <span class="text-xs font-bold text-slate-900 truncate block" id="search-via-name-display">Via: Crossroads Hotel</span>
+      <!-- SECTION: RIDE PLANNER INPUTS -->
+      <div id="planner-ride-section" class="flex flex-col gap-2">
+        <div class="bg-slate-50 rounded-2xl p-3 border border-slate-200/80 flex flex-col gap-2">
+          <!-- Pickup Row with GPS & Simulation -->
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0 ring-4 ring-emerald-100"></span>
+            <div class="flex-1 min-w-0">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Pickup</span>
+              <input id="planner-pickup-input" type="text"
+                class="w-full bg-transparent text-xs font-bold text-slate-900 outline-none truncate"
+                value="Gateway Mall, Kaunda Road, Area 47" />
+              <span class="hidden" id="search-pickup-display">Gateway Mall, Kaunda Road, Area 47</span>
             </div>
-          </div>
-          <button onclick="removeIntermediateStop()" class="text-slate-400 hover:text-red-500 p-1 active:scale-95 transition-all">
-            <span class="material-symbols-outlined text-[16px]">close</span>
-          </button>
-        </div>
-
-        <div class="border-t border-slate-200/60 ml-5 my-0.5"></div>
-
-        <!-- Destination Search Input -->
-        <div class="flex items-center gap-3">
-          <span class="w-2.5 h-2.5 rounded-sm bg-slate-900 shrink-0 ring-4 ring-slate-200"></span>
-          <div class="flex-1 relative flex items-center">
-            <input id="location-search-input" type="text"
-              placeholder="Type Area 10, Area 18, Area 49, Lumbadzi, EPTL..."
-              class="w-full bg-transparent text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none pr-6"
-              autocomplete="off" autocorrect="off" />
-            <button onclick="clearSearchInput()" id="clear-search-btn"
-              class="hidden absolute right-0 text-slate-400 hover:text-slate-600">
-              <span class="material-symbols-outlined text-[16px]">cancel</span>
+            <button id="btn-use-current-location" type="button" onclick="handleUseCurrentLocation()"
+              title="Use current GPS location"
+              class="px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-100 active:scale-95 transition-all shrink-0">
+              <span class="material-symbols-outlined text-[14px]">my_location</span>
+              <span>GPS</span>
+            </button>
+            <button id="btn-dev-simulate-location" type="button" onclick="openDevSimulateModal()"
+              title="Dev simulate location"
+              class="hidden px-2 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg text-[10px] font-bold items-center gap-1 hover:bg-purple-100 active:scale-95 transition-all shrink-0">
+              <span class="material-symbols-outlined text-[14px]">science</span>
+              <span>Sim</span>
             </button>
           </div>
+
+          <!-- Dynamic Intermediate Stops Container (up to 2 stops) -->
+          <div id="planner-stops-container" class="flex flex-col gap-1.5">
+            <!-- Rendered by renderPlannerStopsDOM() -->
+          </div>
+
+          <!-- Add Stop Control Row -->
+          <div class="flex items-center justify-between pt-1 border-t border-slate-200/50">
+            <button id="btn-add-stop" type="button" onclick="openIntermediateStopModal()"
+              class="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 transition-colors">
+              <span class="material-symbols-outlined text-[15px]">add_circle</span>
+              <span>Add stop (+MK 500/stop)</span>
+            </button>
+            <span class="text-[10px] font-bold text-slate-400" id="planner-stops-count-text">0 / 2 stops</span>
+          </div>
+
+          <div class="border-t border-slate-200/60 my-0.5"></div>
+
+          <!-- Destination Search Input -->
+          <div class="flex items-center gap-3">
+            <span class="w-2.5 h-2.5 rounded-sm bg-slate-900 shrink-0 ring-4 ring-slate-200"></span>
+            <div class="flex-1 relative flex items-center">
+              <input id="location-search-input" type="text"
+                placeholder="Type Area 10, Area 18, Area 49, Lumbadzi, EPTL..."
+                class="w-full bg-transparent text-xs font-bold text-slate-900 placeholder:text-slate-400 outline-none pr-6"
+                autocomplete="off" autocorrect="off" />
+              <button onclick="clearSearchInput()" id="clear-search-btn"
+                class="hidden absolute right-0 text-slate-400 hover:text-slate-600">
+                <span class="material-symbols-outlined text-[16px]">cancel</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- "Now" Chip Row -->
+        <div class="flex items-center gap-2 pt-0.5">
+          <span class="px-2.5 py-1 bg-slate-900 text-white rounded-full text-[11px] font-extrabold flex items-center gap-1 shadow-xs">
+            <span class="material-symbols-outlined text-[13px]">schedule</span>
+            <span>Now</span>
+          </span>
+          <span class="text-[11px] text-slate-500 font-medium">Immediate pickup across Lilongwe</span>
+        </div>
+
+        <!-- Quick Chips: Area 10, Area 18, Area 49, Lumbadzi, EPTL -->
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 pb-0.5">
+          <button onclick="quickFilterSearch('EPTL Malawi')"
+            class="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-bold shrink-0 flex items-center gap-1 active:scale-95">🖨️
+            EPTL Printing</button>
+          <button onclick="quickFilterSearch('Area 10')"
+            class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🌳
+            Area 10</button>
+          <button onclick="quickFilterSearch('Area 18')"
+            class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">⛽
+            Area 18</button>
+          <button onclick="quickFilterSearch('Area 49')"
+            class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏟️
+            Area 49</button>
+          <button onclick="quickFilterSearch('Lumbadzi')"
+            class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">✈️
+            Lumbadzi</button>
+          <button onclick="quickFilterSearch('City Centre')"
+            class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏛️
+            City Centre</button>
+          <button onclick="quickFilterSearch('Old Town')"
+            class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🛍️
+            Old Town</button>
+          <button onclick="quickFilterSearch('Kamuzu Hospital')"
+            class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏥
+            Kamuzu Hospital</button>
         </div>
       </div>
 
-      <!-- Quick Chips: Area 10, Area 18, Area 49, Lumbadzi, EPTL -->
-      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 pb-0.5">
-        <button onclick="quickFilterSearch('EPTL Malawi')"
-          class="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-bold shrink-0 flex items-center gap-1 active:scale-95">🖨️
-          EPTL Printing</button>
-        <button onclick="quickFilterSearch('Area 10')"
-          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🌳
-          Area 10</button>
-        <button onclick="quickFilterSearch('Area 18')"
-          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">⛽
-          Area 18</button>
-        <button onclick="quickFilterSearch('Area 49')"
-          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏟️
-          Area 49</button>
-        <button onclick="quickFilterSearch('Lumbadzi')"
-          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">✈️
-          Lumbadzi</button>
-        <button onclick="quickFilterSearch('City Centre')"
-          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏛️
-          City Centre</button>
-        <button onclick="quickFilterSearch('Old Town')"
-          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🛍️
-          Old Town</button>
-        <button onclick="quickFilterSearch('Kamuzu Hospital')"
-          class="px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-xs font-bold text-slate-700 shrink-0 flex items-center gap-1 active:scale-95">🏥
-          Kamuzu Hospital</button>
+      <!-- SECTION: PARCEL COURIER PLANNER FORM -->
+      <div id="planner-parcel-section" class="hidden flex flex-col gap-2.5 max-h-[75vh] overflow-y-auto pb-4">
+        <!-- Category Selector -->
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Package Category</label>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button type="button" onclick="selectModalParcelCategory('DOCUMENTS', this)"
+              class="modal-parcel-cat selected p-2 rounded-xl border-2 border-purple-600 bg-purple-50 text-center flex flex-col items-center">
+              <span class="material-symbols-outlined text-[18px] text-purple-600">description</span>
+              <span class="text-[9px] font-bold text-slate-900 mt-0.5">Docs</span>
+            </button>
+            <button type="button" onclick="selectModalParcelCategory('FOOD', this)"
+              class="modal-parcel-cat p-2 rounded-xl border border-slate-200 bg-white text-center flex flex-col items-center">
+              <span class="material-symbols-outlined text-[18px] text-slate-600">lunch_dining</span>
+              <span class="text-[9px] font-bold text-slate-700 mt-0.5">Food</span>
+            </button>
+            <button type="button" onclick="selectModalParcelCategory('GOODS', this)"
+              class="modal-parcel-cat p-2 rounded-xl border border-slate-200 bg-white text-center flex flex-col items-center">
+              <span class="material-symbols-outlined text-[18px] text-slate-600">inventory_2</span>
+              <span class="text-[9px] font-bold text-slate-700 mt-0.5">Goods</span>
+            </button>
+            <button type="button" onclick="selectModalParcelCategory('FRAGILE', this)"
+              class="modal-parcel-cat p-2 rounded-xl border border-slate-200 bg-white text-center flex flex-col items-center">
+              <span class="material-symbols-outlined text-[18px] text-slate-600">fragile</span>
+              <span class="text-[9px] font-bold text-slate-700 mt-0.5">Fragile</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Size Selector with Multipliers -->
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Parcel Size</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" onclick="selectModalParcelSize('SMALL', this)"
+              class="modal-parcel-size selected p-2.5 rounded-xl border-2 border-purple-600 bg-purple-50 flex flex-col items-center text-center">
+              <span class="text-xs font-black text-slate-900">SMALL</span>
+              <span class="text-[10px] text-purple-700 font-bold">1.0x (Standard)</span>
+              <span class="text-[9px] text-slate-400">&lt; 3 kg envelope</span>
+            </button>
+            <button type="button" onclick="selectModalParcelSize('MEDIUM', this)"
+              class="modal-parcel-size p-2.5 rounded-xl border border-slate-200 bg-white flex flex-col items-center text-center">
+              <span class="text-xs font-black text-slate-900">MEDIUM</span>
+              <span class="text-[10px] text-purple-700 font-bold">1.35x fare</span>
+              <span class="text-[9px] text-slate-400">3 - 10 kg box</span>
+            </button>
+            <button type="button" onclick="selectModalParcelSize('LARGE', this)"
+              class="modal-parcel-size p-2.5 rounded-xl border border-slate-200 bg-white flex flex-col items-center text-center">
+              <span class="text-xs font-black text-slate-900">LARGE</span>
+              <span class="text-[10px] text-purple-700 font-bold">1.8x fare</span>
+              <span class="text-[9px] text-slate-400">10 - 25 kg carton</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Fragile Checkbox & Notes -->
+        <div class="flex flex-col gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input id="modal-parcel-fragile" type="checkbox" class="w-4 h-4 rounded text-purple-600 focus:ring-purple-500" />
+            <span class="text-xs font-bold text-slate-800">Fragile parcel (Driver handles with extra care)</span>
+          </label>
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Delivery Notes (Optional)</label>
+            <input id="modal-parcel-notes" type="text" placeholder="e.g. Call recipient at gate, 2nd floor"
+              class="w-full h-8 px-2 bg-white rounded-lg text-xs font-medium border border-slate-200 outline-none mt-0.5" />
+          </div>
+        </div>
+
+        <!-- Recipient Information with +265 Validation -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Recipient Name *</label>
+            <input id="modal-parcel-recipient-name" type="text" placeholder="e.g. Peter Banda" value="Peter Banda (EPTL)"
+              class="w-full h-9 px-2 bg-slate-50 rounded-xl text-xs font-semibold border border-slate-200 outline-none mt-0.5" />
+          </div>
+          <div>
+            <label class="text-[10px] font-bold text-slate-400 uppercase">Recipient Phone * (+265)</label>
+            <input id="modal-parcel-recipient-phone" type="text" placeholder="+265 99 223 3445" value="+265 99 223 3445"
+              class="w-full h-9 px-2 bg-slate-50 rounded-xl text-xs font-semibold border border-slate-200 outline-none mt-0.5 font-mono" />
+          </div>
+        </div>
+
+        <!-- Payment Method Indicator -->
+        <div class="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-[18px] text-purple-700">payments</span>
+            <span class="text-xs font-bold text-purple-900">Payment: Cash on Pickup / Delivery</span>
+          </div>
+          <span class="text-[10px] font-black bg-purple-200 text-purple-900 px-2 py-0.5 rounded">CASH</span>
+        </div>
+
+        <!-- Mandatory Prohibited Goods Declaration Checkbox -->
+        <label class="flex items-start gap-2 p-2 bg-rose-50/70 border border-rose-200 rounded-xl cursor-pointer">
+          <input id="modal-parcel-prohibited-check" type="checkbox" class="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 mt-0.5" />
+          <span class="text-[10px] font-semibold text-rose-900 leading-tight">
+            I declare this parcel does not contain illegal items, cash, flammable/hazardous goods, or prohibited materials under the Laws of Malawi.
+          </span>
+        </label>
+
+        <!-- Submit Parcel Dispatch Button -->
+        <button id="btn-submit-modal-parcel" type="button" onclick="handleSubmitModalParcel()"
+          class="w-full h-11 bg-purple-700 hover:bg-purple-800 text-white rounded-xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center gap-2">
+          <span class="material-symbols-outlined text-[18px]">local_shipping</span>
+          <span>Dispatch Parcel Courier</span>
+        </button>
       </div>
     </div>
 

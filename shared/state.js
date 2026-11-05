@@ -531,6 +531,9 @@
         tierId: (tierId || 'moto').toLowerCase(),
         fare: fare ? Math.round(fare) : undefined,
         paymentMethod: paymentMethod || 'CASH',
+        stops: params.stops || undefined,
+        serviceType: params.serviceType || undefined,
+        parcel: params.parcel || undefined,
         pickup: (pickupCoords && typeof pickupCoords.lat === 'number') ? {
           name: pickupStr,
           lat: pickupCoords.lat,
@@ -708,7 +711,8 @@
       this.notifyListeners(state, 'TRIP_COMPLETED', state.activeTrip);
 
       if (this.socket && this.isRealtimeConnected && id) {
-        this.socket.emit('trip:complete', { tripId: id, paymentMethod, driverTip }, (res) => {
+        const recipientPin = params.recipientPin || undefined;
+        this.socket.emit('trip:complete', { tripId: id, paymentMethod, driverTip, recipientPin }, (res) => {
           if (res && res.success && res.trip) {
             const cur = this.getState();
             cur.activeTrip = Object.assign({}, cur.activeTrip, res.trip);

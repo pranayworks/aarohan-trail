@@ -12,12 +12,28 @@ const MALAWI_BBOX = {
   maxLat: -9.0
 };
 
+// Lilongwe Operational Service Area Corridor Bounding Box (configurable via env)
+const LILONGWE_SERVICE_BBOX = {
+  minLat: parseFloat(process.env.LILONGWE_BBOX_MIN_LAT) || -14.25,
+  maxLat: parseFloat(process.env.LILONGWE_BBOX_MAX_LAT) || -13.70,
+  minLng: parseFloat(process.env.LILONGWE_BBOX_MIN_LNG) || 33.55,
+  maxLng: parseFloat(process.env.LILONGWE_BBOX_MAX_LNG) || 34.00
+};
+
 // Lilongwe City Center Proximity Anchor
 const LILONGWE_CENTER = { lat: -13.9626, lng: 33.7873 };
 
 function isWithinMalawi(lat, lng) {
   return lat >= MALAWI_BBOX.minLat && lat <= MALAWI_BBOX.maxLat &&
          lng >= MALAWI_BBOX.minLng && lng <= MALAWI_BBOX.maxLng;
+}
+
+function isWithinLilongweServiceArea(lat, lng) {
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lng);
+  if (isNaN(latNum) || isNaN(lngNum)) return false;
+  return latNum >= LILONGWE_SERVICE_BBOX.minLat && latNum <= LILONGWE_SERVICE_BBOX.maxLat &&
+         lngNum >= LILONGWE_SERVICE_BBOX.minLng && lngNum <= LILONGWE_SERVICE_BBOX.maxLng;
 }
 
 // Haversine straight-line distance in km
@@ -511,6 +527,18 @@ class LocationService {
     results.sort((a, b) => a.distanceKm - b.distanceKm);
     return results.slice(0, 8);
   }
+
+  isWithinServiceArea(lat, lng) {
+    return isWithinLilongweServiceArea(lat, lng);
+  }
+
+  getServiceAreaBBox() {
+    return LILONGWE_SERVICE_BBOX;
+  }
 }
 
-module.exports = new LocationService();
+const instance = new LocationService();
+instance.isWithinLilongweServiceArea = isWithinLilongweServiceArea;
+instance.LILONGWE_SERVICE_BBOX = LILONGWE_SERVICE_BBOX;
+
+module.exports = instance;

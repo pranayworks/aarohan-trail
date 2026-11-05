@@ -225,6 +225,12 @@ async function runSequentialDispatchTests() {
   dispatchService.offerTimers.clear();
   assert.strictEqual(dispatchService.offerTimers.size, 0, 'In-memory timers must be completely empty');
 
+  // Extend offer window so network delay doesn't trigger timeout during test restart
+  await prisma.tripOffer.updateMany({
+    where: { tripId: trip.id, status: 'PENDING' },
+    data: { expiresAt: new Date(Date.now() + 60000) }
+  });
+
   // 4b. Invoke resumePendingOffers()
   await dispatchService.resumePendingOffers();
 
@@ -235,6 +241,12 @@ async function runSequentialDispatchTests() {
   );
 
   // 4c. Simulate downtime expiration recovery
+  // Keep active offer fresh so network latency does not expire it before Phase 5
+  await prisma.tripOffer.update({
+    where: { id: activeOfferAfterTimeout.id },
+    data: { expiresAt: new Date(Date.now() + 60000) }
+  });
+
   // Create an expired offer for another unassigned trip using riderUser2
   const tripDowntime = await prisma.trip.create({
     data: {

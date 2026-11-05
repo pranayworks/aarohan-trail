@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/shared/theme.css"/>
   <link rel="stylesheet" href="/shared/tailwind.built.css" />
   <style>
     body {
@@ -324,6 +325,27 @@
           <span class="bg-primary-fixed text-primary text-[10px] px-2 py-0.5 rounded font-bold uppercase" id="nav-payment-badge">Cash Ride</span>
         </div>
 
+        <!-- Parcel Detail Banner in Active Navigation -->
+        <div id="nav-parcel-card" class="hidden bg-purple-50 p-3 rounded-xl border border-purple-200 flex flex-col gap-1.5 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-purple-900 flex items-center gap-1">
+              <span class="material-symbols-outlined text-[16px]">package_2</span>
+              <span>PARCEL DELIVERY</span>
+            </span>
+            <span id="nav-parcel-badge" class="text-[10px] font-bold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">SMALL</span>
+          </div>
+          <div class="flex items-center justify-between text-[11px] text-purple-900">
+            <span>Recipient: <strong id="nav-parcel-recipient">Peter Banda</strong></span>
+            <a id="nav-parcel-phone-link" href="tel:+265" class="font-bold underline text-purple-800 flex items-center gap-0.5">
+              <span class="material-symbols-outlined text-[14px]">call</span>
+              <span id="nav-parcel-phone-text">+265...</span>
+            </a>
+          </div>
+          <div id="nav-parcel-notes-row" class="hidden text-[10px] text-purple-700 italic border-t border-purple-200 pt-1">
+            Notes: <span id="nav-parcel-notes-text"></span>
+          </div>
+        </div>
+
         <!-- Stage 1: Heading to Pickup -> Arrived Button -->
         <div id="driver-arriving-controls" class="flex flex-col gap-2">
           <button id="btn-driver-arrived" onclick="handleDriverArrived()" class="w-full h-12 bg-primary text-on-primary rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:bg-primary/90 active:scale-[0.98] transition-all">
@@ -346,6 +368,14 @@
 
         <!-- Stage 3: In Transit -> Complete Trip -->
         <div id="driver-transit-controls" class="hidden flex flex-col gap-2">
+          <!-- Recipient Delivery PIN Box (Visible for Parcel) -->
+          <div id="driver-parcel-pin-box" class="hidden flex flex-col gap-1.5 p-3 rounded-xl bg-purple-50 border border-purple-200">
+            <span class="text-xs font-bold text-purple-900">Enter Recipient 4-Digit Delivery PIN:</span>
+            <input id="driver-recipient-pin-input" type="text" maxlength="4" placeholder="4-digit PIN"
+              class="w-full h-10 px-3 bg-white rounded-lg border border-purple-300 font-mono font-bold text-center tracking-widest text-base outline-none focus:ring-2 focus:ring-purple-500" />
+            <span id="driver-recipient-pin-error" class="text-[11px] text-rose-600 font-medium hidden"></span>
+          </div>
+
           <!-- TACTILE SLIDE TO COMPLETE TRIP WIDGET -->
           <div id="slider-track" class="relative w-full h-14 bg-surface-container-highest rounded-xl p-1 overflow-hidden select-none touch-none">
             <div id="slider-progress" class="absolute left-0 top-0 bottom-0 bg-primary w-12 rounded-xl transition-all duration-75"></div>
@@ -651,6 +681,21 @@
           </div>
         </div>
         <span class="text-[10px] font-bold text-primary bg-surface-container-lowest px-2 py-1 rounded shadow-xs" id="incoming-dist-badge">2.8 km away</span>
+      </div>
+
+      <!-- Parcel Delivery Info Row (for serviceType PARCEL) -->
+      <div id="incoming-parcel-card" class="hidden bg-purple-50 p-2.5 rounded-xl border border-purple-200 flex flex-col gap-1 text-xs">
+        <div class="flex items-center justify-between">
+          <span class="font-extrabold text-purple-900 flex items-center gap-1">
+            <span class="material-symbols-outlined text-[16px]">package_2</span>
+            <span>PARCEL DELIVERY</span>
+          </span>
+          <span id="incoming-parcel-badges" class="text-[10px] font-bold bg-purple-200 text-purple-900 px-2 py-0.5 rounded-full">SMALL</span>
+        </div>
+        <div class="text-[11px] text-purple-800 flex items-center justify-between">
+          <span>Recipient: <strong id="incoming-parcel-recipient">Peter Banda</strong></span>
+          <a id="incoming-parcel-phone-link" href="tel:+265" class="font-bold underline text-purple-900">+265...</a>
+        </div>
       </div>
 
       <!-- Route Interconnect -->
@@ -1012,6 +1057,37 @@
         if (transitControls) transitControls.classList.remove('hidden');
         if (stageBadge) stageBadge.innerText = 'In Transit to Destination';
       }
+
+      const activeTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const isParcel = activeTrip?.serviceType === 'PARCEL';
+      const parcelPinBox = document.getElementById('driver-parcel-pin-box');
+      const navParcelCard = document.getElementById('nav-parcel-card');
+      if (navParcelCard) {
+        if (isParcel) {
+          navParcelCard.classList.remove('hidden');
+          const p = activeTrip.parcel || activeTrip.parcelDetail || {};
+          const recEl = document.getElementById('nav-parcel-recipient');
+          const phoneEl = document.getElementById('nav-parcel-phone-text');
+          const phoneLink = document.getElementById('nav-parcel-phone-link');
+          const badgeEl = document.getElementById('nav-parcel-badge');
+          const notesRow = document.getElementById('nav-parcel-notes-row');
+          const notesText = document.getElementById('nav-parcel-notes-text');
+          if (recEl) recEl.innerText = p.recipientName || 'Recipient';
+          if (phoneEl) phoneEl.innerText = p.recipientPhone || '';
+          if (phoneLink) phoneLink.href = `tel:${p.recipientPhone || ''}`;
+          if (badgeEl) badgeEl.innerText = `${p.size || 'SMALL'} ${p.fragile ? '• ⚠️ FRAGILE' : ''}`;
+          if (p.notes && notesRow && notesText) {
+            notesText.innerText = p.notes;
+            notesRow.classList.remove('hidden');
+          }
+        } else {
+          navParcelCard.classList.add('hidden');
+        }
+      }
+      if (parcelPinBox) {
+        if (isParcel && status === 'IN_TRANSIT') parcelPinBox.classList.remove('hidden');
+        else parcelPinBox.classList.add('hidden');
+      }
     }
 
     // Incoming Request Modal
@@ -1061,7 +1137,27 @@
         if (navPayment && currentTrip.paymentMethod) {
           navPayment.innerText = currentTrip.paymentMethod;
         }
-        const riderName = currentTrip.rider?.name || 'AArohan Passenger';
+        const isParcel = currentTrip.serviceType === 'PARCEL';
+        const pCard = document.getElementById('incoming-parcel-card');
+        if (pCard) {
+          if (isParcel) {
+            pCard.classList.remove('hidden');
+            const p = currentTrip.parcel || currentTrip.parcelDetail || {};
+            const rEl = document.getElementById('incoming-parcel-recipient');
+            const phEl = document.getElementById('incoming-parcel-phone-link');
+            const bEl = document.getElementById('incoming-parcel-badges');
+            if (rEl) rEl.innerText = p.recipientName || 'Recipient';
+            if (phEl) {
+              phEl.innerText = p.recipientPhone || '';
+              phEl.href = `tel:${p.recipientPhone || ''}`;
+            }
+            if (bEl) bEl.innerText = `${p.size || 'SMALL'} ${p.fragile ? '• ⚠️ FRAGILE' : ''}`;
+          } else {
+            pCard.classList.add('hidden');
+          }
+        }
+
+        const riderName = currentTrip.rider?.name || (isParcel ? 'Parcel Sender' : 'AArohan Passenger');
         const pName = document.getElementById('nav-passenger-name');
         if (pName) pName.innerText = riderName;
         const pAvatar = document.getElementById('nav-passenger-avatar');
@@ -1173,8 +1269,23 @@
       const tripId = trip?.id || trip?.tripId;
       if (!tripId) return;
 
+      const isParcel = trip?.serviceType === 'PARCEL';
+      let recipientPin = undefined;
+      if (isParcel) {
+        const pinInput = document.getElementById('driver-recipient-pin-input');
+        const errEl = document.getElementById('driver-recipient-pin-error');
+        recipientPin = pinInput ? pinInput.value.trim() : '';
+        if (!recipientPin || recipientPin.length !== 4) {
+          const msg = 'Please enter the 4-digit recipient delivery PIN.';
+          if (errEl) { errEl.innerText = msg; errEl.classList.remove('hidden'); }
+          else alert(msg);
+          return;
+        }
+        if (errEl) errEl.classList.add('hidden');
+      }
+
       if (window.mwendoStore) {
-        window.mwendoStore.completeTrip({ tripId, paymentMethod: 'CASH' }, (res) => {
+        window.mwendoStore.completeTrip({ tripId, paymentMethod: 'CASH', recipientPin }, (res) => {
           if (res && res.success) {
             const fare = res.trip?.fareMWK || res.trip?.finalFare || 1500;
             const net = Math.round(fare * 0.70);
@@ -1182,7 +1293,14 @@
             updateDriverNavControls('COMPLETED');
             switchDriverView('earnings');
           } else {
-            alert(res?.error || 'Failed to complete trip');
+            const errEl = document.getElementById('driver-recipient-pin-error');
+            const msg = res?.error || 'Failed to complete trip';
+            if (isParcel && errEl) {
+              errEl.innerText = msg;
+              errEl.classList.remove('hidden');
+            } else {
+              alert(msg);
+            }
           }
         });
       }

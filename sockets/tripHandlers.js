@@ -1,15 +1,40 @@
+const crypto = require('crypto');
 const { z } = require('zod');
 const prisma = require('../lib/prisma');
 const dbLedger = require('../services/dbLedger');
 const pricingService = require('../services/pricing');
 const ratingService = require('../services/rating');
+const locationService = require('../services/location');
+const notificationService = require('../services/notifications');
 const { recordLocationPoint } = require('../services/tripRecord');
+
+function hashDeliveryCode(code) {
+  return crypto.createHmac('sha256', process.env.OTP_HMAC_SECRET || 'aarohan-otp-delivery-secret-2026')
+    .update((code || '').toString().trim())
+    .digest('hex');
+}
 
 const socketTripRequestSchema = z.object({
   quoteId: z.string().optional(),
   fare: z.number().optional(),
   baseFare: z.number().optional(),
   tierId: z.string().optional(),
+  serviceType: z.enum(['RIDE', 'PARCEL']).optional(),
+  stops: z.array(z.object({
+    name: z.string().optional(),
+    address: z.string().optional(),
+    lat: z.number(),
+    lng: z.number()
+  })).max(2).optional(),
+  parcelDetail: z.object({
+    category: z.string().default('General Parcel'),
+    size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).default('SMALL'),
+    fragile: z.boolean().default(false),
+    notes: z.string().optional().nullable(),
+    recipientName: z.string().min(1, 'Recipient name is required'),
+    recipientPhone: z.string().regex(/^\+265[0-9]{9}$/, 'Recipient phone must be valid Malawi +265 format'),
+    prohibitedAccepted: z.boolean().optional()
+  }).optional(),
   pickup: z.union([
     z.string(),
     z.object({
@@ -58,7 +83,9 @@ const socketTripStartTransitSchema = z.object({
 const socketTripCompleteSchema = z.object({
   tripId: z.string().min(1, 'tripId is required'),
   paymentMethod: z.string().optional(),
-  driverTip: z.number().optional()
+  driverTip: z.number().optional(),
+  deliveryCode: z.string().optional(),
+  proofNote: z.string().optional()
 });
 
 const socketTripRateSchema = z.object({
@@ -95,15 +122,29 @@ function registerTripHandlers(io, socket) {
         throw new Error('Account inactive. Cannot request trips.');
       }
 
+      const pickupLat = typeof reqData.pickup === 'object' ? reqData.pickup.lat : -13.9722;
+      const pickupLng = typeof reqData.pickup === 'object' ? reqData.pickup.lng : 33.7667;
+      const dropoffLat = typeof reqData.destination === 'object' ? reqData.destination.lat : -13.9933;
+      const dropoffLng = typeof reqData.destination === 'object' ? reqData.destination.lng : 33.6777;
+
+      // Service Area Check (Lilongwe corridor bounding box)
+      if (!locationService.isWithinServiceArea(pickupLat, pickupLng)) {
+        throw new Error('Pickup location is outside the AArohan Lilongwe service area.');
+      }
+      if (!locationService.isWithinServiceArea(dropoffLat, dropoffLng)) {
+        throw new Error('Destination is outside the AArohan Lilongwe service area.');
+      }
+
       let fare = Math.round(reqData.fare || 1500);
       let baseFare = Math.round(reqData.baseFare || fare);
       let distanceKm = parseFloat(reqData.distanceKm) || 3.5;
       let durationMins = parseInt(reqData.durationMins, 10) || 8;
+      let consumed = null;
 
       if (reqData.quoteId) {
         try {
           const selectedTier = (reqData.tierId || 'moto').toLowerCase();
-          const consumed = pricingService.validateAndConsumeQuote(reqData.quoteId, selectedTier);
+          consumed = pricingService.validateAndConsumeQuote(reqData.quoteId, selectedTier);
           fare = consumed.tier.finalFare;
           baseFare = consumed.tier.baseFare;
           distanceKm = consumed.distanceKm;
@@ -113,9 +154,47 @@ function registerTripHandlers(io, socket) {
         }
       }
 
+      // Check service area on intermediate stops
+      const effectiveStops = (consumed && consumed.stops && consumed.stops.length)
+        ? consumed.stops
+        : (reqData.stops || []);
+
+      for (let s of effectiveStops) {
+        if (!locationService.isWithinServiceArea(s.lat, s.lng)) {
+          throw new Error('Intermediate stop is outside the AArohan Lilongwe service area.');
+        }
+      }
+
+      const serviceType = (consumed && consumed.serviceType) ? consumed.serviceType : (reqData.serviceType || 'RIDE');
+      const stopCount = effectiveStops.length;
+      const stopFeeMWK = (consumed && consumed.stopFeeMWK !== undefined) ? consumed.stopFeeMWK : (stopCount * 500);
+
       const commission = Math.round(fare * 0.30);
       const driverShare = fare - commission;
       const pin = Math.floor(1000 + Math.random() * 9000).toString();
+
+      // For parcels: generate 4-digit recipient delivery code
+      let deliveryCode = null;
+      let deliveryCodeHash = null;
+      if (serviceType === 'PARCEL') {
+        deliveryCode = Math.floor(1000 + Math.random() * 9000).toString();
+        deliveryCodeHash = hashDeliveryCode(deliveryCode);
+
+        // Simulator logs one-time code in development only
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[DEV PARCEL DELIVERY CODE] Recipient: ${reqData.parcelDetail?.recipientPhone || 'N/A'} | Code: ${deliveryCode}`);
+        }
+
+        // Send SMS to recipient
+        if (reqData.parcelDetail?.recipientPhone) {
+          notificationService.sendMessage({
+            to: reqData.parcelDetail.recipientPhone,
+            message: `📦 AArohan Parcel Delivery: Your package is on the way! Give delivery code [ ${deliveryCode} ] to the captain upon arrival to confirm receipt.`,
+            channel: 'SMS',
+            urgent: true
+          }).catch(e => console.warn('[ParcelSMS] Delivery code dispatch warning:', e.message));
+        }
+      }
 
       const trip = await prisma.$transaction(async (tx) => {
         const created = await tx.trip.create({
@@ -123,20 +202,23 @@ function registerTripHandlers(io, socket) {
             riderId: socket.userId,
             status: 'REQUESTED',
             tier: (reqData.tierId || 'moto').toUpperCase(),
+            serviceType,
+            stopCount,
+            stopFeeMWK,
             pickupAddress: (typeof reqData.pickup === 'string') ? reqData.pickup : (reqData.pickup?.name || reqData.pickup?.address || 'Pickup Point'),
             dropoffAddress: (typeof reqData.destination === 'string') ? reqData.destination : (reqData.destination?.name || reqData.destination?.address || 'Destination'),
-            pickupLat: typeof reqData.pickup === 'object' ? reqData.pickup.lat : -13.9722,
-            pickupLng: typeof reqData.pickup === 'object' ? reqData.pickup.lng : 33.7667,
-            dropoffLat: typeof reqData.destination === 'object' ? reqData.destination.lat : -13.9933,
-            dropoffLng: typeof reqData.destination === 'object' ? reqData.destination.lng : 33.6777,
-            distanceKm: distanceKm,
-            durationMins: durationMins,
+            pickupLat,
+            pickupLng,
+            dropoffLat,
+            dropoffLng,
+            distanceKm,
+            durationMins,
             fareMWK: fare,
             baseFareMWK: baseFare,
             bookingFeeMWK: 150,
             driverShareMWK: driverShare,
             commissionMWK: commission,
-            pin: pin,
+            pin,
             idempotencyKey: reqData.idempotencyKey || `REQ-${socket.userId}-${Date.now()}`,
             paymentMethod: (reqData.paymentMethod && reqData.paymentMethod.toUpperCase().includes('CASH')) ? 'CASH' : 'WALLET_ESCROW'
           },
@@ -145,13 +227,47 @@ function registerTripHandlers(io, socket) {
           }
         });
 
+        // Insert intermediate stops if present
+        if (effectiveStops.length > 0) {
+          for (let i = 0; i < effectiveStops.length; i++) {
+            const st = effectiveStops[i];
+            await tx.tripStop.create({
+              data: {
+                tripId: created.id,
+                sequence: i + 1,
+                address: st.address || st.name || `Stop ${i + 1}`,
+                lat: parseFloat(st.lat),
+                lng: parseFloat(st.lng)
+              }
+            });
+          }
+        }
+
+        // Insert ParcelDetail if PARCEL
+        if (serviceType === 'PARCEL' && deliveryCodeHash) {
+          const p = reqData.parcelDetail || {};
+          await tx.parcelDetail.create({
+            data: {
+              tripId: created.id,
+              category: p.category || 'General Package',
+              size: p.size || 'SMALL',
+              fragile: Boolean(p.fragile),
+              notes: p.notes || null,
+              recipientName: p.recipientName || 'Recipient',
+              recipientPhone: p.recipientPhone || '+265991234567',
+              deliveryCodeHash,
+              deliveryAttempts: 0
+            }
+          });
+        }
+
         await tx.tripStatusHistory.create({
           data: {
             tripId: created.id,
             fromStatus: null,
             status: 'REQUESTED',
             changedBy: socket.userId,
-            reason: 'Rider initiated booking'
+            reason: serviceType === 'PARCEL' ? 'Rider booked parcel delivery' : 'Rider initiated booking'
           }
         });
 
@@ -465,6 +581,61 @@ function registerTripHandlers(io, socket) {
 
       const paymentMethod = completionData.paymentMethod || trip.paymentMethod || 'CASH';
       const driverTip = completionData.driverTip || trip.driverTipMWK || 0;
+
+      // Parcel delivery verification: recipient one-time code required
+      if (trip.serviceType === 'PARCEL') {
+        const parcel = await prisma.parcelDetail.findUnique({ where: { tripId: trip.id } });
+        if (parcel) {
+          if (parcel.deliveryAttempts >= 5) {
+            throw new Error('Parcel delivery locked: Maximum 5 incorrect delivery code attempts exceeded. Contact safety desk.');
+          }
+
+          const inputCode = (completionData.deliveryCode || '').toString().trim();
+          if (!inputCode) {
+            throw new Error('Recipient one-time delivery code required to complete parcel delivery.');
+          }
+
+          const testHash = hashDeliveryCode(inputCode);
+          if (testHash !== parcel.deliveryCodeHash) {
+            const nextAttempts = parcel.deliveryAttempts + 1;
+            await prisma.parcelDetail.update({
+              where: { id: parcel.id },
+              data: { deliveryAttempts: nextAttempts }
+            });
+
+            await prisma.auditLog.create({
+              data: {
+                userId: socket.userId,
+                action: 'PARCEL_DELIVERY_CODE_ATTEMPT',
+                entityType: 'PARCEL',
+                entityId: parcel.id,
+                details: { success: false, attempts: nextAttempts }
+              }
+            });
+
+            throw new Error(`Incorrect parcel delivery code. Attempt ${nextAttempts} of 5.`);
+          }
+
+          // Verified delivery
+          await prisma.parcelDetail.update({
+            where: { id: parcel.id },
+            data: {
+              deliveredAt: new Date(),
+              proofNote: completionData.proofNote || 'Delivered to recipient with verified delivery code'
+            }
+          });
+
+          await prisma.auditLog.create({
+            data: {
+              userId: socket.userId,
+              action: 'PARCEL_DELIVERED',
+              entityType: 'PARCEL',
+              entityId: parcel.id,
+              details: { success: true }
+            }
+          });
+        }
+      }
 
       const settleResult = await dbLedger.settleRide({
         tripId: trip.id,
