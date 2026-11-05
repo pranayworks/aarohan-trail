@@ -819,7 +819,6 @@
           if (data.tiers.auto) data.tiers.auto.finalFare = Math.round(data.tiers.auto.finalFare * mult);
           if (data.tiers.cab) data.tiers.cab.finalFare = Math.round(data.tiers.cab.finalFare * mult);
         }
-      }
 
       activeQuote = data;
 
