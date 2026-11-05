@@ -1,61 +1,64 @@
 # AArohan Terms of Service
 **Version: DRAFT v0.1 (not yet reviewed by a lawyer)**
 
-> ⚠️ **DRAFT NOTICE: This document is a draft version and does not constitute formal legal advice.**
+> ⚠️ **DRAFT NOTICE: This document is a draft version and does not constitute formal legal advice. It contains placeholder parameters that must be reviewed and finalized by qualified legal counsel in Malawi prior to production launch.**
 
 ---
 
-### 1. Who we are
-AArohan is a technology platform that connects riders with independent drivers. [Company name, registration number and address to be inserted.] AArohan does not itself provide transport, and drivers are independent, not employees.
+### 1. Who We Are
+[COMPANY_NAME] (registration number: [COMPANY_REGISTRATION_NUMBER], registered office address: [REGISTERED_OFFICE_ADDRESS], [CITY_AND_COUNTRY]) operates the AArohan digital platform. AArohan connects independent drivers and couriers with passengers and parcel senders. [COMPANY_NAME] is a technology platform and does not itself provide transportation or logistics services; drivers and couriers are independent contractors and not employees of [COMPANY_NAME].
 
-### 2. Accounts
-You must be 18 or older, give accurate information, verify your phone number, and keep your account secure. One account per person.
+### 2. User Accounts & Eligibility
+You must be 18 years of age or older to register or use the AArohan platform. You agree to provide accurate, current, and complete registration details, verify your phone number via SMS OTP, and maintain the confidentiality of your credentials. Only one personal account is permitted per individual.
 
-### 3. Booking and fares
-The fare is shown before you book and is calculated by us. Extra stops, waiting time and tolls may change it as shown in the app. Tips go 100% to the driver.
+### 3. Bookings and Fares
+An estimated fare is calculated and presented in the mobile application before ride or parcel booking confirmation. The final fare may adjust for recorded intermediate stops, waiting time exceeding [FREE_WAITING_MINUTES] minutes, and route deviations. Gratuities (tips) are entirely optional and 100% disbursed to the driver partner.
 
-### 4. Payment
-Currently cash only. [Mobile money and wallet terms to be added when launched.]
+### 4. Payments
+Current platform payment methods include Cash upon trip completion and approved Mobile Money gateways ([MOBILE_MONEY_PROVIDERS]). Cash payments are made directly to the driver upon reaching the dropoff destination.
 
 ### 5. Cancellations
-Free within [2] minutes or before a driver is assigned. After that, a fee of MK [X] may apply. Repeated cancellations may lead to suspension.
+Riders may cancel without penalty within [CANCELLATION_GRACE_MINUTES] minutes of booking or prior to driver arrival. Cancellations occurring after this window may incur a cancellation fee of MWK [CANCELLATION_FEE_MWK] credited to the dispatched driver. Repeated or fraudulent cancellations may result in account suspension.
 
-### 6. Safety PIN
-Give your 4-digit PIN only to the driver who matches the vehicle and plate in the app, after boarding. Drivers must not start a trip without it.
+### 6. Safety PIN Verification
+For passenger safety, the AArohan app generates a confidential 4-digit PIN for each ride. Riders must verify the vehicle make, model, and registration plate in person, board the vehicle, and verbally provide the PIN to the driver. Drivers are strictly prohibited from initiating transit without entry of the correct PIN.
 
-### 7. Rider conduct
-No illegal items, no abuse or harassment, no damage to vehicles. Riders must wear seatbelts or helmets where required.
+### 7. Passenger Conduct
+Passengers agree to comply with all applicable road safety regulations, including wearing seatbelts or safety helmets where required by Malawi Road Traffic regulations. Verbal abuse, harassment, discrimination, carriage of illegal substances, or vehicle damage will result in immediate termination of service and referral to law enforcement.
 
-### 8. Driver conduct
-Drivers must hold a valid licence, vehicle registration and any permits required by law. Vehicles must be roadworthy and insured as required. No driving under the influence. Drivers must not use the app while driving.
+### 8. Driver Partner Conduct & Compliance
+Driver partners must hold a valid Malawi Driving Licence, current Certificate of Fitness, statutory vehicle insurance, and all applicable municipal operating permits. Zero tolerance is maintained for operating under the influence of alcohol or drugs. Drivers must use hands-free apparatus and must not interact with mobile screens while driving.
 
-### 9. Driver commission
-AArohan keeps 30% of the fare (not tips). For cash trips the driver collects the full fare and owes us the 30%, which must be paid within [X] days. Drivers above the debt limit cannot go online.
+### 9. Platform Commission & Financial Remittance
+[COMPANY_NAME] retains a platform facilitation commission of [COMMISSION_PERCENTAGE]% on eligible trip fares (excluding tips and booking fees). For cash transactions, driver partners collect the full fare on behalf of themselves and the platform, incurring a platform commission debt payable within [SETTLEMENT_PERIOD_DAYS] days. Drivers exceeding the maximum debt limit of MWK [COMMISSION_LOCKOUT_DEBT_MWK] are automatically locked out from receiving ride dispatches until balance settlement.
 
-### 10. Parcels
-Prohibited items include weapons, drugs, hazardous goods, live animals and cash. The sender must be accurate about contents. Delivery needs the recipient’s code. Our liability for lost or damaged parcels is limited to [amount].
+### 10. Parcel Delivery Terms
+The parcel sender guarantees that items tendered for delivery do not contain illegal, stolen, dangerous, hazardous, perishable, fragile, live animals, or currency items. Delivery verification requires the recipient to present the secret 4-digit delivery verification code. Liability of [COMPANY_NAME] for lost or damaged parcels is strictly capped at MWK [PARCEL_LIABILITY_CAP_MWK] or documented declared value, whichever is less.
 
-### 11. Safety and SOS
-The SOS button sends your location to our safety desk and your emergency contact. It does not replace calling emergency services (997 for police in Malawi, verify).
+### 11. Safety Features & Emergency Assistance
+The in-app SOS safety trigger notifies the AArohan 24/7 Safety Desk and designated emergency contacts with real-time location. The SOS function is a supplemental digital tool and does not substitute direct contact with national emergency services (Malawi Police Service: [POLICE_EMERGENCY_NUMBER], Medical Emergency: [MEDICAL_EMERGENCY_NUMBER]).
 
-### 12. Ratings and reports
-Both sides can rate each other. We may suspend accounts for poor conduct, fraud or safety reports.
+### 12. Mutual Ratings and Community Standards
+Riders and drivers rate each other following completed trips. Accounts with ratings falling below [MINIMUM_RATING_THRESHOLD] or subject to credible safety reports will undergo review and possible deactivation.
 
-### 13. Data and records
-We keep trip records, location trail, chats and payments for safety, dispute and legal reasons for [12 months, to be confirmed]. See the Privacy Policy.
+### 13. Data Retention and Dispute Records
+Trip logs, GPS breadcrumbs, communication transcripts, and transaction records are retained for [DATA_RETENTION_MONTHS] months for safety, auditing, insurance investigation, and statutory compliance. Detailed information is set forth in our Privacy Policy.
 
-### 14. Liability
-We provide the platform “as is”. To the extent the law allows, we are not liable for the acts of drivers or riders, or for indirect losses. [Lawyer to confirm limits and insurance.]
+### 14. Limitation of Liability
+To the maximum extent permitted by the laws of [GOVERNING_COUNTRY], [COMPANY_NAME] provides the platform on an "as-is" and "as-available" basis without warranties of any kind. [COMPANY_NAME] is not liable for indirect, incidental, or consequential damages resulting from platform use.
 
-### 15. Suspension and ending
-We may suspend or close accounts that break these terms. You may delete your account, subject to records we must keep.
+### 15. Account Suspension and Termination
+We reserve the right to suspend or terminate any user account for violation of these Terms. Users may request account deletion at any time, subject to statutory record retention obligations.
 
-### 16. Disputes
-Contact support first. [Governing law and court or arbitration to be set by lawyer, likely Malawi.]
+### 16. Dispute Resolution and Governing Law
+These Terms are governed by and construed in accordance with the laws of [GOVERNING_JURISDICTION, e.g., Republic of Malawi]. Any dispute that cannot be resolved through mutual negotiation shall be submitted to the competent courts of [DESIGNATED_COURT_LOCATION].
 
-### 17. Changes
-We may update these terms and will notify you in the app. Continued use means acceptance.
+### 17. Modifications
+[COMPANY_NAME] reserves the right to amend these Terms upon notification through the mobile application or website. Continued use of the platform constitutes agreement to the updated Terms.
 
-### 18. Contact
-[Support email and phone.]
-
+### 18. Contact Information
+For questions regarding these Terms, contact:
+- Legal Affairs: [LEGAL_CONTACT_EMAIL]
+- Customer Support: [SUPPORT_EMAIL]
+- Hotline: [CUSTOMER_CARE_PHONE]
+- Postal Address: [POSTAL_ADDRESS, P.O. Box]

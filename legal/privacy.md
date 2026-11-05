@@ -1,55 +1,61 @@
 # AArohan Privacy Policy
 **Version: DRAFT v0.1 (not yet reviewed by a lawyer)**
 
-> ⚠️ **DRAFT NOTICE: This document is a draft version and does not constitute formal legal advice.**
+> ⚠️ **DRAFT NOTICE: This document is a draft version and does not constitute formal legal advice. It contains placeholder parameters that must be reviewed and finalized by qualified legal counsel in Malawi prior to production launch.**
 
 ---
 
-### 1. What we collect
-- Phone number and name
-- Emergency contact information
-- Location data: pickup location, drop-off location, intermediate stops, and a live GPS trail during active trips
-- Trip and payment records
-- In-app chat messages
-- Ratings and reviews
-- Device and connection information
-- For drivers: National ID, driver's licence, vehicle registration and inspection documents, and profile photo
+### 1. Information We Collect
+[COMPANY_NAME] ("we", "us", or "our") collects the following categories of information to provide and safeguard transportation and courier services:
+- **Identity & Contact Details:** Full legal name, mobile phone number, profile photo, and designated emergency contact names/numbers.
+- **Location Information:** Exact real-time GPS coordinates of pickup, intermediate stops, and drop-off destinations; background location trails recorded at 10-second intervals for driver partners during active trip transit.
+- **Trip & Transaction History:** Fares, payment methods, transaction timestamps, distance, duration, cancellations, and ratings.
+- **Communications:** Timestamped in-app chat transcripts and customer support ticket dialogues.
+- **Driver Verification Documents (KYC):** National Identity Card, Driver's Licence, Vehicle Registration Certificate, Certificate of Fitness, statutory insurance documents, and criminal background clearance where applicable.
+- **Device & Diagnostic Data:** Device make/model, operating system version, push notification tokens, IP addresses, and application telemetry logs.
 
-### 2. Why we collect it
-- To operate, coordinate, and dispatch rides and parcel deliveries
-- To keep riders, drivers, and the public safe
-- To resolve disputes and investigate incidents
-- To comply with applicable laws and regulatory obligations in Malawi
+### 2. Purposes for Processing Personal Data
+We process collected data exclusively for the following operational, safety, and legal objectives:
+- Dispatching rides and deliveries based on real-time spatial proximity.
+- Real-time location tracking for passenger and courier safety during transit.
+- Investigating accident claims, fare disputes, lost parcel inquiries, and passenger safety reports.
+- Enforcing commission reconciliation and driver settlement rules.
+- Complying with regulatory obligations under Malawi transport, commercial, and tax statutes.
 
-### 3. Who sees your data
-- **The other party in a trip:** sees limited details necessary for the ride (first name, vehicle make/model/plate, and live location during the trip).
-- **Operations and support staff:** authorized admin and support personnel can view records to handle support tickets and safety emergencies. Every administrative access is strictly logged in an immutable audit log.
-- **Law enforcement:** we may share data with police or courts when legally required, and with emergency responders during verified SOS incidents.
-- **Service providers:** licensed SMS and telecommunications carriers (Airtel, TNM) and payment partners for transaction processing.
+### 3. Disclosure of Data to Third Parties
+We do not sell personal data to advertisers. Data is shared strictly on a need-to-know basis with:
+- **Trip Counterparties:** Riders receive driver name, vehicle details, plate number, and live vehicle location during active dispatch. Drivers receive pickup/dropoff coordinates and rider first name.
+- **Safety Desk & Authorized Support Staff:** Super-admin and support personnel have access to complete trip records; each administrative access event is logged to an immutable audit trail (`AuditLog`).
+- **Emergency Responders & Law Enforcement:** Police (Malawi Police Service) and emergency medical personnel upon trigger of the in-app SOS feature or receipt of a lawful court order/subpoena.
+- **Infrastructure Providers:** Secure cloud hosting ([CLOUD_HOSTING_PROVIDER_REGION]), SMS delivery gateway ([SMS_GATEWAY_PROVIDER]), and mobile money settlement partners ([MOBILE_MONEY_GATEWAY]).
 
-### 4. How long we keep your data
-Trip records, GPS trails, chats, and safety logs are retained for [12 months, to be confirmed by legal counsel] to handle dispute resolutions, insurance claims, and legal requirements.
+### 4. Data Retention Schedule
+In accordance with our data retention policy (`DATA_RETENTION_MONTHS` = [DATA_RETENTION_MONTHS, default: 12 months]):
+- Trip records, GPS coordinates (`TripLocationPoint`), ticket messages, and financial ledgers are retained for [DATA_RETENTION_MONTHS] months following trip completion to resolve disputes, handle insurance claims, and fulfill tax reporting requirements.
+- KYC verification documents are retained for the duration of the driver's active partnership plus [KYC_RETENTION_YEARS_AFTER_DEACTIVATION] years.
+- Users may request account deletion; however, financial and audit records required by law will be preserved until the expiration of the statutory retention window.
 
-### 5. Your rights
-Under applicable data protection principles, you have the right to:
-- Request access to your personal data
-- Request correction of inaccurate information
-- Request deletion of your account (subject to statutory and dispute records we are required to retain)
-- Contact our Data Protection Officer or the competent regulatory authority
+### 5. Your Privacy Rights
+Subject to applicable Malawi data protection laws and international standards, you have the right to:
+- Access and inspect the personal information we hold about you.
+- Request rectification of inaccurate, out-of-date, or incomplete records.
+- Request erasure of your account data (subject to legal retention exceptions).
+- Lodge a privacy complaint with our Data Protection Officer or the competent regulatory body.
 
-### 6. Security
-- Encryption in transit (TLS/HTTPS and secure WebSockets)
-- Role-based restricted access controls with deny-by-default authorization
-- Private, access-controlled cloud document storage for driver KYC records
-- Cryptographic hashing for authentication codes, passwords, and delivery tokens
+### 6. Information Security Measures
+- **Encryption:** All communication channels are protected using Transport Layer Security (TLS 1.3) and secure WebSockets (WSS).
+- **Access Control:** Multi-tier role-based access control (RBAC) with deny-by-default policies and multi-factor authentication for administrative dashboards.
+- **Storage Protection:** Passwords, OTP verification codes, and parcel delivery verification codes are cryptographically hashed using industry-standard hashing algorithms (bcrypt/HMAC-SHA256).
 
-### 7. Children
-The AArohan platform is strictly for users aged 18 and older. We do not knowingly collect personal information from individuals under 18.
+### 7. Children's Privacy
+The AArohan platform is strictly prohibited to individuals under 18 years of age. We do not knowingly solicit or collect data from minors.
 
-### 8. Overseas processing
-Application data is stored on secure cloud servers outside Malawi. [Lawyer to advise on international data transfer and consent rules.]
+### 8. Cross-Border Data Transfers
+Application servers and database storage may be maintained in secure data centers located in [DATA_CENTER_REGIONS, e.g., European Union / South Africa]. [COMPANY_NAME] ensures appropriate safeguards and standard contractual clauses are implemented for all cross-border data processing.
 
-### 9. Contact Us
-For questions regarding this Privacy Policy or your personal data, contact support at:
-[Support email and contact address to be inserted.]
-
+### 9. Privacy Officer Contact
+For inquiries regarding your personal data or to exercise your privacy rights, contact:
+- Data Protection Officer: [DPO_EMAIL_ADDRESS]
+- General Support: [SUPPORT_EMAIL]
+- Telephone: [CUSTOMER_CARE_PHONE]
+- Physical Office: [PHYSICAL_OFFICE_ADDRESS], Lilongwe, Malawi
