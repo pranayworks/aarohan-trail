@@ -6,6 +6,7 @@ const dispatchService = require('../services/dispatch');
 const financeService = require('../services/finance');
 const paymentManager = require('../services/payments');
 const authService = require('../services/auth');
+const pushNotificationService = require('../services/pushNotification');
 const { requireDriverApproval, requireRole, validateBody } = require('../middleware/auth');
 
 const router = express.Router();
@@ -509,6 +510,26 @@ router.get('/driver/onboarding/status', async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+const restDeviceTokenSchema = z.object({
+  token: z.string().min(10, 'FCM device token is required'),
+  platform: z.enum(['ANDROID', 'IOS', 'WEB']).optional().default('ANDROID')
+});
+
+// Register FCM Device Push Token
+router.post('/driver/device-token', requireRole('DRIVER'), validateBody(restDeviceTokenSchema), async (req, res) => {
+  try {
+    const { token, platform } = req.body;
+    const record = await pushNotificationService.registerDeviceToken({
+      userId: req.user.id,
+      token,
+      platform
+    });
+    res.json({ success: true, token: record.token });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

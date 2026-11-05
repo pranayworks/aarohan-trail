@@ -32,6 +32,7 @@
   <script src="../shared/auth.js"></script>
   <script src="../shared/state.js"></script>
   <script src="../shared/i18n.js"></script>
+  <script src="./capacitor-bridge.js"></script>
 
   <!-- Sticky Top Header -->
   <header class="fixed top-0 w-full z-50 pt-safe bg-surface/90 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm">
@@ -1021,6 +1022,7 @@
         label.innerText = 'ONLINE';
         label.className = 'text-xs font-black text-primary tracking-wider uppercase';
         startDriverTelemetry();
+        if (window.driverCapacitorBridge) window.driverCapacitorBridge.startBackgroundGeolocation();
       } else {
         ring.className = 'hidden';
         dot.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-outline';
@@ -1028,6 +1030,7 @@
         label.className = 'text-xs font-black text-outline tracking-wider uppercase';
         hideIncomingRequest();
         stopDriverTelemetry();
+        if (window.driverCapacitorBridge) window.driverCapacitorBridge.stopBackgroundGeolocation();
       }
 
       window.mwendoStore.setDriverStatus(isOnline ? 'ONLINE' : 'OFFLINE');

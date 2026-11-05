@@ -7,6 +7,7 @@ const prisma = require('../lib/prisma');
 const pricingService = require('./pricing');
 const financeService = require('./finance');
 const dbLedger = require('./dbLedger');
+const pushNotificationService = require('./pushNotification');
 
 function haversineDistanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
@@ -318,6 +319,24 @@ class DispatchService {
         offerId: offer.id,
         expiresAt
       });
+    }
+
+    // Trigger FCM Background Push Notification to the targeted driver's native device
+    if (targetDriver.userId) {
+      const isParcel = trip.serviceType === 'PARCEL';
+      const offerTitle = isParcel ? 'New Parcel Delivery Offer 📦' : 'New Ride Offer 🚖';
+      const offerBody = `Pickup: ${trip.pickupAddress || 'Lilongwe'} • MWK ${(trip.driverShareMWK || trip.fareMWK || 0).toLocaleString()}`;
+      pushNotificationService.sendPushToUser(targetDriver.userId, {
+        title: offerTitle,
+        body: offerBody,
+        data: {
+          type: 'TRIP_OFFER',
+          tripId: trip.id,
+          offerId: offer.id,
+          expiresAt: expiresAt.toISOString(),
+          fareMWK: String(trip.driverShareMWK || trip.fareMWK)
+        }
+      }).catch(e => console.warn('[DispatchFCM] Push dispatch warning:', e.message));
     }
 
     // Schedule 15s timeout

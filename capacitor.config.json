@@ -1,0 +1,26 @@
+{
+  "appId": "com.aarohan.driver",
+  "appName": "AArohan Driver",
+  "webDir": "driver",
+  "server": {
+    "url": "https://aarohan.app",
+    "cleartext": true,
+    "androidScheme": "https",
+    "allowNavigation": [
+      "aarohan.app",
+      "*.aarohan.app",
+      "10.0.2.2:*",
+      "localhost:*",
+      "127.0.0.1:*"
+    ]
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  }
+}
