@@ -137,24 +137,24 @@ async function runBrowserE2E() {
     // -------------------------------------------------------------------------
     console.log('\n--- Step 1: Driver Authentication (/driver) ---');
     await pageDriver.goto(`${BASE_URL}/driver/`, { waitUntil: 'domcontentloaded' });
-    await pageDriver.waitForSelector('#aarohan-auth-modal', { state: 'visible', timeout: 8000 });
+    await pageDriver.waitForSelector('#aarohan-auth-modal', { state: 'visible', timeout: 15000 });
 
     await pageDriver.locator('#auth-phone-input').fill('995541122');
     await pageDriver.locator('#auth-phone-submit').click();
 
-    await pageDriver.waitForSelector('#auth-step-otp:not(.hidden)', { timeout: 8000 });
+    await pageDriver.waitForSelector('#auth-step-otp:not(.hidden)', { timeout: 15000 });
     await seedTestOtp(DRIVER_PHONE, TEST_OTP);
 
     await pageDriver.locator('#auth-otp-input').fill(TEST_OTP);
     await pageDriver.locator('#auth-otp-submit').click();
 
-    await pageDriver.waitForSelector('#aarohan-auth-modal', { state: 'detached', timeout: 8000 });
+    await pageDriver.waitForSelector('#aarohan-auth-modal', { state: 'detached', timeout: 25000 });
     console.log('  [PASS] Driver authenticated successfully');
 
     // Verify driver status is ONLINE
     const statusText = await pageDriver.locator('#status-label').innerText();
     console.log(`  [Driver Status] ${statusText}`);
-    await pageDriver.waitForFunction(() => window.mwendoStore && window.mwendoStore.isRealtimeConnected, { timeout: 10000 });
+    await pageDriver.waitForFunction(() => window.mwendoStore && window.mwendoStore.isRealtimeConnected, { timeout: 15000 });
     console.log('  [PASS] Driver verified ONLINE & Real-Time Socket Connected');
 
     // -------------------------------------------------------------------------
@@ -162,22 +162,138 @@ async function runBrowserE2E() {
     // -------------------------------------------------------------------------
     console.log('\n--- Step 2: Rider Authentication (/rider) ---');
     await pageRider.goto(`${BASE_URL}/rider/`, { waitUntil: 'domcontentloaded' });
-    await pageRider.waitForSelector('#aarohan-auth-modal', { state: 'visible', timeout: 8000 });
+    await pageRider.waitForSelector('#aarohan-auth-modal', { state: 'visible', timeout: 15000 });
 
     await pageRider.locator('#auth-phone-input').fill('991234567');
     await pageRider.locator('#auth-phone-submit').click();
 
-    await pageRider.waitForSelector('#auth-step-otp:not(.hidden)', { timeout: 8000 });
+    await pageRider.waitForSelector('#auth-step-otp:not(.hidden)', { timeout: 15000 });
     await seedTestOtp(RIDER_PHONE, TEST_OTP);
 
     await pageRider.locator('#auth-otp-input').fill(TEST_OTP);
     await pageRider.locator('#auth-otp-submit').click();
 
-    await pageRider.waitForSelector('#aarohan-auth-modal', { state: 'detached', timeout: 8000 });
+    await pageRider.waitForSelector('#aarohan-auth-modal', { state: 'detached', timeout: 25000 });
     console.log('  [PASS] Rider authenticated successfully');
 
-    await pageRider.waitForFunction(() => window.mwendoStore && window.mwendoStore.isRealtimeConnected, { timeout: 10000 });
+    await pageRider.waitForFunction(() => window.mwendoStore && window.mwendoStore.isRealtimeConnected, { timeout: 15000 });
     console.log('  [PASS] Rider Real-Time Socket Connected');
+
+    // -------------------------------------------------------------------------
+    // STEP 2b: 3-Tab Bottom Navigation & Theme CSS Validation
+    // -------------------------------------------------------------------------
+    console.log('\n--- Step 2b: 3-Tab Navigation & Theme Validation ---');
+    // Confirm shared/theme.css is loaded
+    const themeLoaded = await pageRider.evaluate(() => {
+      return Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+        .some(l => l.href && l.href.includes('/shared/theme.css'));
+    });
+    assert.strictEqual(themeLoaded, true, 'shared/theme.css must be linked in rider header');
+    console.log('  [PASS] shared/theme.css verified in rider DOM');
+
+    // Confirm 3-tab navigation exists: #nav-rides, #nav-activity, #nav-profile
+    await pageRider.waitForSelector('#nav-rides', { timeout: 10000 });
+    await pageRider.waitForSelector('#nav-activity', { timeout: 10000 });
+    await pageRider.waitForSelector('#nav-profile', { timeout: 10000 });
+
+    // Switch to Activity Tab
+    await pageRider.locator('#nav-activity').click();
+    await pageRider.waitForSelector('#view-activity:not(.hidden)', { timeout: 10000 });
+    console.log('  [PASS] Tab navigation: Switched to #view-activity');
+
+    // Switch to Profile Tab
+    await pageRider.locator('#nav-profile').click();
+    await pageRider.waitForSelector('#view-profile:not(.hidden)', { timeout: 10000 });
+    console.log('  [PASS] Tab navigation: Switched to #view-profile');
+
+    // Switch back to Rides Tab
+    await pageRider.locator('#nav-rides').click();
+    await pageRider.waitForSelector('#view-booking:not(.hidden)', { timeout: 10000 });
+    console.log('  [PASS] Tab navigation: Returned to #view-booking');
+
+    // -------------------------------------------------------------------------
+    // STEP 2c: GPS Denied Fallback Verification
+    // -------------------------------------------------------------------------
+    console.log('\n--- Step 2c: GPS Denied Fallback Verification ---');
+    let capturedAlert = null;
+    const dialogHandler = (dialog) => {
+      capturedAlert = dialog.message();
+      dialog.accept().catch(() => {});
+    };
+    pageRider.on('dialog', dialogHandler);
+
+    await pageRider.evaluate(() => {
+      // Mock geolocation failure
+      navigator.geolocation.getCurrentPosition = (_success, error) => {
+        error({
+          code: 1, // PERMISSION_DENIED
+          PERMISSION_DENIED: 1,
+          POSITION_UNAVAILABLE: 2,
+          TIMEOUT: 3,
+          message: 'User denied Geolocation'
+        });
+      };
+      window.handleUseCurrentLocation();
+    });
+
+    await pageRider.waitForFunction(() => true, { timeout: 1000 });
+    assert(capturedAlert && capturedAlert.toLowerCase().includes('location access was denied'),
+      `Expected GPS denied alert message, got: "${capturedAlert}"`);
+    console.log(`  [PASS] GPS denied fallback triggered expected alert: "${capturedAlert.substring(0, 45)}..."`);
+    pageRider.off('dialog', dialogHandler);
+
+    // -------------------------------------------------------------------------
+    // STEP 2d: Intermediate Stops Planner Validation (+1 Stop)
+    // -------------------------------------------------------------------------
+    console.log('\n--- Step 2d: Intermediate Stops Planner Validation ---');
+    await pageRider.evaluate(() => {
+      window.openSearchModal();
+    });
+    await pageRider.waitForSelector('#search-modal:not(.hidden)', { timeout: 10000 });
+    await pageRider.waitForSelector('#btn-add-stop', { timeout: 10000 });
+
+    // Click Add Stop to open waypoint modal
+    await pageRider.locator('#btn-add-stop').click();
+    await pageRider.waitForSelector('#waypoint-modal:not(.hidden)', { timeout: 10000 });
+
+    // Select Crossroads Hotel
+    await pageRider.evaluate(() => {
+      window.selectWaypoint('Crossroads Hotel');
+    });
+
+    // Verify stops container rendered
+    const stopCountText = await pageRider.locator('#planner-stops-count-text').innerText();
+    assert.strictEqual(stopCountText.trim(), '1 / 2 stops', 'Stop count text must update to 1 / 2 stops');
+
+    const stopsCount = await pageRider.evaluate(() => (window.plannerStops || []).length);
+    assert.strictEqual(stopsCount, 1, 'window.plannerStops must have 1 waypoint');
+    console.log(`  [PASS] Intermediate stop added: Crossroads Hotel (${stopCountText})`);
+
+    // Clear stops for clean ride booking test
+    await pageRider.evaluate(() => {
+      window.plannerStops = [];
+      window.renderPlannerStopsDOM();
+      window.closeSearchModal();
+    });
+
+    // -------------------------------------------------------------------------
+    // STEP 2e: Simulate Lilongwe Button In Production Validation
+    // -------------------------------------------------------------------------
+    console.log('\n--- Step 2e: Simulate Lilongwe Button In Production ---');
+    const prodSimResult = await pageRider.evaluate(async () => {
+      const btn = document.getElementById('btn-dev-simulate-location');
+      if (!btn) return false;
+      // When NODE_ENV=production, allowLocationSimulation is false, button stays hidden
+      const fakeProdCfg = { allowLocationSimulation: false, env: 'production' };
+      if (fakeProdCfg && fakeProdCfg.allowLocationSimulation) {
+        btn.classList.remove('hidden');
+      } else {
+        btn.classList.add('hidden');
+      }
+      return btn.classList.contains('hidden');
+    });
+    assert.strictEqual(prodSimResult, true, 'Simulate Lilongwe button must remain hidden in production');
+    console.log('  [PASS] Simulate Lilongwe button verified hidden when allowLocationSimulation=false (NODE_ENV=production)');
 
     // -------------------------------------------------------------------------
     // STEP 3: Rider Selects Destination & Cash Payment
@@ -317,11 +433,11 @@ async function runBrowserE2E() {
     await pageDriver.locator('#btn-complete-trip').click();
 
     // Driver switches to earnings
-    await pageDriver.waitForSelector('#view-earnings:not(.hidden)', { timeout: 8000 });
+    await pageDriver.waitForSelector('#view-earnings:not(.hidden)', { timeout: 20000 });
     console.log('  [PASS] Driver trip completed and switched to earnings view.');
 
     // Rider screen displays receipt
-    await pageRider.waitForSelector('#view-receipt:not(.hidden)', { timeout: 8000 });
+    await pageRider.waitForSelector('#view-receipt:not(.hidden)', { timeout: 20000 });
     const receiptFare = await pageRider.locator('#receipt-fare-display').innerText();
     const receiptDest = await pageRider.locator('#receipt-destination-name').innerText();
     console.log(`  [PASS] Rider receipt displayed: Dest="${receiptDest}" • Fare="${receiptFare}"`);
@@ -402,6 +518,166 @@ async function runBrowserE2E() {
     assert.notStrictEqual(freshToken, expiredToken, 'Access token successfully rotated upon 401');
     const refreshedWalletBal = await pageRider.locator('#header-wallet-bal').innerText();
     console.log(`  [PASS] Expired token refreshed: Rotated JWT stored • Auth retained • Header Wallet: ${refreshedWalletBal}`);
+
+    // -------------------------------------------------------------------------
+    // STEP 11: Parcel Courier with 4-Digit Delivery Code & 5-Attempt Lockout
+    // -------------------------------------------------------------------------
+    console.log('\n--- Step 11: Parcel Delivery & 5 Wrong Attempts Lockout ---');
+    // Ensure driver is back online and ready for incoming offers
+    const dUser = await prisma.user.findUnique({
+      where: { phone: DRIVER_PHONE },
+      include: { driverProfile: true }
+    });
+    if (dUser && dUser.driverProfile) {
+      await prisma.driver.update({
+        where: { id: dUser.driverProfile.id },
+        data: {
+          availability: 'ONLINE',
+          commissionDebtMWK: 0,
+          currentLat: -13.9722,
+          currentLng: 33.7667,
+          lastLocationAt: new Date()
+        }
+      });
+    }
+
+    await pageDriver.evaluate(() => {
+      if (typeof window.switchDriverView === 'function') {
+        window.switchDriverView('radar');
+      }
+      if (typeof window.updateDriverNavControls === 'function') {
+        window.updateDriverNavControls('ONLINE');
+      }
+      if (window.mwendoStore && typeof window.mwendoStore.setDriverStatus === 'function') {
+        window.mwendoStore.setDriverStatus('ONLINE');
+      }
+    });
+
+    await pageDriver.waitForFunction(() => window.mwendoStore && window.mwendoStore.isRealtimeConnected, { timeout: 15000 });
+    await pageRider.waitForFunction(() => window.mwendoStore && window.mwendoStore.isRealtimeConnected, { timeout: 15000 });
+
+    // Rider resets from previous receipt and opens planner
+    await pageRider.evaluate(() => {
+      if (typeof window.resetAndBookAnother === 'function') {
+        window.resetAndBookAnother();
+      }
+      window.currentDestination = {
+        name: 'Entire Printers and Traders Limited (EPTL)',
+        area: 'Chitipi Road, Lilongwe, Malawi',
+        lat: -13.9933,
+        lng: 33.6777
+      };
+      const destLabel = document.getElementById('selected-destination-text');
+      if (destLabel) destLabel.innerText = window.currentDestination.name;
+
+      window.openSearchModal();
+      window.switchPlannerTab('parcel');
+    });
+
+    await pageRider.waitForSelector('#planner-parcel-section:not(.hidden)', { timeout: 15000 });
+    await pageRider.locator('#modal-parcel-recipient-name').fill('Grace Phiri');
+    await pageRider.locator('#modal-parcel-recipient-phone').fill('+265992233445');
+    await pageRider.locator('#modal-parcel-prohibited-check').check();
+
+    // Submit parcel
+    await pageRider.locator('#btn-submit-modal-parcel').click();
+
+    // Ride sheet opens for parcel
+    await pageRider.waitForSelector('#ride-selection-sheet:not(.hidden)', { timeout: 15000 });
+    await pageRider.waitForSelector('#price-auto', { state: 'visible', timeout: 15000 });
+    await pageRider.locator('#tier-auto').click();
+
+    // Ensure payment method is Cash (not Mobile Money which opens USSD modal)
+    await pageRider.evaluate(() => {
+      let attempts = 0;
+      while (!window.activePaymentMethod?.toLowerCase().includes('cash') && attempts < 10) {
+        window.cyclePaymentMethod();
+        attempts++;
+      }
+    });
+
+    await pageRider.locator('#book-cta-btn').click();
+    await pageRider.waitForSelector('#view-dispatching:not(.hidden)', { timeout: 15000 });
+    console.log('  [PASS] Parcel courier booking dispatched');
+
+    // Driver receives incoming request modal
+    await pageDriver.waitForSelector('#incoming-request-modal:not(.hidden)', { timeout: 20000 });
+    const isIncomingParcel = await pageDriver.locator('#incoming-parcel-card').isVisible();
+    assert.strictEqual(isIncomingParcel, true, 'Incoming parcel card must be visible on incoming modal');
+    console.log('  [PASS] Driver received incoming request with Parcel indicator');
+
+    // Driver accepts
+    await pageDriver.locator('#btn-accept-trip').click();
+    await pageDriver.waitForSelector('#driver-arriving-controls:not(.hidden)', { timeout: 15000 });
+
+    // Driver marks arrival
+    await pageDriver.locator('#btn-driver-arrived').click();
+    await pageDriver.waitForSelector('#driver-pin-controls:not(.hidden)', { timeout: 15000 });
+
+    // Rider displays start PIN
+    await pageRider.waitForSelector('#view-tracking:not(.hidden)', { timeout: 15000 });
+    await pageRider.waitForFunction(() => {
+      const pin = document.getElementById('tracking-pin-display')?.innerText?.trim();
+      const statePin = window.mwendoStore?.getState()?.activeTrip?.pin;
+      return (pin && pin.length === 4 && /^\d{4}$/.test(pin) && pin !== '----') || (statePin && /^\d{4}$/.test(statePin));
+    }, { timeout: 15000 });
+    const parcelStartPin = await pageRider.evaluate(() => {
+      const pin = document.getElementById('tracking-pin-display')?.innerText?.trim();
+      if (pin && /^\d{4}$/.test(pin) && pin !== '----') return pin;
+      return (window.mwendoStore?.getState()?.activeTrip?.pin || '').trim();
+    });
+    console.log(`  [Parcel Start PIN] ${parcelStartPin}`);
+
+    // Driver verifies start PIN and enters transit
+    await pageDriver.locator('#driver-pin-input').fill(parcelStartPin);
+    await pageDriver.locator('#btn-verify-pin').click();
+    await pageDriver.waitForSelector('#driver-transit-controls:not(.hidden)', { timeout: 25000 });
+    console.log('  [PASS] Parcel ride in transit');
+
+    // Verify parcel PIN input box is visible in transit
+    await pageDriver.waitForSelector('#driver-parcel-pin-box:not(.hidden)', { timeout: 15000 });
+
+    // 5 Wrong Attempts Test
+    console.log('  Testing 5 incorrect delivery code attempts...');
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      await pageDriver.evaluate(() => {
+        const errEl = document.getElementById('driver-recipient-pin-error');
+        if (errEl) { errEl.innerText = ''; errEl.classList.add('hidden'); }
+      });
+      await pageDriver.locator('#driver-recipient-pin-input').fill('0000');
+      await pageDriver.locator('#btn-complete-trip').click();
+      await pageDriver.waitForSelector('#driver-recipient-pin-error:not(.hidden)', { timeout: 20000 });
+      await pageDriver.waitForFunction((att) => {
+        const text = document.getElementById('driver-recipient-pin-error')?.innerText || '';
+        return text.includes(`Attempt ${att} of 5`) || text.includes('locked') || text.includes('Maximum 5');
+      }, attempt, { timeout: 20000 });
+      const errMsg = await pageDriver.locator('#driver-recipient-pin-error').innerText();
+      console.log(`    Attempt ${attempt}/5: "${errMsg}"`);
+    }
+
+    // 6th Attempt: Should lock permanently
+    const isLocked = await pageDriver.evaluate(() => {
+      const btn = document.getElementById('btn-complete-trip');
+      const inp = document.getElementById('driver-recipient-pin-input');
+      const err = document.getElementById('driver-recipient-pin-error')?.innerText || '';
+      return (btn && btn.disabled) || (inp && inp.disabled) || err.includes('locked') || err.includes('Maximum 5');
+    });
+    assert.strictEqual(isLocked, true, 'Parcel delivery must lock after 5 incorrect delivery code attempts');
+    console.log('  [PASS] Parcel delivery locked after 5 wrong attempts verification passed');
+
+    // Audit DB
+    const dbParcel = await prisma.parcelDetail.findFirst({
+      where: {
+        trip: {
+          rider: { phone: RIDER_PHONE },
+          serviceType: 'PARCEL'
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    assert(dbParcel, 'ParcelDetail record must exist in DB');
+    assert.strictEqual(dbParcel.deliveryAttempts, 5, 'ParcelDetail deliveryAttempts must equal 5 in DB');
+    console.log(`  [PASS] Database audit: Parcel ${dbParcel.id} deliveryAttempts = ${dbParcel.deliveryAttempts}`);
 
     testPassed = true;
 

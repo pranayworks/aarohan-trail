@@ -1058,7 +1058,8 @@
         if (stageBadge) stageBadge.innerText = 'In Transit to Destination';
       }
 
-      const activeTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const rawTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const activeTrip = (rawTrip && rawTrip.trip) ? rawTrip.trip : rawTrip;
       const isParcel = activeTrip?.serviceType === 'PARCEL';
       const parcelPinBox = document.getElementById('driver-parcel-pin-box');
       const navParcelCard = document.getElementById('nav-parcel-card');
@@ -1093,14 +1094,19 @@
     // Incoming Request Modal
     function showIncomingRequest(tripData) {
       if (!isOnline) return;
-      if (tripData) pendingIncomingTrip = tripData;
+      const storeTrip = window.mwendoStore ? window.mwendoStore.getState()?.activeTrip : null;
+      let currentTrip = (tripData && tripData.trip) ? tripData.trip : (tripData || storeTrip);
+      if (currentTrip && tripData && tripData.tripId && !currentTrip.id) {
+        currentTrip.id = tripData.tripId;
+      }
+      if (storeTrip && currentTrip && !currentTrip.id && storeTrip.id) {
+        currentTrip.id = storeTrip.id;
+      }
+      pendingIncomingTrip = currentTrip;
       const modal = document.getElementById('incoming-request-modal');
       if (modal) modal.classList.remove('hidden');
 
-      // Populate dynamic trip data from Real-Time Store or incoming payload
-      const currentTrip = tripData || (window.mwendoStore ? window.mwendoStore.getState()?.activeTrip : null);
       if (currentTrip) {
-        pendingIncomingTrip = currentTrip;
         const fare = currentTrip.fareMWK || currentTrip.finalFare || 1500;
         const net = Math.round(fare * 0.70); // 70% Captain Share (30% Platform Commission)
         const pEl = document.getElementById('incoming-pickup-text');
@@ -1198,8 +1204,9 @@
 
     function acceptIncomingTrip() {
       hideIncomingRequest();
-      const currentTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
-      const tripId = currentTrip?.id || currentTrip?.tripId;
+      const rawTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const trip = (rawTrip && rawTrip.trip) ? rawTrip.trip : rawTrip;
+      const tripId = trip?.id || trip?.tripId || window.mwendoStore?.getState()?.activeTrip?.id;
       if (!tripId) {
         console.warn('[DriverApp] No active tripId to accept');
         return;
@@ -1221,8 +1228,9 @@
     }
 
     function handleDriverArrived() {
-      const trip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
-      const tripId = trip?.id || trip?.tripId;
+      const rawTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const trip = (rawTrip && rawTrip.trip) ? rawTrip.trip : rawTrip;
+      const tripId = trip?.id || trip?.tripId || window.mwendoStore?.getState()?.activeTrip?.id;
       if (!tripId) return;
 
       if (window.mwendoStore) {
@@ -1247,8 +1255,9 @@
         return;
       }
 
-      const trip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
-      const tripId = trip?.id || trip?.tripId;
+      const rawTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const trip = (rawTrip && rawTrip.trip) ? rawTrip.trip : rawTrip;
+      const tripId = trip?.id || trip?.tripId || window.mwendoStore?.getState()?.activeTrip?.id;
       if (!tripId) return;
 
       if (window.mwendoStore) {
@@ -1265,8 +1274,9 @@
     }
 
     function handleDriverComplete() {
-      const trip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
-      const tripId = trip?.id || trip?.tripId;
+      const rawTrip = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const trip = (rawTrip && rawTrip.trip) ? rawTrip.trip : rawTrip;
+      const tripId = trip?.id || trip?.tripId || window.mwendoStore?.getState()?.activeTrip?.id;
       if (!tripId) return;
 
       const isParcel = trip?.serviceType === 'PARCEL';
@@ -1298,6 +1308,12 @@
             if (isParcel && errEl) {
               errEl.innerText = msg;
               errEl.classList.remove('hidden');
+              if (msg.includes('locked') || msg.includes('Maximum 5') || msg.includes('exceeded') || msg.includes('Attempt 5 of 5')) {
+                const pinInput = document.getElementById('driver-recipient-pin-input');
+                const compBtn = document.getElementById('btn-complete-trip');
+                if (pinInput) pinInput.disabled = true;
+                if (compBtn) compBtn.disabled = true;
+              }
             } else {
               alert(msg);
             }

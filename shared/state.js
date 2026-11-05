@@ -533,7 +533,8 @@
         paymentMethod: paymentMethod || 'CASH',
         stops: params.stops || undefined,
         serviceType: params.serviceType || undefined,
-        parcel: params.parcel || undefined,
+        parcel: params.parcel || params.parcelDetail || undefined,
+        parcelDetail: params.parcel || params.parcelDetail || undefined,
         pickup: (pickupCoords && typeof pickupCoords.lat === 'number') ? {
           name: pickupStr,
           lat: pickupCoords.lat,
@@ -703,32 +704,33 @@
       const paymentMethod = params.paymentMethod || state.activeTrip?.paymentMethod || 'CASH';
       const driverTip = params.driverTip || 0;
 
-      state.activeTrip.status = 'COMPLETED';
-      state.activeTrip.completedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      this.saveState(state);
-      this.broadcast('TRIP_COMPLETED', state.activeTrip);
-      this.notifyListeners(state, 'TRIP_COMPLETED', state.activeTrip);
-
       if (this.socket && this.isRealtimeConnected && id) {
-        const recipientPin = params.recipientPin || undefined;
-        this.socket.emit('trip:complete', { tripId: id, paymentMethod, driverTip, recipientPin }, (res) => {
+        const recipientPin = params.recipientPin || params.deliveryCode || undefined;
+        this.socket.emit('trip:complete', { tripId: id, paymentMethod, driverTip, recipientPin, deliveryCode: recipientPin }, (res) => {
           if (res && res.success && res.trip) {
             const cur = this.getState();
             cur.activeTrip = Object.assign({}, cur.activeTrip, res.trip);
+            cur.activeTrip.status = 'COMPLETED';
+            cur.activeTrip.completedAt = cur.activeTrip.completedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             this.saveState(cur);
             this.broadcast('TRIP_COMPLETED', cur.activeTrip);
             this.notifyListeners(cur, 'TRIP_COMPLETED', cur.activeTrip);
+            if (window.mwendoSound) window.mwendoSound.playTripCompleteFanfare();
             if (typeof callback === 'function') callback({ success: true, trip: res.trip });
           } else {
             if (typeof callback === 'function') callback({ success: false, error: res?.error || 'Failed to complete trip' });
           }
         });
       } else {
+        state.activeTrip.status = 'COMPLETED';
+        state.activeTrip.completedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        this.saveState(state);
+        this.broadcast('TRIP_COMPLETED', state.activeTrip);
+        this.notifyListeners(state, 'TRIP_COMPLETED', state.activeTrip);
+        if (window.mwendoSound) window.mwendoSound.playTripCompleteFanfare();
         if (typeof callback === 'function') callback({ success: true, trip: state.activeTrip });
       }
 
-      if (window.mwendoSound) window.mwendoSound.playTripCompleteFanfare();
       return state;
     }
 

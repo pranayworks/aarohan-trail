@@ -14,6 +14,16 @@ function hashDeliveryCode(code) {
     .digest('hex');
 }
 
+const parcelInputSchema = z.object({
+  category: z.string().default('General Parcel'),
+  size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).default('SMALL'),
+  fragile: z.boolean().default(false),
+  notes: z.string().optional().nullable(),
+  recipientName: z.string().min(1, 'Recipient name is required'),
+  recipientPhone: z.string().regex(/^\+265[0-9]{9}$/, 'Recipient phone must be valid Malawi +265 format'),
+  prohibitedAccepted: z.boolean().optional()
+});
+
 const socketTripRequestSchema = z.object({
   quoteId: z.string().optional(),
   fare: z.number().optional(),
@@ -26,15 +36,8 @@ const socketTripRequestSchema = z.object({
     lat: z.number(),
     lng: z.number()
   })).max(2).optional(),
-  parcelDetail: z.object({
-    category: z.string().default('General Parcel'),
-    size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).default('SMALL'),
-    fragile: z.boolean().default(false),
-    notes: z.string().optional().nullable(),
-    recipientName: z.string().min(1, 'Recipient name is required'),
-    recipientPhone: z.string().regex(/^\+265[0-9]{9}$/, 'Recipient phone must be valid Malawi +265 format'),
-    prohibitedAccepted: z.boolean().optional()
-  }).optional(),
+  parcelDetail: parcelInputSchema.optional(),
+  parcel: parcelInputSchema.optional(),
   pickup: z.union([
     z.string(),
     z.object({
@@ -85,6 +88,7 @@ const socketTripCompleteSchema = z.object({
   paymentMethod: z.string().optional(),
   driverTip: z.number().optional(),
   deliveryCode: z.string().optional(),
+  recipientPin: z.string().optional(),
   proofNote: z.string().optional()
 });
 
@@ -180,15 +184,16 @@ function registerTripHandlers(io, socket) {
         deliveryCode = Math.floor(1000 + Math.random() * 9000).toString();
         deliveryCodeHash = hashDeliveryCode(deliveryCode);
 
+        const parcelRecipientPhone = (reqData.parcelDetail?.recipientPhone || reqData.parcel?.recipientPhone);
         // Simulator logs one-time code in development only
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEV PARCEL DELIVERY CODE] Recipient: ${reqData.parcelDetail?.recipientPhone || 'N/A'} | Code: ${deliveryCode}`);
+          console.log(`[DEV PARCEL DELIVERY CODE] Recipient: ${parcelRecipientPhone || 'N/A'} | Code: ${deliveryCode}`);
         }
 
         // Send SMS to recipient
-        if (reqData.parcelDetail?.recipientPhone) {
+        if (parcelRecipientPhone) {
           notificationService.sendMessage({
-            to: reqData.parcelDetail.recipientPhone,
+            to: parcelRecipientPhone,
             message: `📦 AArohan Parcel Delivery: Your package is on the way! Give delivery code [ ${deliveryCode} ] to the captain upon arrival to confirm receipt.`,
             channel: 'SMS',
             urgent: true
@@ -245,7 +250,7 @@ function registerTripHandlers(io, socket) {
 
         // Insert ParcelDetail if PARCEL
         if (serviceType === 'PARCEL' && deliveryCodeHash) {
-          const p = reqData.parcelDetail || {};
+          const p = reqData.parcelDetail || reqData.parcel || {};
           await tx.parcelDetail.create({
             data: {
               tripId: created.id,
@@ -590,7 +595,7 @@ function registerTripHandlers(io, socket) {
             throw new Error('Parcel delivery locked: Maximum 5 incorrect delivery code attempts exceeded. Contact safety desk.');
           }
 
-          const inputCode = (completionData.deliveryCode || '').toString().trim();
+          const inputCode = (completionData.deliveryCode || completionData.recipientPin || '').toString().trim();
           if (!inputCode) {
             throw new Error('Recipient one-time delivery code required to complete parcel delivery.');
           }
@@ -612,6 +617,10 @@ function registerTripHandlers(io, socket) {
                 details: { success: false, attempts: nextAttempts }
               }
             });
+
+            if (nextAttempts >= 5) {
+              throw new Error('Parcel delivery locked: Maximum 5 incorrect delivery code attempts exceeded. Contact safety desk.');
+            }
 
             throw new Error(`Incorrect parcel delivery code. Attempt ${nextAttempts} of 5.`);
           }
@@ -643,6 +652,16 @@ function registerTripHandlers(io, socket) {
         driverTipMWK: driverTip,
         changedBy: socket.userId
       });
+
+      if (trip.driverId) {
+        await prisma.driver.update({
+          where: { id: trip.driverId },
+          data: {
+            availability: 'ONLINE',
+            tripsCompleted: { increment: 1 }
+          }
+        }).catch(e => console.warn('[TripComplete] Error resetting driver availability:', e.message));
+      }
 
       io.to(`trip:${trip.id}`).emit('trip:completed', {
         trip: settleResult.trip,
