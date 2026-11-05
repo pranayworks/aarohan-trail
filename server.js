@@ -29,6 +29,7 @@ const adminRouter = require('./routes/admin');
 const paymentsRouter = require('./routes/payments');
 const notificationsRouter = require('./routes/notifications');
 const devRouter = require('./routes/dev');
+const ticketsRouter = require('./routes/tickets');
 
 // Modular Socket Handlers
 const setupSockets = require('./sockets');
@@ -300,6 +301,7 @@ app.use('/api', adminRouter);
 app.use('/api', paymentsRouter);
 app.use('/api', notificationsRouter);
 app.use('/api', devRouter);
+app.use('/api', ticketsRouter);
 
 // =========================================================================
 // SETUP SOCKET.IO ENGINE
@@ -321,7 +323,10 @@ module.exports = {
   locationService,
   notificationService,
   paymentManager,
-  dbLedger
+  dbLedger,
+  tripRecord: require('./services/tripRecord'),
+  ratingService: require('./services/rating'),
+  supportTicketService: require('./services/supportTicket')
 };
 
 // Start Server

@@ -52,6 +52,31 @@ enum VehicleType {
   CAB
 }
 
+enum ServiceType {
+  RIDE
+  PARCEL
+}
+
+enum ParcelSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 enum TripStatus {
   REQUESTED
   OFFERED
@@ -137,6 +162,12 @@ enum LedgerEntryType {
   ADJUSTMENT
 }
 
+enum ConsentDocumentType {
+  TERMS_OF_SERVICE
+  PRIVACY_POLICY
+  DRIVER_AGREEMENT
+}
+
 enum AuditAction {
   USER_LOGIN
   USER_LOGOUT
@@ -166,6 +197,16 @@ enum AuditAction {
   MANUAL_ADJUSTMENT
   SOS_TRIGGERED
   SOS_RESOLVED
+  ADMIN_TRIP_RECORD_VIEWED
+  ADMIN_GPS_TRAIL_VIEWED
+  ADMIN_CHAT_VIEWED
+  ADMIN_TICKETS_VIEWED
+  TICKET_CREATED
+  TICKET_MESSAGE_ADDED
+  TICKET_RESOLVED
+  CONSENT_RECORDED
+  PARCEL_DELIVERY_CODE_ATTEMPT
+  PARCEL_DELIVERED
 }
 
 // ============================================================================
@@ -200,15 +241,17 @@ model User {
   avatarUrl              String?
   emergencyContactName   String?
   emergencyContactPhone  String?
-  createdAt              DateTime    @default(now())
-  updatedAt              DateTime    @updatedAt
+  riderRating            Float         @default(5.0)  // Running average, updated in tx after each trip rating
+  ratingCount            Int           @default(0)    // Total ratings received as rider
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   // 1-to-1 Profiles
   driverProfile          Driver?
   wallet                 Wallet?
 
   // 1-to-Many Relations
-  tripsAsRider           Trip[]         @relation("RiderTrips")
+  tripsAsRider           Trip[]          @relation("RiderTrips")
   refreshTokens          RefreshToken[]
   auditLogs              AuditLog[]
   deviceTokens           DeviceToken[]
@@ -216,8 +259,11 @@ model User {
   chatMessages           ChatMessage[]
   payments               Payment[]
   sosEvents              SosEvent[]
-  ratingsGiven           Rating[]       @relation("RatingsGiven")
-  ratingsReceived        Rating[]       @relation("RatingsReceived")
+  ratingsGiven           Rating[]        @relation("RatingsGiven")
+  ratingsReceived        Rating[]        @relation("RatingsReceived")
+  supportTickets         SupportTicket[]
+  ticketMessages         TicketMessage[]
+  consentRecords         ConsentRecord[]
 
   @@index([phone])
   @@index([role, status])
@@ -230,6 +276,7 @@ model Driver {
   approvalStatus    DriverApproval     @default(PENDING)
   availability      DriverAvailability @default(OFFLINE)
   rating            Float              @default(5.0)
+  ratingCount       Int                @default(0)    // Total ratings received as driver
   tripsCompleted    Int                @default(0)
   commissionDebtMWK Int                @default(0) // 30% debt accumulated from cash rides (Integer MWK)
   
@@ -252,6 +299,7 @@ model Driver {
   tripsAsDriver     Trip[]             @relation("DriverTrips")
   offers            TripOffer[]
   settlements       DriverSettlement[]
+  locationPoints    TripLocationPoint[]
 
   @@index([approvalStatus, availability])
   @@index([currentLat, currentLng])
@@ -332,7 +380,9 @@ model Trip {
   driver             Driver?       @relation("DriverTrips", fields: [driverId], references: [id])
   status             TripStatus    @default(REQUESTED)
   tier               VehicleType
-  
+  serviceType        ServiceType   @default(RIDE)      // RIDE or PARCEL
+  stopCount          Int           @default(0)         // 0, 1 or 2 intermediate stops
+
   // Spatial & Routing
   pickupAddress      String
   dropoffAddress     String
@@ -343,31 +393,32 @@ model Trip {
   distanceKm         Float
   durationMins       Int
   routeGeometry      String?       // Encoded polyline or GeoJSON path
-  
+
   // Authoritative Pricing & Split (Integer MWK, no floats)
   // Commission = round(fare * 0.30), DriverShare = fare - Commission
   fareMWK            Int           // Gross total fare
   baseFareMWK        Int
   bookingFeeMWK      Int           @default(0)
+  stopFeeMWK         Int           @default(0)         // Per-stop fee total
   driverShareMWK     Int           // 70% share of commissionable fare
   commissionMWK      Int           // 30% AArohan platform commission
   driverTipMWK       Int           @default(0) // 100% to driver (0% commission)
   cancellationFeeMWK Int           @default(0)
-  
+
   // 4-Digit Passenger Safety PIN (Never returned in driver-facing responses)
   pin                String
   pinAttempts        Int           @default(0) // Locked / flagged after 5 wrong attempts
-  
+
   // Idempotency & Payment State
   idempotencyKey     String
   paymentMethod      PaymentMethod @default(CASH)
   paymentStatus      PaymentStatus @default(PENDING)
   paymentRef         String?       // Gateway transaction reference
-  
+
   // Cancellation metadata
   cancelledBy        String?       // "RIDER" | "DRIVER" | "SYSTEM" | "ADMIN"
   cancelReason       String?
-  
+
   // Lifecycle timestamps
   createdAt          DateTime      @default(now())
   acceptedAt         DateTime?
@@ -386,12 +437,17 @@ model Trip {
   chatMessages       ChatMessage[]
   sosEvents          SosEvent[]
   ratings            Rating[]
+  stops              TripStop[]
+  locationPoints     TripLocationPoint[]
+  parcelDetail       ParcelDetail?
+  supportTickets     SupportTicket[]
 
   @@unique([riderId, idempotencyKey])
   @@index([riderId, status])
   @@index([driverId, status])
   @@index([status, createdAt])
   @@index([idempotencyKey])
+  @@index([serviceType, status])
 }
 
 model TripStatusHistory {
@@ -547,6 +603,10 @@ model PricingConfig {
   freeWaitingMins         Int      @default(3)
   cancellationFeeMWK      Int      @default(1000)
   demandMultiplierEnabled Boolean  @default(false)
+  stopFeeMWK              Int      @default(500)   // Fee per intermediate stop (MWK)
+  parcelSmallMult         Float    @default(1.0)   // Fare multiplier for SMALL parcel
+  parcelMediumMult        Float    @default(1.3)   // Fare multiplier for MEDIUM parcel
+  parcelLargeMult         Float    @default(1.6)   // Fare multiplier for LARGE parcel
   categoryRules           Json     // Per vehicle tier: baseFare, pricePerKm, pricePerMinute, minimumFare
   notes                   String?
   effectiveFrom           DateTime @default(now())
@@ -626,4 +686,126 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([entityType, entityId])
   @@index([action, createdAt])
+}
+
+// ============================================================================
+// TRIP STOPS (Up to 2 intermediate stops per trip)
+// ============================================================================
+
+model TripStop {
+  id        String   @id @default(uuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  sequence  Int      // 1 or 2 (order of the stop)
+  address   String
+  lat       Float
+  lng       Float
+  createdAt DateTime @default(now())
+
+  @@unique([tripId, sequence])
+  @@index([tripId])
+}
+
+// ============================================================================
+// TRIP LOCATION POINTS (Append-only GPS trail, written every ~10s)
+// ============================================================================
+
+model TripLocationPoint {
+  id         String   @id @default(uuid())
+  tripId     String
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  driverId   String
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  lat        Float
+  lng        Float
+  speed      Float?   // km/h
+  heading    Float?   // degrees 0-359
+  recordedAt DateTime // actual device timestamp
+  createdAt  DateTime @default(now())
+
+  @@index([tripId, recordedAt])
+  @@index([driverId, recordedAt])
+}
+
+// ============================================================================
+// PARCEL DETAIL (One per parcel trip; delivery code hash stored, never plain)
+// ============================================================================
+
+model ParcelDetail {
+  id                String     @id @default(uuid())
+  tripId            String     @unique
+  trip              Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  category          String     // e.g. "Documents", "Food", "Electronics"
+  size              ParcelSize
+  fragile           Boolean    @default(false)
+  notes             String?
+  recipientName     String
+  recipientPhone    String     // E.164 format e.g. "+2659xxxxxxx"
+  deliveryCodeHash  String     // HMAC-SHA256 of one-time delivery code
+  deliveryAttempts  Int        @default(0) // Locked after 5 wrong attempts
+  deliveredAt       DateTime?
+  proofNote         String?    // Driver's confirmation note
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([tripId])
+}
+
+// ============================================================================
+// SUPPORT TICKETS
+// ============================================================================
+
+model SupportTicket {
+  id           String         @id @default(uuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id])
+  tripId       String?
+  trip         Trip?          @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  category     String         // e.g. "PAYMENT_DISPUTE", "SAFETY", "LOST_ITEM", "OTHER"
+  subject      String
+  description  String
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(MEDIUM)
+  assignedTo   String?        // Admin / Support user id
+  resolution   String?
+  createdAt    DateTime       @default(now())
+  resolvedAt   DateTime?
+  updatedAt    DateTime       @updatedAt
+
+  messages     TicketMessage[]
+
+  @@index([userId, status])
+  @@index([tripId])
+  @@index([status, priority, createdAt])
+}
+
+// Append-only ticket message thread (no updatedAt, no delete)
+model TicketMessage {
+  id         String   @id @default(uuid())
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id])
+  authorRole String   // "RIDER" | "DRIVER" | "ADMIN" | "SUPPORT"
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+// ============================================================================
+// CONSENT RECORDS (Immutable: Terms, Privacy, Driver Agreement)
+// ============================================================================
+
+model ConsentRecord {
+  id             String              @id @default(uuid())
+  userId         String
+  user           User                @relation(fields: [userId], references: [id])
+  documentType   ConsentDocumentType
+  version        String              // e.g. "v0.1"
+  acceptedAt     DateTime            @default(now())
+  ipHash         String?             // SHA-256 hash of IP, not raw IP
+
+  @@index([userId, documentType])
+  @@index([documentType, version])
 }

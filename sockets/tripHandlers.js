@@ -2,6 +2,8 @@ const { z } = require('zod');
 const prisma = require('../lib/prisma');
 const dbLedger = require('../services/dbLedger');
 const pricingService = require('../services/pricing');
+const ratingService = require('../services/rating');
+const { recordLocationPoint } = require('../services/tripRecord');
 
 const socketTripRequestSchema = z.object({
   quoteId: z.string().optional(),
@@ -316,6 +318,28 @@ function registerTripHandlers(io, socket) {
           lastLocationAt: new Date()
         }
       });
+
+      // Write GPS trail point if driver is on an active trip
+      const activeTrip = await prisma.trip.findFirst({
+        where: {
+          driverId: socket.driverId,
+          status: { in: ['DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
+        },
+        select: { id: true, status: true }
+      });
+      if (activeTrip) {
+        // Fire-and-forget: do not block the socket event
+        recordLocationPoint({
+          tripId:   activeTrip.id,
+          driverId: socket.driverId,
+          lat:      parsed.data.lat,
+          lng:      parsed.data.lng,
+          speed:    parsed.data.speed   ?? null,
+          heading:  parsed.data.heading ?? null,
+          recordedAt: new Date()
+        }).catch(e => console.warn('[GPSTrail] recordLocationPoint error:', e.message));
+      }
+
       socket.broadcast.emit('trip:driver_moved', { ...parsed.data, driverId: socket.driverId });
     } catch (err) {
       console.warn('[DriverMoved] Error:', err.message);
@@ -477,40 +501,47 @@ function registerTripHandlers(io, socket) {
     }
   });
 
-  // 8. Rider Rating & Driver Tip
+  // 8. Trip Rating (bidirectional: rider rates driver AND driver rates rider)
+  // Uses ratingService which atomically writes Rating row + updates running averages.
   socket.on('trip:rate', async (review = {}, callback) => {
     try {
       const parsed = socketTripRateSchema.safeParse(review);
       if (!parsed.success) throw new Error('Invalid rating payload');
 
-      const trip = await prisma.trip.findFirst({
-        where: { id: parsed.data.tripId, status: 'COMPLETED' },
-        include: { driver: true }
+      const { tripId, rating, tags, comment } = parsed.data;
+
+      // Look up the trip to find the toUserId (the other party)
+      const trip = await prisma.trip.findUnique({
+        where: { id: tripId },
+        include: { driver: { select: { userId: true } } }
+      });
+      if (!trip) throw new Error('Trip not found');
+      if (trip.status !== 'COMPLETED') throw new Error('Ratings only allowed on completed trips');
+
+      // Determine target: if I am the rider, rate the driver; if I am driver, rate the rider
+      let toUserId;
+      if (socket.userId === trip.riderId) {
+        toUserId = trip.driver?.userId;
+      } else if (trip.driver?.userId === socket.userId) {
+        toUserId = trip.riderId;
+      } else {
+        throw new Error('You are not a party to this trip');
+      }
+      if (!toUserId) throw new Error('Cannot determine rating target');
+
+      const { rating: savedRating, direction } = await ratingService.submitRating({
+        tripId,
+        fromUserId: socket.userId,
+        toUserId,
+        stars: Math.min(5, Math.max(1, parseInt(rating, 10) || 5)),
+        tags: Array.isArray(tags) ? tags : [],
+        comment: comment || null
       });
 
-      if (trip && trip.driver?.userId) {
-        await prisma.$transaction(async (tx) => {
-          await tx.rating.upsert({
-            where: {
-              tripId_fromUserId: { tripId: trip.id, fromUserId: socket.userId }
-            },
-            create: {
-              tripId: trip.id,
-              fromUserId: socket.userId,
-              toUserId: trip.driver.userId,
-              stars: Math.min(5, Math.max(1, parseInt(parsed.data.rating, 10) || 5)),
-              tags: Array.isArray(parsed.data.tags) ? parsed.data.tags : [],
-              comment: parsed.data.comment || null
-            },
-            update: {
-              stars: Math.min(5, Math.max(1, parseInt(parsed.data.rating, 10) || 5)),
-              comment: parsed.data.comment || null
-            }
-          });
-        });
-      }
-      io.emit('trip:rated', { review, tripId: trip?.id });
-      if (typeof callback === 'function') callback({ success: true });
+      io.to(`trip:${tripId}`).emit('trip:rated', {
+        tripId, direction, stars: savedRating.stars, fromUserId: socket.userId
+      });
+      if (typeof callback === 'function') callback({ success: true, direction, rating: savedRating });
     } catch (err) {
       console.warn('[TripRate] Error:', err.message);
       if (typeof callback === 'function') callback({ success: false, error: err.message });
