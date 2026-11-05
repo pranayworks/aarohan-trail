@@ -50,6 +50,15 @@ async function runRiderAudit() {
     }
   }
 
+  // Reset test drivers' debt and clean any prior active trips for reproducible audit
+  await prisma.driver.updateMany({
+    data: { commissionDebtMWK: 0 }
+  });
+  await prisma.trip.updateMany({
+    where: { status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } },
+    data: { status: 'COMPLETED', completedAt: new Date() }
+  });
+
   // -------------------------------------------------------------------------
   // SCENARIO 1: A new rider books a motorcycle ride (AArohan Moto)
   // -------------------------------------------------------------------------
@@ -347,9 +356,15 @@ async function runRiderAudit() {
 
     const dynamicSecretPin = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // Clean prior active trips for this rider
+    // Clean prior active trips for this rider and driver
     await prisma.trip.updateMany({
-      where: { riderId: demoRider.id, status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } },
+      where: {
+        OR: [
+          { riderId: demoRider.id },
+          { driverId: demoDriver.id }
+        ],
+        status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }
+      },
       data: { status: 'COMPLETED', completedAt: new Date() }
     });
 
