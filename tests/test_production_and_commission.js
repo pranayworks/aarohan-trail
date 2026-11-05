@@ -508,6 +508,12 @@ async function runProductionAndCommissionSuite() {
       onlineAttempt2.success === true && onlineAttempt2.availability === 'ONLINE'
     );
 
+    // Clean up test driver debt
+    await prisma.driver.update({
+      where: { id: highDebtUser.driverProfile.id },
+      data: { commissionDebtMWK: 0 }
+    });
+
     console.log('\n=============================================================');
     console.log(`   PRODUCTION & COMMISSION SUITE: ${passedTests}/${totalTests} TESTS PASSED (100%)`);
     console.log('=============================================================\n');

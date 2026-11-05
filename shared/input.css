@@ -1,4 +1,9 @@
 @import "tailwindcss";
+@source "../rider/**/*.{html,js}";
+@source "../driver/**/*.{html,js}";
+@source "../admin/**/*.{html,js}";
+@source "../shared/**/*.{html,js}";
+@source "../index.html";
 
 @theme {
   --color-primary: #004328;

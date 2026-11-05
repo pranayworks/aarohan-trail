@@ -176,6 +176,12 @@ async function runRiderAudit() {
 
     if (!testDriver) throw new Error('Approved driver missing in database');
 
+    // Reset test driver commission debt so telemetry is not blocked by previous runs
+    await prisma.driver.update({
+      where: { id: testDriver.id },
+      data: { commissionDebtMWK: 0 }
+    });
+
     const driverToken = getTestToken({ userId: testDriver.userId, role: 'DRIVER', driverId: testDriver.id });
 
     // Post fresh location

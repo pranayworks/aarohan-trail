@@ -119,6 +119,12 @@ async function verify() {
       throw new Error('No approved driver found in database');
     }
 
+    // Reset test driver commission debt so telemetry is not blocked by previous runs
+    await prisma.driver.update({
+      where: { id: dbDriver.id },
+      data: { commissionDebtMWK: 0 }
+    });
+
     const driverToken = getTestToken({ userId: dbDriver.userId, role: 'DRIVER', driverId: dbDriver.id });
 
     // 4b. Post driver location to update PostgreSQL coordinates & fresh timestamp

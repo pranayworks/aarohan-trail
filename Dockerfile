@@ -21,7 +21,7 @@ COPY . .
 
 # Generate Prisma Client & compile production CSS
 RUN npx prisma generate
-RUN npx @tailwindcss/cli -i shared/input.css -o shared/tailwind.built.css --minify || true
+RUN npx tailwindcss -i shared/input.css -o shared/tailwind.built.css --minify || true
 
 # Stage 2: Production Runtime
 FROM node:20-alpine AS runner
