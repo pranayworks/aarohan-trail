@@ -50,3 +50,4 @@ When a user requests account termination under their privacy rights:
 ## 5. Implementation Roadmap
 - **Phase 1 (Current):** Parameterized configuration via `DATA_RETENTION_MONTHS=12` and standardized legal draft disclosures.
 - **Phase 2 (Post-Legal Review):** Automated partitioned tables with archived storage and scheduled vacuum/purge routines for records older than the active retention window.
+

@@ -280,20 +280,31 @@ async function runBrowserE2E() {
     // STEP 2e: Simulate Lilongwe Button In Production Validation
     // -------------------------------------------------------------------------
     console.log('\n--- Step 2e: Simulate Lilongwe Button In Production ---');
-    const prodSimResult = await pageRider.evaluate(async () => {
-      const btn = document.getElementById('btn-dev-simulate-location');
-      if (!btn) return false;
-      // When NODE_ENV=production, allowLocationSimulation is false, button stays hidden
-      const fakeProdCfg = { allowLocationSimulation: false, env: 'production' };
-      if (fakeProdCfg && fakeProdCfg.allowLocationSimulation) {
-        btn.classList.remove('hidden');
-      } else {
-        btn.classList.add('hidden');
-      }
-      return btn.classList.contains('hidden');
+    const prodContext = await browser.newContext({
+      viewport: { width: 420, height: 850 }
     });
-    assert.strictEqual(prodSimResult, true, 'Simulate Lilongwe button must remain hidden in production');
-    console.log('  [PASS] Simulate Lilongwe button verified hidden when allowLocationSimulation=false (NODE_ENV=production)');
+    const prodPage = await prodContext.newPage();
+    await prodPage.route('**/api/app-config', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          platform: 'AArohan Mobility',
+          env: 'production',
+          allowLocationSimulation: false,
+          serviceArea: { city: 'Lilongwe', country: 'Malawi' }
+        })
+      });
+    });
+    await prodPage.goto(`${BASE_URL}/rider/`);
+    await prodPage.waitForLoadState('networkidle');
+    const simButtonHidden = await prodPage.evaluate(() => {
+      const btn = document.getElementById('btn-dev-simulate-location');
+      return !btn || btn.classList.contains('hidden') || window.getComputedStyle(btn).display === 'none';
+    });
+    assert.strictEqual(simButtonHidden, true, 'Simulate Lilongwe button must remain absent/hidden when NODE_ENV=production');
+    console.log('  [PASS] Playwright verified: Simulate Lilongwe button is hidden/absent when NODE_ENV=production');
+    await prodContext.close();
 
     // -------------------------------------------------------------------------
     // STEP 3: Rider Selects Destination & Cash Payment
@@ -613,6 +624,10 @@ async function runBrowserE2E() {
     // Driver marks arrival
     await pageDriver.locator('#btn-driver-arrived').click();
     await pageDriver.waitForSelector('#driver-pin-controls:not(.hidden)', { timeout: 15000 });
+    await pageRider.waitForFunction(() => {
+      const title = (document.getElementById('tracking-status-title')?.innerText || '').toLowerCase();
+      return title.includes('captain has arrived') || title.includes('arrived');
+    }, { timeout: 15000 });
 
     // Rider displays start PIN
     await pageRider.waitForSelector('#view-tracking:not(.hidden)', { timeout: 15000 });
@@ -631,7 +646,7 @@ async function runBrowserE2E() {
     // Driver verifies start PIN and enters transit
     await pageDriver.locator('#driver-pin-input').fill(parcelStartPin);
     await pageDriver.locator('#btn-verify-pin').click();
-    await pageDriver.waitForSelector('#driver-transit-controls:not(.hidden)', { timeout: 25000 });
+    await pageDriver.waitForSelector('#driver-transit-controls:not(.hidden)', { timeout: 20000 });
     console.log('  [PASS] Parcel ride in transit');
 
     // Verify parcel PIN input box is visible in transit

@@ -282,6 +282,59 @@ async function runServerRulesSuite() {
       report('POST /api/pricing/activate skipped (no previous version to toggle)', true);
     }
 
+    // Test 12: Admin UI pricing editing lifecycle: fetch active -> edit stop fee & parcel mults -> verify version history
+    const activePricingRes = await fetch(`${BASE_URL}/api/pricing/active`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const currentActivePricing = await activePricingRes.json();
+    const editedStopFee = 750;
+    const editedSmallMult = 1.15;
+    const editedMediumMult = 1.45;
+    const editedLargeMult = 1.95;
+
+    const savePricingRes = await fetch(`${BASE_URL}/api/pricing/global`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({
+        stopFeeMWK: editedStopFee,
+        parcelSmallMult: editedSmallMult,
+        parcelMediumMult: editedMediumMult,
+        parcelLargeMult: editedLargeMult,
+        versionName: `Admin UI Edit ${Date.now()}`,
+        adminId: 'ADMIN_SUPER'
+      })
+    });
+    const savePricingJson = await savePricingRes.json();
+
+    const historyRes = await fetch(`${BASE_URL}/api/pricing/versions`, {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const historyList = await historyRes.json();
+    const latestVersion = historyList[0];
+
+    const fareCheck = pricingService.calculateFare({
+      categoryId: 'moto',
+      distanceKm: 5,
+      durationMins: 10,
+      stopCount: 1,
+      serviceType: 'PARCEL',
+      parcelSize: 'LARGE'
+    });
+
+    report(
+      'Admin pricing screen editing workflow: stop fee and parcel multipliers save and create new history version',
+      savePricingRes.status === 200 &&
+      latestVersion.stopFeeMWK === editedStopFee &&
+      latestVersion.parcelLargeMult === editedLargeMult &&
+      historyList.length >= 2 &&
+      fareCheck.stopFee === editedStopFee &&
+      fareCheck.breakdown?.parcelMultiplier === editedLargeMult,
+      `Saved Version ${latestVersion.versionId}: stopFee=MK ${latestVersion.stopFeeMWK}, parcelLarge=${latestVersion.parcelLargeMult}x, historyCount=${historyList.length}`
+    );
+
     console.log('\n=============================================================');
     console.log(`   TASK 3 SERVER RULES: ALL ${passed}/${total} TESTS PASSED (100%)`);
     console.log('=============================================================\n');

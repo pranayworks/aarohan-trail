@@ -29,3 +29,4 @@ if (targetEnv === 'local' || targetEnv === 'dev') {
 
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
 console.log('Updated capacitor.config.json successfully.');
+

@@ -117,3 +117,4 @@ Verify that:
 2. The bilingual permission modal displays on initial launch with the Chichewa toggle.
 3. Toggling **ONLINE** starts the foreground notification *"Gaman Captain Online • AArohan Driver is Active"*.
 4. Locking the phone continues transmitting GPS telemetry without disconnection.
+

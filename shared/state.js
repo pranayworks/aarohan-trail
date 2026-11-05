@@ -634,16 +634,12 @@
         ? tripIdOrData
         : (tripIdOrData?.tripId || tripIdOrData?.id || state.activeTrip?.id);
 
-      state.activeTrip.status = 'ARRIVED';
-      this.saveState(state);
-      this.broadcast('DRIVER_ARRIVED', state.activeTrip);
-      this.notifyListeners(state, 'DRIVER_ARRIVED', state.activeTrip);
-
       if (this.socket && this.isRealtimeConnected && id) {
         this.socket.emit('trip:arrived', { tripId: id }, (res) => {
           if (res && res.success && res.trip) {
             const cur = this.getState();
             cur.activeTrip = Object.assign({}, cur.activeTrip, res.trip);
+            cur.activeTrip.status = 'ARRIVED';
             this.saveState(cur);
             this.broadcast('DRIVER_ARRIVED', cur.activeTrip);
             this.notifyListeners(cur, 'DRIVER_ARRIVED', cur.activeTrip);
@@ -653,6 +649,10 @@
           }
         });
       } else {
+        if (state.activeTrip) state.activeTrip.status = 'ARRIVED';
+        this.saveState(state);
+        this.broadcast('DRIVER_ARRIVED', state.activeTrip);
+        this.notifyListeners(state, 'DRIVER_ARRIVED', state.activeTrip);
         if (typeof callback === 'function') callback({ success: true, trip: state.activeTrip });
       }
     }

@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "build:css": "tailwindcss -i shared/input.css -o shared/tailwind.built.css --minify",
-    "test": "node tests/test_financial_engine.js && node tests/verify_e2e.js && node tests/test_rider_audit.js && node tests/test_concurrent_riders.js && node tests/test_e2e_real_sockets.js && node tests/test_backend_auth.js && node tests/test_dispatch_concurrency.js && node tests/test_driver_onboarding.js && node tests/test_production_and_commission.js",
+    "test": "node tests/test_financial_engine.js && node tests/verify_e2e.js && node tests/test_rider_audit.js && node tests/test_concurrent_riders.js && node tests/test_e2e_real_sockets.js && node tests/test_backend_auth.js && node tests/test_dispatch_concurrency.js && node tests/test_driver_onboarding.js && node tests/test_production_and_commission.js && node tests/test_dispatch_sequential.js && node tests/test_pkg1_db_legal.js && node tests/test_server_rules.js",
     "test:playwright": "node tests/test_playwright_booking.js",
     "test:server-rules": "node tests/test_server_rules.js",
     "cap:sync": "cap sync",
