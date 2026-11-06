@@ -1,4 +1,4 @@
-# AArohan Privacy Policy
+# Aarohan Privacy Policy
 **Version: DRAFT v0.1 (not yet reviewed by a lawyer)**
 
 > ⚠️ **DRAFT NOTICE: This document is a draft version and does not constitute formal legal advice. It contains placeholder parameters that must be reviewed and finalized by qualified legal counsel in Malawi prior to production launch.**
@@ -48,7 +48,7 @@ Subject to applicable Malawi data protection laws and international standards, y
 - **Storage Protection:** Passwords, OTP verification codes, and parcel delivery verification codes are cryptographically hashed using industry-standard hashing algorithms (bcrypt/HMAC-SHA256).
 
 ### 7. Children's Privacy
-The AArohan platform is strictly prohibited to individuals under 18 years of age. We do not knowingly solicit or collect data from minors.
+The Aarohan platform is strictly prohibited to individuals under 18 years of age. We do not knowingly solicit or collect data from minors.
 
 ### 8. Cross-Border Data Transfers
 Application servers and database storage may be maintained in secure data centers located in [DATA_CENTER_REGIONS, e.g., European Union / South Africa]. [COMPANY_NAME] ensures appropriate safeguards and standard contractual clauses are implemented for all cross-border data processing.
