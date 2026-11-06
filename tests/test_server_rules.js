@@ -340,6 +340,21 @@ async function runServerRulesSuite() {
     console.log('=============================================================\n');
 
   } finally {
+    // Teardown: Restore original database tariffs (stopFeeMWK: 500, parcel multipliers: 1.0, 1.35, 1.80)
+    try {
+      if (typeof pricingService.updateGlobalTariffs === 'function') {
+        await pricingService.updateGlobalTariffs({
+          stopFeeMWK: 500,
+          parcelSmallMult: 1.0,
+          parcelMediumMult: 1.35,
+          parcelLargeMult: 1.80,
+          versionName: 'Default Restored (Teardown)'
+        }, 'ADMIN_TEARDOWN');
+      }
+    } catch (e) {
+      console.warn('[Teardown] Could not restore original pricing tariffs:', e.message);
+    }
+
     if (server.listening) {
       await new Promise(r => server.close(r));
     }
