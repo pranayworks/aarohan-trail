@@ -102,8 +102,8 @@
     },
     ny: {
       appName: 'Aarohan Malawi',
-      brandTagline: 'Uka • Manga • Kula (NEEDS NATIVE REVIEW)',
-      tagline: 'Uka • Manga • Kula • Lilongwe (NEEDS NATIVE REVIEW)',
+      brandTagline: 'Uka • Manga • Kula', // NEEDS NATIVE REVIEW (EN: "Rise • Build • Grow")
+      tagline: 'Uka • Manga • Kula • Lilongwe', // NEEDS NATIVE REVIEW (EN: "Rise • Build • Grow • Lilongwe")
       liveBadge: 'Pa Nthawi Yomweyo',
       walletHeader: 'Chikwama',
       whereTo: 'Mukupita kuti ku Lilongwe?',
@@ -116,17 +116,17 @@
       popularPlaces: 'Malo Odziwika ku Lilongwe',
       customPickup: 'Lembani msewu kapena malo onyanyukira',
       useGps: 'Gwiritsani Ntchito GPS ya Foni',
-      useCurrentLocation: 'Gwiritsani ntchito komwe muli pompano',
-      simulateLocation: 'Yesani malo a Lilongwe (Dev)',
-      gpsDeniedMsg: 'Malo sanaloledwe. Chonde lolani malo mu msakatuli mwanu kapena fufuzani pamanja.',
-      gpsUnavailableMsg: 'Malo sakupezeka. Chonde yang\'anani chizindikiro cha GPS.',
-      gpsTimeoutMsg: 'Nthawi ya GPS yapita. Chonde yesaninso kapena lembani pamanja.',
-      gpsInsecureMsg: 'Kupeza malo kumafuna kulumikizana kotetezeka (HTTPS).',
-      prohibitedNotice: 'Ndikuvomereza kuti phukuloli mulibe zida, mankhwala osokoneza, ndalama kapena zinthu zoopsa.',
-      termsNotice: 'Ndikuvomera Migwirizano Yantchito & Mfundo Zachinsinsi',
-      driverAgreementNotice: 'Ndikuvomera komishoni ya 30%, malire a ngongole, ndi ndondomeko ya zikalata',
-      navActivity: 'Ntchito',
-      navAccount: 'Akaunti',
+      useCurrentLocation: 'Gwiritsani ntchito komwe muli pompano', // NEEDS NATIVE REVIEW (EN: "Use current location")
+      simulateLocation: 'Yesani malo a Lilongwe (Dev)', // NEEDS NATIVE REVIEW (EN: "Simulate Lilongwe location (Dev)")
+      gpsDeniedMsg: 'Malo sanaloledwe. Chonde lolani malo mu msakatuli mwanu kapena fufuzani pamanja.', // NEEDS NATIVE REVIEW (EN: "Location permission denied...")
+      gpsUnavailableMsg: 'Malo sakupezeka. Chonde yang\'anani chizindikiro cha GPS.', // NEEDS NATIVE REVIEW (EN: "Location unavailable...")
+      gpsTimeoutMsg: 'Nthawi ya GPS yapita. Chonde yesaninso kapena lembani pamanja.', // NEEDS NATIVE REVIEW (EN: "GPS request timed out...")
+      gpsInsecureMsg: 'Kupeza malo kumafuna kulumikizana kotetezeka (HTTPS).', // NEEDS NATIVE REVIEW (EN: "Geolocation requires a secure connection (HTTPS)...")
+      prohibitedNotice: 'Ndikuvomereza kuti phukuloli mulibe zida, mankhwala osokoneza, ndalama kapena zinthu zoopsa.', // NEEDS NATIVE REVIEW (EN: "I confirm package contains no weapons...")
+      termsNotice: 'Ndikuvomera Migwirizano Yantchito & Mfundo Zachinsinsi', // NEEDS NATIVE REVIEW (EN: "I agree to Terms of Service & Privacy Policy")
+      driverAgreementNotice: 'Ndikuvomera komishoni ya 30%, malire a ngongole, ndi ndondomeko ya zikalata', // NEEDS NATIVE REVIEW (EN: "I agree to 30% commission, debt limit...")
+      navActivity: 'Ntchito', // NEEDS NATIVE REVIEW (EN: "Activity")
+      navAccount: 'Akaunti', // NEEDS NATIVE REVIEW (EN: "Account")
       routeSummary: 'Mtengo Wovomerezeka ndi Server',
       bookMoto: 'Yitanani Aarohan Moto',
       bookAuto: 'Yitanani Aarohan Auto',

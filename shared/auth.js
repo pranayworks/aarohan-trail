@@ -578,7 +578,7 @@
           document.getElementById('auth-title').innerText = i18n.t('loginTitle');
           document.getElementById('auth-sub').innerText = i18n.t('loginSub');
           const taglineEl = document.getElementById('auth-tagline');
-          if (taglineEl) taglineEl.innerText = i18n.t('brandTagline') || (next === 'ny' ? 'Uka • Manga • Kula (NEEDS NATIVE REVIEW)' : 'Rise • Build • Grow');
+          if (taglineEl) taglineEl.innerText = i18n.t('brandTagline') || (next === 'ny' ? 'Uka • Manga • Kula' : 'Rise • Build • Grow'); // NEEDS NATIVE REVIEW (EN: "Rise • Build • Grow")
           document.getElementById('label-phone').innerText = i18n.t('phoneLabel');
           document.getElementById('auth-btn-phone-text').innerText = i18n.t('requestOtpBtn');
           document.getElementById('label-otp').innerText = i18n.t('otpLabel');
