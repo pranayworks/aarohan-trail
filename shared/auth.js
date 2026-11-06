@@ -256,8 +256,9 @@
       const i18n = window.aarohanI18n || {
         t: (k, params) => {
           const defaults = {
-            loginTitle: role === 'ADMIN' ? 'Desk Operations Access' : (role === 'DRIVER' ? 'Captain Partner Sign In' : 'Sign In to AArohan'),
+            loginTitle: role === 'ADMIN' ? 'Desk Operations Access' : (role === 'DRIVER' ? 'Captain Partner Sign In' : 'Sign In to Aarohan'),
             loginSub: role === 'ADMIN' ? 'Lilongwe Central Command Portal' : 'Fast, reliable urban mobility in Lilongwe',
+            brandTagline: 'Rise • Build • Grow',
             phoneLabel: 'Malawian Mobile Number',
             requestOtpBtn: 'Send Verification Code (SMS)',
             otpTitle: 'Enter Verification Code',
@@ -276,35 +277,34 @@
 
       const modalEl = document.createElement('div');
       modalEl.id = 'aarohan-auth-modal';
-      modalEl.className = 'fixed inset-0 z-[99999] bg-surface/95 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-6';
+      modalEl.className = 'fixed inset-0 z-[99999] bg-[#0B0B0B]/95 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-6';
 
       modalEl.innerHTML = `
-        <div class="w-full max-w-sm bg-surface-container-low border border-outline-variant/30 rounded-3xl p-6 sm:p-7 shadow-2xl relative text-on-surface animate-in fade-in zoom-in-95 duration-200">
+        <div class="w-full max-w-sm bg-[#171717] border border-[#292929] rounded-3xl p-6 sm:p-7 shadow-2xl relative text-white animate-in fade-in zoom-in-95 duration-200">
           
-          <!-- Top Header: Logo & Language Switcher -->
-          <div class="flex items-center justify-between mb-5">
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-on-primary font-black text-sm shadow-md shadow-primary/20">
-                A
-              </div>
-              <div>
-                <h1 class="text-base font-black tracking-tight leading-none text-on-surface">AArohan</h1>
-                <span class="text-[10px] font-bold text-primary tracking-wider uppercase">${role}</span>
-              </div>
-            </div>
-
-            <button id="auth-lang-btn" type="button" class="px-2.5 py-1 rounded-full bg-surface-container-high border border-outline-variant/40 text-[11px] font-extrabold text-on-surface-variant hover:text-on-surface transition-all flex items-center gap-1 active:scale-95">
+          <!-- Top Right Language Switcher -->
+          <div class="absolute top-5 right-5">
+            <button id="auth-lang-btn" type="button" class="px-2.5 py-1 rounded-full bg-[#202020] border border-[#292929] text-[11px] font-extrabold text-[#A3A3A3] hover:text-white transition-all flex items-center gap-1 active:scale-95">
               <span>🇲🇼</span>
               <span id="auth-lang-label">NY</span>
             </button>
           </div>
 
+          <!-- Centred Logo & Bilingual Tagline -->
+          <div class="flex flex-col items-center justify-center text-center mb-6 pt-2">
+            <img src="/assets/brand/logo-full-color.svg" alt="Aarohan" class="h-10 w-auto mb-2" />
+            <p id="auth-tagline" class="text-xs font-semibold text-[#FFA247] tracking-wider uppercase">
+              ${i18n.t('brandTagline') || 'Rise • Build • Grow'}
+            </p>
+            <span class="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-[#202020] border border-[#292929] text-[10px] font-bold text-[#A3A3A3] uppercase tracking-wider">${role}</span>
+          </div>
+
           <!-- Titles -->
-          <div class="mb-5">
-            <h2 id="auth-title" class="text-xl font-black text-on-surface tracking-tight mb-1">
+          <div class="mb-5 text-center">
+            <h2 id="auth-title" class="text-lg font-black text-white tracking-tight mb-1">
               ${i18n.t('loginTitle')}
             </h2>
-            <p id="auth-sub" class="text-xs text-on-surface-variant font-medium leading-relaxed">
+            <p id="auth-sub" class="text-xs text-[#A3A3A3] font-medium leading-relaxed">
               ${i18n.t('loginSub')}
             </p>
           </div>
@@ -350,7 +350,7 @@
             <button 
               type="submit" 
               id="auth-phone-submit" 
-              class="w-full h-12 bg-primary hover:bg-primary/90 text-on-primary font-black text-sm rounded-2xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              class="w-full h-12 bg-[#FF6A00] hover:bg-[#FFA247] text-[#0B0B0B] font-black text-sm rounded-2xl shadow-lg shadow-[#FF6A00]/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
               <span id="auth-btn-phone-text">${i18n.t('requestOtpBtn')}</span>
               <span class="material-symbols-outlined text-lg">arrow_forward</span>
@@ -386,7 +386,7 @@
             <button 
               type="submit" 
               id="auth-otp-submit" 
-              class="w-full h-12 bg-primary hover:bg-primary/90 text-on-primary font-black text-sm rounded-2xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              class="w-full h-12 bg-[#FF6A00] hover:bg-[#FFA247] text-[#0B0B0B] font-black text-sm rounded-2xl shadow-lg shadow-[#FF6A00]/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
               <span id="auth-btn-otp-text">${role === 'ADMIN' ? i18n.t('adminLoginBtn') : i18n.t('verifyOtpBtn')}</span>
               <span class="material-symbols-outlined text-lg">check_circle</span>
@@ -470,7 +470,7 @@
               <input type="file" id="onboard-doc-photo" accept="image/jpeg,image/png,image/jpg" class="w-full text-xs text-on-surface file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-surface-container-high file:text-on-surface" required />
             </div>
 
-            <button type="submit" id="onboard-submit-btn" class="w-full h-12 mt-2 bg-primary hover:bg-primary/90 text-on-primary font-black text-xs rounded-2xl shadow-lg shadow-primary/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+            <button type="submit" id="onboard-submit-btn" class="w-full h-12 mt-2 bg-[#FF6A00] hover:bg-[#FFA247] text-[#0B0B0B] font-black text-xs rounded-2xl shadow-lg shadow-[#FF6A00]/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
               <span id="onboard-submit-btn-text">Submit Application & Upload Documents</span>
               <span class="material-symbols-outlined text-base">cloud_upload</span>
             </button>
@@ -577,6 +577,8 @@
           langLabel.innerText = next === 'en' ? 'NY' : 'EN';
           document.getElementById('auth-title').innerText = i18n.t('loginTitle');
           document.getElementById('auth-sub').innerText = i18n.t('loginSub');
+          const taglineEl = document.getElementById('auth-tagline');
+          if (taglineEl) taglineEl.innerText = i18n.t('brandTagline') || (next === 'ny' ? 'Uka • Manga • Kula (NEEDS NATIVE REVIEW)' : 'Rise • Build • Grow');
           document.getElementById('label-phone').innerText = i18n.t('phoneLabel');
           document.getElementById('auth-btn-phone-text').innerText = i18n.t('requestOtpBtn');
           document.getElementById('label-otp').innerText = i18n.t('otpLabel');

@@ -8,8 +8,9 @@
 
   const translations = {
     en: {
-      appName: 'AArohan Malawi',
-      tagline: 'Smart Urban Mobility • Lilongwe',
+      appName: 'Aarohan Malawi',
+      brandTagline: 'Rise • Build • Grow',
+      tagline: 'Rise • Build • Grow • Lilongwe',
       liveBadge: 'Live Real-Time',
       walletHeader: 'Wallet',
       whereTo: 'Where to in Lilongwe?',
@@ -100,8 +101,9 @@
       navAccount: 'Account'
     },
     ny: {
-      appName: 'AArohan Malawi',
-      tagline: 'Kuyenda Mwanzeru Mtawuni • Lilongwe',
+      appName: 'Aarohan Malawi',
+      brandTagline: 'Uka • Manga • Kula (NEEDS NATIVE REVIEW)',
+      tagline: 'Uka • Manga • Kula • Lilongwe (NEEDS NATIVE REVIEW)',
       liveBadge: 'Pa Nthawi Yomweyo',
       walletHeader: 'Chikwama',
       whereTo: 'Mukupita kuti ku Lilongwe?',
