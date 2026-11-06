@@ -1,0 +1,14 @@
+<!-- [PLACEHOLDER] Aarohan Adaptive Icon Foreground -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <defs>
+    <linearGradient id="iconFgGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF6A00" />
+      <stop offset="100%" stop-color="#FFA247" />
+    </linearGradient>
+  </defs>
+  <g transform="translate(96, 96) scale(0.625)">
+    <path d="M256 36 L500 476 L380 476 L256 220 L132 476 L12 476 Z" fill="url(#iconFgGrad)" />
+    <polygon points="160,340 352,340 310,410 202,410" fill="#0B0B0B" />
+    <circle cx="256" cy="140" r="32" fill="#FFA247" />
+  </g>
+</svg>

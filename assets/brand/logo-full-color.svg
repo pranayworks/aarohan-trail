@@ -1,0 +1,18 @@
+<!-- [PLACEHOLDER] Aarohan Brand Kit SVG - Generated pending official vector asset release -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" width="360" height="80" fill="none">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF6A00" />
+      <stop offset="100%" stop-color="#FFA247" />
+    </linearGradient>
+  </defs>
+  <!-- Brand Mark (Ascending A chevron) -->
+  <g transform="translate(10, 8)">
+    <path d="M28 4 L56 60 L42 60 L28 28 L14 60 L0 60 Z" fill="url(#brandGrad)" />
+    <path d="M18 42 L38 42 L33 52 L23 52 Z" fill="#0B0B0B" />
+    <circle cx="28" cy="18" r="4" fill="#FFA247" />
+  </g>
+  <!-- Wordmark -->
+  <text x="80" y="52" font-family="'Poppins', sans-serif" font-size="40" font-weight="700" fill="#FFFFFF" letter-spacing="-0.5">Aarohan</text>
+  <circle cx="260" cy="48" r="5" fill="#FF6A00" />
+</svg>
