@@ -4,9 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Gaman Operations Center • Admin Dispatch Hub</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <!-- Self-hosted Design System: Poppins & Inter (Latin subset) via /shared/theme.css -->
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/shared/theme.css"/>
   <link rel="stylesheet" href="/shared/tailwind.built.css" />
@@ -14,8 +12,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      background-color: #f6f8fb;
+      font-family: var(--font-body);
+      background-color: var(--bg-dark);
+      color: var(--white);
     }
     ::-webkit-scrollbar {
       width: 6px;

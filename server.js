@@ -244,6 +244,7 @@ app.use('/rider', express.static(path.join(__dirname, 'rider'), noCacheStatic));
 app.use('/driver', express.static(path.join(__dirname, 'driver'), noCacheStatic));
 app.use('/admin', express.static(path.join(__dirname, 'admin'), noCacheStatic));
 app.use('/shared', express.static(path.join(__dirname, 'shared'), noCacheStatic));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Ecosystem landing page
 app.get('/', (req, res) => {
