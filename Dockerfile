@@ -56,6 +56,7 @@ COPY --from=builder /app/rider ./rider
 COPY --from=builder /app/driver ./driver
 COPY --from=builder /app/admin ./admin
 COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/assets ./assets
 COPY --from=builder /app/server.js ./server.js
 COPY --from=builder /app/index.html ./index.html
 

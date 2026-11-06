@@ -29,6 +29,7 @@ uploads/
 data/*.json
 
 # Scratch & build artifacts
+prototypes/
 *.md
 !README.md
 !DEPLOYMENT.md

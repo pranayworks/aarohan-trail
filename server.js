@@ -246,6 +246,15 @@ app.use('/admin', express.static(path.join(__dirname, 'admin'), noCacheStatic));
 app.use('/shared', express.static(path.join(__dirname, 'shared'), noCacheStatic));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
+// Prototypes (strictly blocked in production)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/prototypes', express.static(path.join(__dirname, 'prototypes'), noCacheStatic));
+} else {
+  app.use('/prototypes', (req, res) => {
+    res.status(404).send('Not Found');
+  });
+}
+
 // Ecosystem landing page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
