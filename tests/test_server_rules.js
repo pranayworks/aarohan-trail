@@ -13,6 +13,7 @@
 // ============================================================================
 
 require('dotenv').config();
+const http = require('http');
 const assert = require('assert');
 const prisma = require('../lib/prisma');
 const pricingService = require('../services/pricing');
@@ -334,6 +335,50 @@ async function runServerRulesSuite() {
       fareCheck.breakdown?.parcelMultiplier === editedLargeMult,
       `Saved Version ${latestVersion.versionId}: stopFee=MK ${latestVersion.stopFeeMWK}, parcelLarge=${latestVersion.parcelLargeMult}x, historyCount=${historyList.length}`
     );
+
+    // -------------------------------------------------------------------------
+    // 4. Production Environment Isolation & Feature Flags (Section 11)
+    // -------------------------------------------------------------------------
+    console.log('\n--- 4. Production Environment Isolation & Feature Flags ---');
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const PROD_PORT = 3095;
+    const prodServer = http.createServer(app);
+    await new Promise((resolve) => prodServer.listen(PROD_PORT, resolve));
+
+    try {
+      // Test 13: GET /api/app-config with NODE_ENV=production returns allowLocationSimulation: false
+      const prodConfigRes = await fetch(`http://127.0.0.1:${PROD_PORT}/api/app-config`);
+      const prodConfig = await prodConfigRes.json();
+      report(
+        'GET /api/app-config with NODE_ENV=production has allowLocationSimulation=false',
+        prodConfigRes.status === 200 && prodConfig.allowLocationSimulation === false && prodConfig.env === 'production',
+        `env=${prodConfig.env}, allowLocationSimulation=${prodConfig.allowLocationSimulation}`
+      );
+
+      // Test 14: /prototypes directory is blocked (404) in production
+      const prodPrototypesRes = await fetch(`http://127.0.0.1:${PROD_PORT}/prototypes/driver-earnings.html`);
+      report(
+        '/prototypes is strictly blocked (404) when NODE_ENV=production',
+        prodPrototypesRes.status === 404,
+        `Status: ${prodPrototypesRes.status}`
+      );
+
+      // Test 15: Rider HTML contains #btn-dev-simulate-location as hidden by default
+      const riderHtmlRes = await fetch(`http://127.0.0.1:${PROD_PORT}/rider/index.html`);
+      const riderHtml = await riderHtmlRes.text();
+      const hasSimulateBtnHidden = riderHtml.includes('id="btn-dev-simulate-location"') && riderHtml.includes('hidden');
+      report(
+        'Rider UI keeps simulate location button hidden by default in production',
+        riderHtmlRes.status === 200 && hasSimulateBtnHidden,
+        'Simulate button marked hidden'
+      );
+    } finally {
+      if (prodServer.listening) {
+        await new Promise(r => prodServer.close(r));
+      }
+      process.env.NODE_ENV = origEnv;
+    }
 
     console.log('\n=============================================================');
     console.log(`   TASK 3 SERVER RULES: ALL ${passed}/${total} TESTS PASSED (100%)`);

@@ -247,13 +247,12 @@ app.use('/shared', express.static(path.join(__dirname, 'shared'), noCacheStatic)
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // Prototypes (strictly blocked in production)
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/prototypes', express.static(path.join(__dirname, 'prototypes'), noCacheStatic));
-} else {
-  app.use('/prototypes', (req, res) => {
-    res.status(404).send('Not Found');
-  });
-}
+app.use('/prototypes', (req, res, next) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).send('Not Found');
+  }
+  next();
+}, express.static(path.join(__dirname, 'prototypes'), noCacheStatic));
 
 // Ecosystem landing page
 app.get('/', (req, res) => {
@@ -307,8 +306,8 @@ app.get('/api/map-config', (req, res) => {
 // App Configuration (service area, env, flags)
 app.get('/api/app-config', (req, res) => {
   res.json({
-    platform: 'AArohan Mobility',
-    appName: 'AArohan Smart Urban Mobility Platform',
+    platform: 'Aarohan Mobility',
+    appName: 'Aarohan Smart Urban Mobility Platform',
     serviceDescription: 'Real-time urban ride-hailing and parcel logistics ecosystem for Lilongwe, Malawi',
     contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || 'support@aarohan.mw',
     env: process.env.NODE_ENV || 'development',
