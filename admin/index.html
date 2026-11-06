@@ -38,7 +38,7 @@
   <script src="../shared/auth.js"></script>
 
   <!-- Top Real-Time Ops Telemetry Bar -->
-  <header class="bg-[#101726] text-white px-6 py-3 shadow-md border-b border-white/10 sticky top-0 z-50">
+  <header class="bg-[#0B0B0B] text-white px-6 py-3 shadow-md border-b border-[#292929] sticky top-0 z-50">
     <div class="max-w-7xl mx-auto flex flex-col lg:flex-row items-center justify-between gap-3">
       
       <!-- Logo & Hub Status -->
@@ -222,17 +222,17 @@
               <path d="M-10,220 L610,180" stroke="#ffffff" stroke-width="8"/>
 
               <!-- Active Route -->
-              <path d="M140,80 C200,140 280,180 440,190" fill="none" stroke="#004328" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 4"/>
+              <path d="M140,80 C200,140 280,180 440,190" fill="none" stroke="#FF6A00" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 4"/>
 
               <!-- Driver Marker (Chikondi) -->
-              <circle cx="280" cy="160" r="14" fill="#004328"/>
-              <circle cx="280" cy="160" r="6" fill="#a9f3c5"/>
-              <text x="300" y="165" font-family="sans-serif" font-size="11" font-weight="bold" fill="#004328">Chikondi (Passo BW 4920)</text>
+              <circle cx="280" cy="160" r="14" fill="#FF6A00"/>
+              <circle cx="280" cy="160" r="6" fill="#FFA247"/>
+              <text x="300" y="165" font-family="sans-serif" font-size="11" font-weight="bold" fill="#FF6A00">Chikondi (Passo BW 4920)</text>
 
               <!-- Passenger Marker (Chisomo) -->
-              <circle cx="140" cy="80" r="12" fill="#fea619"/>
-              <circle cx="140" cy="80" r="5" fill="#ffffff"/>
-              <text x="160" y="85" font-family="sans-serif" font-size="11" font-weight="bold" fill="#855300">Chisomo (Area 47 Sector 3)</text>
+              <circle cx="140" cy="80" r="12" fill="#FFA247"/>
+              <circle cx="140" cy="80" r="5" fill="#0B0B0B"/>
+              <text x="160" y="85" font-family="sans-serif" font-size="11" font-weight="bold" fill="#FFA247">Chisomo (Area 47 Sector 3)</text>
 
               <!-- Dropoff Marker -->
               <circle cx="440" cy="190" r="12" fill="#855300"/>
@@ -537,11 +537,11 @@
             <!-- Category 3: Cab (Passenger Car) -->
             <div class="bg-surface-container-low p-4 rounded-xl flex flex-col gap-2.5 border border-outline-variant/20">
               <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-lg bg-[#101726] text-white flex items-center justify-center">
+                <div class="w-8 h-8 rounded-lg bg-[#FF6A00] text-[#0B0B0B] flex items-center justify-center font-bold">
                   <span class="material-symbols-outlined text-[18px]">local_taxi</span>
                 </div>
                 <div>
-                  <h4 class="font-extrabold text-sm text-on-surface">Gaman Cab</h4>
+                  <h4 class="font-extrabold text-sm text-on-surface">Aarohan Cab</h4>
                   <span class="text-[10px] text-on-surface-variant">Private Sedan / Hatchback</span>
                 </div>
               </div>
@@ -567,7 +567,7 @@
                   <input type="number" id="rate-cab-booking" value="250" class="w-24 text-right px-2 py-1 bg-white rounded border border-outline-variant/30 font-bold"/>
                 </div>
               </div>
-              <button onclick="saveCategoryRates('cab')" class="mt-2 w-full py-1.5 bg-[#101726] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-opacity">
+              <button onclick="saveCategoryRates('cab')" class="mt-2 w-full py-2 bg-[#FF6A00] text-[#0B0B0B] rounded-lg text-xs font-black hover:opacity-90 transition-opacity">
                 Save Cab Rates
               </button>
             </div>
@@ -1785,7 +1785,7 @@
             }
             adminInspectorMap.fitBounds(points.map(p => [p.lat, p.lng]), { padding: [20, 20] });
           } else if (trip.routeGeometry && Array.isArray(trip.routeGeometry)) {
-            L.polyline(trip.routeGeometry, { color: '#004328', weight: 4 }).addTo(adminInspectorMap);
+            L.polyline(trip.routeGeometry, { color: '#FF6A00', weight: 4 }).addTo(adminInspectorMap);
           }
         }
 

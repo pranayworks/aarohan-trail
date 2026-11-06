@@ -90,7 +90,7 @@
       const renderCard = () => {
         const text = content[activeLang];
         overlay.innerHTML = `
-          <div class="bg-[#1B1B1B] text-white rounded-3xl p-6 max-w-sm w-full border border-white/10 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150">
+          <div class="bg-[#171717] text-white rounded-3xl p-6 max-w-sm w-full border border-[#292929] shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150">
             <div class="flex items-center justify-between">
               <div class="w-12 h-12 rounded-2xl bg-orange-500/20 text-orange-400 flex items-center justify-center">
                 <span class="material-symbols-outlined text-[28px]">${isLocation ? 'location_on' : 'notifications_active'}</span>
