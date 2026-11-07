@@ -638,46 +638,60 @@ async function runRiderAudit() {
   // -------------------------------------------------------------------------
   console.log('\n--- SCENARIO 15: Emergency Assistance Escalation ---');
   try {
-    const token = getTestToken({ role: 'RIDER' });
-    const socket = io(BASE_URL, {
-      transports: ['websocket'],
-      auth: { token }
+    const prismaSos = require('../lib/prisma');
+    // The server allows one SOS incident per person per minute; clear any from an earlier run
+    // so it cannot hide the alert this scenario is checking.
+    await prismaSos.sosEvent.updateMany({
+      where: { status: 'ACTIVE', createdAt: { gte: new Date(Date.now() - 2 * 60 * 1000) } },
+      data: { status: 'RESOLVED', resolvedAt: new Date() }
     });
-    let sosDelivered = false;
-    let receivedAlert = null;
 
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        socket.disconnect();
-        resolve();
-      }, 8000);
-
-      socket.on('connect', () => {
-        socket.emit('sos:trigger', {
-          source: 'RIDER',
-          tripId: 'TRIP-AUDIT-SOS-' + Date.now(),
-          location: 'Gateway Mall, Kaunda Road, Lilongwe [GPS: -13.9722, 33.7667]',
-          lat: -13.9722,
-          lng: 33.7667,
-          riderPhone: '+265 99 123 4567',
-          note: 'Empirical Audit Verification SOS Trigger'
-        });
-      });
-
-      socket.on('sos:alert', (alert) => {
-        sosDelivered = true;
-        receivedAlert = alert;
-        clearTimeout(timeout);
-        socket.disconnect();
-        resolve();
-      });
+    const connectAs = (role) => new Promise((resolve, reject) => {
+      const s = io(BASE_URL, { transports: ['websocket'], auth: { token: getTestToken({ role }) }, forceNew: true });
+      s.on('connect', () => resolve(s));
+      s.on('connect_error', reject);
     });
+
+    const reporter = await connectAs('RIDER');
+    const ops = await connectAs('ADMIN');       // operations staff
+    const stranger = await connectAs('DRIVER'); // a different user who must NOT see it
+    let opsAlert = null;
+    let strangerAlert = null;
+    ops.on('sos:alert', (a) => { opsAlert = a; });
+    stranger.on('sos:alert', (a) => { strangerAlert = a; });
+    await new Promise((r) => setTimeout(r, 300));
+
+    const ackRes = await new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 8000);
+      reporter.emit('sos:trigger', {
+        source: 'RIDER',
+        location: 'Gateway Mall, Kaunda Road, Lilongwe [GPS: -13.9722, 33.7667]',
+        lat: -13.9722,
+        lng: 33.7667,
+        note: 'Empirical Audit Verification SOS Trigger'
+      }, (res) => { clearTimeout(timeout); resolve(res); });
+    });
+    await new Promise((r) => setTimeout(r, 800));
+    [reporter, ops, stranger].forEach((s) => s.disconnect());
 
     assert(
       'S15.1',
-      'SOS emergency transmission broadcasts incident with GPS coordinates to dispatch desk and 997 Police',
-      sosDelivered && receivedAlert && receivedAlert.location.includes('-13.9722'),
-      `SOS Alert ID: ${receivedAlert?.id} • Location: ${receivedAlert?.location} • Status: ${receivedAlert?.status}`
+      'SOS is confirmed to the reporter and stored with GPS coordinates',
+      !!ackRes && ackRes.success === true && !!ackRes.alert &&
+        ackRes.alert.location.includes('-13.9722') && Math.abs(ackRes.alert.lat - (-13.9722)) < 1e-6,
+      `SOS Alert ID: ${ackRes?.alert?.id} • Location: ${ackRes?.alert?.location} • Status: ${ackRes?.alert?.status}`
+    );
+    assert(
+      'S15.2',
+      'SOS alert is delivered live to operations staff',
+      !!opsAlert && !!ackRes?.alert && opsAlert.id === ackRes.alert.id,
+      `Ops received incident: ${opsAlert?.id}`
+    );
+    assert(
+      'S15.3',
+      'SOS alert is NOT delivered to other users (privacy)',
+      strangerAlert === null,
+      strangerAlert ? 'A non-staff user received the SOS alert' : 'No other user received the alert'
     );
   } catch (err) {
     assert('S15', 'SOS escalation workflow', false, err.message);

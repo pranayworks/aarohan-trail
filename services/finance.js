@@ -1,5 +1,5 @@
 // ============================================================================
-// GAMAN AUTHORITATIVE FINANCIAL LEDGER & ACCOUNTING SERVICE • LILONGWE, MALAWI
+// AAROHAN FINANCIAL CALCULATION SERVICE (LEGACY JSON LEDGER: DEVELOPMENT/TEST ONLY) • LILONGWE, MALAWI
 // ============================================================================
 // Enforces:
 //   - 30% Gaman Platform Commission / 70% Driver Net Share on Eligible Fares
@@ -34,6 +34,8 @@ class FinanceService {
   }
 
   loadLedger() {
+    // Production keeps NO financial data on disk: PostgreSQL is the only ledger.
+    if (process.env.NODE_ENV === 'production') return;
     try {
       if (fs.existsSync(LEDGER_FILE)) {
         const raw = fs.readFileSync(LEDGER_FILE, 'utf8');
@@ -64,6 +66,7 @@ class FinanceService {
   }
 
   persistLedger() {
+    if (process.env.NODE_ENV === 'production') return;
     try {
       const dir = path.dirname(LEDGER_FILE);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

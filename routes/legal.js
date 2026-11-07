@@ -94,38 +94,53 @@ router.get('/legal/privacy', (req, res) => {
 });
 
 // 3. Record Consent API
+// Accepts either { documentType } or the rider app's { type: 'TERMS_AND_PRIVACY' } (records both
+// documents). Each user + document + version is recorded ONCE.
 router.post('/api/consent', requireAuth, async (req, res) => {
   try {
-    const { documentType, version = 'v0.1' } = req.body;
+    const { documentType, type, version = 'v0.1' } = req.body || {};
     const validDocs = ['TERMS_OF_SERVICE', 'PRIVACY_POLICY', 'DRIVER_AGREEMENT'];
 
-    if (!validDocs.includes(documentType)) {
+    let docs;
+    if (!documentType && type === 'TERMS_AND_PRIVACY') {
+      docs = ['TERMS_OF_SERVICE', 'PRIVACY_POLICY'];
+    } else if (validDocs.includes(documentType)) {
+      docs = [documentType];
+    } else {
       return res.status(400).json({ error: `documentType must be one of [${validDocs.join(', ')}]` });
     }
 
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-    const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
+    const ver = String(version).slice(0, 20);
+    // Keyed hash (not a plain hash: IPv4 addresses are easy to reverse), using the trusted client IP.
+    const ip = req.ip || req.socket.remoteAddress || '';
+    const secret = process.env.CONSENT_HASH_SECRET || process.env.JWT_SECRET || 'aarohan-consent';
+    const ipHash = crypto.createHmac('sha256', secret).update(String(ip)).digest('hex');
 
-    const record = await prisma.consentRecord.create({
-      data: {
-        userId: req.user.id,
-        documentType,
-        version,
-        ipHash
+    const records = [];
+    for (const doc of docs) {
+      const existing = await prisma.consentRecord.findFirst({
+        where: { userId: req.user.id, documentType: doc, version: ver }
+      });
+      if (existing) {
+        records.push(existing);
+        continue;
       }
-    });
+      const record = await prisma.consentRecord.create({
+        data: { userId: req.user.id, documentType: doc, version: ver, ipHash }
+      });
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user.id,
+          action: 'CONSENT_RECORDED',
+          entityType: 'CONSENT_RECORD',
+          entityId: record.id,
+          details: { documentType: doc, version: ver }
+        }
+      });
+      records.push(record);
+    }
 
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user.id,
-        action: 'CONSENT_RECORDED',
-        entityType: 'CONSENT_RECORD',
-        entityId: record.id,
-        details: { documentType, version }
-      }
-    });
-
-    res.status(201).json({ success: true, record });
+    res.status(201).json({ success: true, records, record: records[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

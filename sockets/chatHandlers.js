@@ -2,10 +2,11 @@ const { z } = require('zod');
 const prisma = require('../lib/prisma');
 const dbLedger = require('../services/dbLedger');
 const notificationService = require('../services/notifications');
+const { emitToOps, emitToUser } = require('./emitters');
 
 const socketChatSendSchema = z.object({
   tripId: z.string().min(1, 'tripId is required'),
-  text: z.string().min(1, 'message text required'),
+  text: z.string().min(1, 'message text required').max(2000, 'message too long'),
   sender: z.string().optional()
 });
 
@@ -34,30 +35,48 @@ const socketWalletTransferSchema = z.object({
 });
 
 function registerChatHandlers(io, socket, operationalState) {
-  // 1. Real-Time Chat
+  // 1. Real-Time Chat: only the rider and the assigned driver of an ACTIVE trip
   socket.on('chat:send', async (msg = {}, callback) => {
     try {
       const parsed = socketChatSendSchema.safeParse(msg);
       if (!parsed.success) throw new Error('tripId and text required');
+      const text = parsed.data.text.trim().slice(0, 1000);
+      if (!text) throw new Error('Message cannot be empty');
+
+      const trip = await prisma.trip.findUnique({
+        where: { id: parsed.data.tripId },
+        select: { id: true, status: true, riderId: true, driver: { select: { userId: true } } }
+      });
+      if (!trip) throw new Error('Trip not found');
+
+      const driverUserId = trip.driver?.userId || null;
+      const isRider = socket.userId === trip.riderId;
+      if (!isRider && socket.userId !== driverUserId) {
+        throw new Error('Forbidden: you are not part of this trip');
+      }
+      if (!['DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) {
+        throw new Error('Chat is only available while a driver is assigned to an active trip');
+      }
 
       await prisma.chatMessage.create({
         data: {
-          tripId: parsed.data.tripId,
+          tripId: trip.id,
           senderId: socket.userId,
-          senderRole: socket.userRole || 'RIDER',
-          text: parsed.data.text
+          senderRole: isRider ? 'RIDER' : 'DRIVER',
+          text
         }
       });
 
       const messageObj = {
-        tripId: parsed.data.tripId,
-        sender: socket.userRole?.toLowerCase() || 'rider',
-        text: parsed.data.text,
+        tripId: trip.id,
+        sender: isRider ? 'rider' : 'driver',
+        text,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
-      io.to(`trip:${parsed.data.tripId}`).emit('chat:message', messageObj);
-      io.emit('chat:message', messageObj);
+      // Delivered ONLY to the two people on this trip, never broadcast.
+      emitToUser(io, trip.riderId, 'chat:message', messageObj);
+      if (driverUserId) emitToUser(io, driverUserId, 'chat:message', messageObj);
       if (typeof callback === 'function') callback({ success: true, message: messageObj });
     } catch (err) {
       console.warn('[Chat] Error:', err.message);
@@ -71,38 +90,111 @@ function registerChatHandlers(io, socket, operationalState) {
       const parsed = socketSosTriggerSchema.safeParse(data);
       if (!parsed.success) throw new Error('Invalid SOS payload');
 
-      let validTripId = null;
-      if (parsed.data.tripId) {
-        const tripExists = await prisma.trip.findUnique({ where: { id: parsed.data.tripId } });
-        if (tripExists) validTripId = parsed.data.tripId;
+      // Identity and contacts come from the database, NEVER from the client.
+      const me = await prisma.user.findUnique({
+        where: { id: socket.userId },
+        select: { id: true, name: true, phone: true, emergencyContactName: true, emergencyContactPhone: true }
+      });
+      if (!me) throw new Error('Account not found');
+
+      const nowLabel = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // One incident per person per minute: a repeated press returns the same incident.
+      const recent = await prisma.sosEvent.findFirst({
+        where: { userId: me.id, status: 'ACTIVE', createdAt: { gte: new Date(Date.now() - 60 * 1000) } },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (recent) {
+        if (typeof callback === 'function') {
+          callback({
+            success: true,
+            duplicate: true,
+            alert: {
+              id: recent.id,
+              source: socket.userRole || 'RIDER',
+              lat: recent.lat,
+              lng: recent.lng,
+              time: nowLabel(),
+              status: 'ACTIVE_DISPATCH_ALERT',
+              note: recent.notes
+            }
+          });
+        }
+        return;
       }
 
+      // Only link a trip the caller really belongs to.
+      let trip = null;
+      if (parsed.data.tripId) {
+        const ownership = [{ riderId: me.id }];
+        if (socket.driverId) ownership.push({ driverId: socket.driverId });
+        trip = await prisma.trip.findFirst({
+          where: { id: parsed.data.tripId, OR: ownership },
+          select: {
+            id: true,
+            pickupLat: true,
+            pickupLng: true,
+            driver: { select: { user: { select: { name: true, phone: true } } } },
+            rider: { select: { name: true, phone: true } }
+          }
+        });
+      }
+
+      const validCoord = (v, limit) => Number.isFinite(v) && Math.abs(v) <= limit;
+      let lat = parsed.data.lat;
+      let lng = parsed.data.lng;
+      let locationKnown = validCoord(lat, 90) && validCoord(lng, 180);
+      let approximate = false;
+      if (!locationKnown && trip) {
+        lat = trip.pickupLat;
+        lng = trip.pickupLng;
+        locationKnown = true;
+        approximate = true;
+      }
+      if (!locationKnown) {
+        lat = -13.9626; // Lilongwe centre, flagged below as unknown
+        lng = 33.7873;
+      }
+
+      let note = String(parsed.data.note || 'Emergency assistance requested').slice(0, 300);
+      if (approximate) note += ' [APPROXIMATE: trip pickup location]';
+      if (!locationKnown) note += ' [LOCATION UNKNOWN: no GPS received]';
+
       const sosEvent = await prisma.sosEvent.create({
-        data: {
-          tripId: validTripId,
-          userId: socket.userId,
-          lat: parsed.data.lat || -13.9722,
-          lng: parsed.data.lng || 33.7667,
-          notes: parsed.data.note || 'Emergency assistance requested on corridor',
-          status: 'ACTIVE'
-        }
+        data: { tripId: trip ? trip.id : null, userId: me.id, lat, lng, notes: note, status: 'ACTIVE' }
       });
+
+      await prisma.auditLog.create({
+        data: {
+          userId: me.id,
+          action: 'SOS_TRIGGERED',
+          entityType: 'SOS',
+          entityId: sosEvent.id,
+          details: { tripId: trip ? trip.id : null, locationKnown, approximate }
+        }
+      }).catch((e) => console.warn('[SosTrigger] Audit log failed:', e.message));
 
       const alertItem = {
         id: sosEvent.id,
         source: socket.userRole || 'RIDER',
-        location: parsed.data.location || 'Kenyatta Drive, Lilongwe',
-        lat: sosEvent.lat,
-        lng: sosEvent.lng,
-        riderPhone: socket.user?.phone || '+265991234567',
-        emergencyPhone: parsed.data.emergencyPhone || '+265999970000',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        passenger: me.name || null,
+        driver: trip?.driver?.user?.name || null,
+        location: parsed.data.location ? String(parsed.data.location).slice(0, 200) : null,
+        lat,
+        lng,
+        locationKnown,
+        locationApproximate: approximate,
+        riderPhone: me.phone,
+        emergencyContactName: me.emergencyContactName || null,
+        emergencyPhone: me.emergencyContactPhone || null,
+        time: nowLabel(),
         status: 'ACTIVE_DISPATCH_ALERT',
-        note: parsed.data.note || 'Emergency assistance requested on corridor'
+        note
       };
 
-      io.emit('sos:alert', alertItem);
-      notificationService.sendEmergencySosAlert(alertItem).catch(err => {
+      // Operations staff only: SOS details are never sent to other riders or drivers.
+      emitToOps(io, 'sos:alert', alertItem);
+      notificationService.sendEmergencySosAlert(alertItem).catch((err) => {
         console.warn('[NotificationService] SOS broadcast exception:', err.message);
       });
       if (typeof callback === 'function') callback({ success: true, alert: alertItem });
@@ -112,17 +204,25 @@ function registerChatHandlers(io, socket, operationalState) {
     }
   });
 
-  // 3. SOS Resolution
+  // 3. SOS Resolution (operations staff only)
   socket.on('sos:resolve', async (id, callback) => {
     try {
       if (socket.userRole !== 'ADMIN' && socket.userRole !== 'SUPPORT') {
         throw new Error('Forbidden: Only operations personnel can resolve emergency alerts');
       }
-      await prisma.sosEvent.update({
-        where: { id },
+      if (typeof id !== 'string' || !id) throw new Error('SOS incident id required');
+
+      const updated = await prisma.sosEvent.updateMany({
+        where: { id, status: { in: ['ACTIVE', 'ESCALATED_POLICE'] } },
         data: { status: 'RESOLVED', resolvedAt: new Date(), resolvedBy: socket.userId }
       });
-      io.emit('sos:resolved', id);
+      if (updated.count === 0) throw new Error('SOS incident not found or already resolved');
+
+      await prisma.auditLog.create({
+        data: { userId: socket.userId, action: 'SOS_RESOLVED', entityType: 'SOS', entityId: id, details: {} }
+      }).catch((e) => console.warn('[SosResolve] Audit log failed:', e.message));
+
+      emitToOps(io, 'sos:resolved', id);
       if (typeof callback === 'function') callback({ success: true });
     } catch (err) {
       console.warn('[SosResolve] Error:', err.message);
@@ -174,7 +274,6 @@ function registerChatHandlers(io, socket, operationalState) {
       });
 
       socket.emit('wallet:updated', { wallet: result.wallet, netBalanceSum: result.netBalanceSum });
-      io.emit('wallet:updated', { userId: socket.userId, wallet: result.wallet });
       if (typeof callback === 'function') callback({ success: true, wallet: result.wallet });
     } catch (err) {
       socket.emit('wallet:error', { error: err.message });
@@ -221,9 +320,24 @@ function registerChatHandlers(io, socket, operationalState) {
   });
 
   // 7. In-App Call Signaling
-  socket.on('call:signal', (signal) => {
+  socket.on('call:signal', async (signal = {}) => {
     try {
-      socket.broadcast.emit('call:signal', signal);
+      if (!signal || typeof signal.tripId !== 'string') return;
+      if (JSON.stringify(signal.data || {}).length > 10000) return;
+
+      const trip = await prisma.trip.findUnique({
+        where: { id: signal.tripId },
+        select: { riderId: true, status: true, driver: { select: { userId: true } } }
+      });
+      if (!trip || !['DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(trip.status)) return;
+
+      const driverUserId = trip.driver?.userId || null;
+      let target = null;
+      if (socket.userId === trip.riderId) target = driverUserId;
+      else if (socket.userId === driverUserId) target = trip.riderId;
+      if (!target) return;
+
+      emitToUser(io, target, 'call:signal', { tripId: signal.tripId, data: signal.data });
     } catch (err) {
       console.warn('[CallSignal] Error:', err.message);
     }

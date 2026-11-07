@@ -53,29 +53,29 @@
               <span class="relative inline-flex rounded-full h-2 w-2 bg-[#FF6A00]"></span>
             </span>
           </div>
-          <span class="text-xs text-[#A3A3A3]">Transit Dispatch, Digital Escrow &amp; Safety Desk</span>
+          <span class="text-xs text-[#A3A3A3]">Transit Dispatch, Cash Settlement &amp; Safety Desk</span>
         </div>
       </div>
 
       <!-- Live KPI Tickers -->
       <div class="flex items-center flex-wrap gap-4 text-xs">
         <div class="flex flex-col">
-          <span class="text-[10px] text-white/50 uppercase font-bold">Active Trip Status</span>
-          <span class="font-extrabold text-secondary-container" id="admin-active-status">IDLE (Standby)</span>
+          <span class="text-[10px] text-white/50 uppercase font-bold">Active Trips</span>
+          <span class="font-extrabold text-secondary-container" id="admin-active-status">...</span>
         </div>
 
         <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
 
         <div class="flex flex-col">
           <span class="text-[10px] text-white/50 uppercase font-bold">Online Drivers</span>
-          <span class="font-extrabold text-primary-fixed" id="admin-online-drivers">1 Active (Chikondi)</span>
+          <span class="font-extrabold text-primary-fixed" id="admin-online-drivers">...</span>
         </div>
 
         <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
 
         <div class="flex flex-col">
-          <span class="text-[10px] text-white/50 uppercase font-bold">RBM Escrow Vault</span>
-          <span class="font-extrabold text-white" id="admin-escrow-vault">MWK 181,300</span>
+          <span class="text-[10px] text-white/50 uppercase font-bold">Cash Commission Owed</span>
+          <span class="font-extrabold text-white" id="admin-escrow-vault">...</span>
         </div>
 
         <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
@@ -99,7 +99,7 @@
       <span class="material-symbols-outlined text-[24px]">e911_emergency</span>
       <div>
         <span class="font-extrabold text-sm uppercase tracking-wide">24/7 RAPID EMERGENCY TRIGGERED:</span>
-        <span class="text-xs ml-2" id="admin-sos-detail">Passenger Chisomo Banda signaled emergency assistance on Kenyatta Drive corridor!</span>
+        <span class="text-xs ml-2" id="admin-sos-detail">Loading incident details...</span>
       </div>
     </div>
     <div class="flex items-center gap-2">
@@ -216,81 +216,37 @@
       <!-- ============================================== -->
       <section id="tab-dispatch" class="admin-panel flex flex-col gap-4">
         
-        <!-- Live Corridor Map & Dispatch Telemetry -->
+        <!-- Live operations summary (real data from the database) -->
         <div class="bg-surface-container-lowest rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-[22px]">map</span>
-              <h2 class="text-base font-extrabold text-on-surface">Lilongwe Central Transit Radar</h2>
+              <span class="material-symbols-outlined text-primary text-[22px]">radar</span>
+              <h2 class="text-base font-extrabold text-on-surface">Live Operations</h2>
             </div>
-            <span class="text-xs bg-primary-fixed text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">Real-Time Sync</span>
+            <span class="text-xs bg-primary-fixed text-primary px-2.5 py-0.5 rounded-full font-bold" id="ops-live-stamp">Updating...</span>
           </div>
-
-          <!-- Radar Map Visual Container -->
-          <div class="relative w-full h-[320px] rounded-xl overflow-hidden bg-surface-container-high border border-outline-variant/30">
-            <!-- Simulated Map Canvas -->
-            <svg class="w-full h-full object-cover" viewBox="0 0 600 320">
-              <rect fill="#eaedff" width="600" height="320"/>
-              <!-- River -->
-              <path d="M-20,240 C120,220 220,280 340,210 C440,160 520,190 620,150" fill="none" stroke="#dae2fd" stroke-width="26" stroke-linecap="round"/>
-              <path d="M-20,240 C120,220 220,280 340,210 C440,160 520,190 620,150" fill="none" stroke="#bfc9c0" stroke-width="6" stroke-linecap="round"/>
-              <!-- Roads -->
-              <path d="M-10,80 L610,140" stroke="#ffffff" stroke-width="10"/>
-              <path d="M120,-10 L220,330" stroke="#ffffff" stroke-width="12"/>
-              <path d="M380,-10 L440,330" stroke="#ffffff" stroke-width="8"/>
-              <path d="M-10,220 L610,180" stroke="#ffffff" stroke-width="8"/>
-
-              <!-- Active Route -->
-              <path d="M140,80 C200,140 280,180 440,190" fill="none" stroke="#FF6A00" stroke-width="6" stroke-linecap="round" stroke-dasharray="8 4"/>
-
-              <!-- Driver Marker (Chikondi) -->
-              <circle cx="280" cy="160" r="14" fill="#FF6A00"/>
-              <circle cx="280" cy="160" r="6" fill="#FFA247"/>
-              <text x="300" y="165" font-family="sans-serif" font-size="11" font-weight="bold" fill="#FF6A00">Chikondi (Passo BW 4920)</text>
-
-              <!-- Passenger Marker (Chisomo) -->
-              <circle cx="140" cy="80" r="12" fill="#FFA247"/>
-              <circle cx="140" cy="80" r="5" fill="#0B0B0B"/>
-              <text x="160" y="85" font-family="sans-serif" font-size="11" font-weight="bold" fill="#FFA247">Chisomo (Area 47 Sector 3)</text>
-
-              <!-- Dropoff Marker -->
-              <circle cx="440" cy="190" r="12" fill="#855300"/>
-              <text x="460" y="195" font-family="sans-serif" font-size="11" font-weight="bold" fill="#131b2e">Gateway Mall Dropoff</text>
-            </svg>
-
-            <!-- Floating Overlay Box -->
-            <div class="absolute bottom-3 left-3 bg-surface-container-lowest/90 backdrop-blur-md p-2.5 rounded-xl shadow-md border border-outline-variant/30 text-xs">
-              <span class="font-bold text-on-surface block">Active Corridor Corridor:</span>
-              <span class="text-on-surface-variant">Area 47 Sector 3 &rarr; Kaunda Rd &rarr; Gateway Mall</span>
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Active trips</span>
+              <span class="font-extrabold text-2xl text-on-surface" id="ops-active-trips">-</span>
+            </div>
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Drivers online</span>
+              <span class="font-extrabold text-2xl text-on-surface" id="ops-online-drivers">-</span>
+            </div>
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Open SOS incidents</span>
+              <span class="font-extrabold text-2xl text-error" id="ops-open-sos">-</span>
+            </div>
+            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
+              <span class="text-[10px] text-outline uppercase font-bold">Completed trips</span>
+              <span class="font-extrabold text-2xl text-on-surface" id="ops-completed-trips">-</span>
             </div>
           </div>
-
-          <!-- Active Trip Details Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
-            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
-              <span class="text-[10px] text-outline uppercase font-bold">Passenger</span>
-              <span class="font-bold text-sm text-on-surface">Chisomo Banda</span>
-              <span class="text-[11px] text-on-surface-variant">+265 99 123 4567</span>
-            </div>
-
-            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
-              <span class="text-[10px] text-outline uppercase font-bold">Driver Assigned</span>
-              <span class="font-bold text-sm text-on-surface">Chikondi Phiri</span>
-              <span class="text-[11px] text-on-surface-variant">BW 4920 &bull; White Passo</span>
-            </div>
-
-            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
-              <span class="text-[10px] text-outline uppercase font-bold">Fare &amp; Escrow</span>
-              <span class="font-extrabold text-sm text-primary">MWK 6,200</span>
-              <span class="text-[11px] text-secondary font-bold">Airtel Money Pre-Auth</span>
-            </div>
-
-            <div class="bg-surface-container-low p-3 rounded-xl flex flex-col">
-              <span class="text-[10px] text-outline uppercase font-bold">Safety PIN</span>
-              <span class="font-mono font-black text-lg text-secondary" id="admin-trip-pin">8421</span>
-              <span class="text-[10px] text-primary font-bold">Verified on Pickup</span>
-            </div>
-          </div>
+          <p class="text-xs text-on-surface-variant">
+            Figures refresh automatically. To inspect any trip (route, GPS trail, chat, ratings, ledger journal) use the Trips explorer;
+            support cases are in Disputes. A live fleet map is planned for a later release.
+          </p>
         </div>
 
       </section>
@@ -310,7 +266,7 @@
           </div>
 
           <div class="bg-surface-container-lowest p-4 rounded-2xl shadow-sm border border-outline-variant/30 flex flex-col">
-            <span class="text-xs font-bold text-outline uppercase">Gaman Commission (30%)</span>
+            <span class="text-xs font-bold text-outline uppercase">Aarohan Commission (30%)</span>
             <span class="text-2xl font-extrabold text-primary mt-1" id="admin-commission-val">MWK 0</span>
             <span class="text-xs text-on-surface-variant mt-0.5">Platform Net Revenue</span>
           </div>
@@ -421,7 +377,7 @@
                   <th class="p-3">Method</th>
                   <th class="p-3">Gross Fare</th>
                   <th class="p-3">Eligible Base</th>
-                  <th class="p-3 text-primary">30% Gaman</th>
+                  <th class="p-3 text-primary">30% Aarohan</th>
                   <th class="p-3 text-secondary">70% Driver</th>
                   <th class="p-3">Settlement</th>
                 </tr>
@@ -448,7 +404,7 @@
               <h3 class="font-bold text-base text-on-surface">Configurable Vehicle Category Pricing</h3>
               <p class="text-xs text-on-surface-variant">Manage authoritative tariffs for Cars, Motorcycles (Kabaza), and Tuk-Tuks in Lilongwe.</p>
             </div>
-            <span class="bg-primary-fixed text-primary px-3 py-1 rounded-full text-xs font-bold" id="admin-active-pricing-badge">GMN-PRICE-V1 (Active)</span>
+            <span class="bg-primary-fixed text-primary px-3 py-1 rounded-full text-xs font-bold" id="admin-active-pricing-badge">Loading pricing...</span>
           </div>
 
           <!-- Commission Split Configuration -->
@@ -462,7 +418,7 @@
             </div>
             <div class="flex items-center gap-3">
               <div class="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-outline-variant/30">
-                <span class="text-xs font-bold text-primary">Gaman:</span>
+                <span class="text-xs font-bold text-primary">Aarohan:</span>
                 <input type="number" id="pricing-commission-input" value="30" min="5" max="50" class="w-12 text-xs font-black text-primary border-none outline-none"/>
                 <span class="text-xs font-bold text-primary">%</span>
               </div>
@@ -484,7 +440,7 @@
                   <span class="material-symbols-outlined text-[18px]">two_wheeler</span>
                 </div>
                 <div>
-                  <h4 class="font-extrabold text-sm text-on-surface">Gaman Moto</h4>
+                  <h4 class="font-extrabold text-sm text-on-surface">Aarohan Moto</h4>
                   <span class="text-[10px] text-on-surface-variant">Motorcycle / Kabaza</span>
                 </div>
               </div>
@@ -522,7 +478,7 @@
                   <span class="material-symbols-outlined text-[18px]">electric_rickshaw</span>
                 </div>
                 <div>
-                  <h4 class="font-extrabold text-sm text-on-surface">Gaman Auto</h4>
+                  <h4 class="font-extrabold text-sm text-on-surface">Aarohan Auto</h4>
                   <span class="text-[10px] text-on-surface-variant">Tuk-Tuk 3-Wheeler</span>
                 </div>
               </div>
@@ -715,15 +671,7 @@
                 </tr>
               </thead>
               <tbody id="admin-cash-debt-tbody" class="divide-y divide-outline-variant/20 text-on-surface">
-                <tr>
-                  <td class="p-3 font-mono font-bold text-primary">DRV-MW-101</td>
-                  <td class="p-3">Chikondi Phiri</td>
-                  <td class="p-3">MWK 14,800</td>
-                  <td class="p-3 font-bold text-error">MWK 4,440</td>
-                  <td class="p-3 font-bold text-primary">MWK 0</td>
-                  <td class="p-3 font-black text-error">MWK 4,440</td>
-                  <td class="p-3"><span class="bg-secondary-fixed text-secondary px-2 py-0.5 rounded-full font-bold text-[10px]">Payment Due</span></td>
-                </tr>
+                <tr><td colspan="7" class="p-6 text-center text-on-surface-variant font-medium">Loading driver balances...</td></tr>
               </tbody>
             </table>
           </div>
@@ -1188,75 +1136,98 @@
       window.mwendoStore.updateSurge(zone, val);
     }
 
-    function resolveTicketAction(ticketId) {
-      window.mwendoStore.resolveTicket(ticketId);
-      document.getElementById('ticket-status-label').innerText = 'Resolved & Refunded';
-      document.getElementById('ticket-status-label').className = 'text-[10px] bg-primary-fixed text-primary px-2 py-0.5 rounded-full font-bold';
-      document.getElementById('btn-resolve-ticket').innerText = 'Refund Settled (MWK 3,200)';
-      document.getElementById('btn-resolve-ticket').disabled = true;
-      document.getElementById('btn-resolve-ticket').className = 'px-3 py-1.5 bg-surface-container text-outline rounded-lg text-xs font-bold cursor-not-allowed';
-      document.getElementById('admin-pending-ticket-count').innerText = '0 Pending';
-      alert('Success: MWK 3,200 refunded directly to Chisomo Banda\'s Mwendo Wallet. Rider app updated live!');
+    // ---- SOS desk: driven by the database (survives reloads) and refreshed live ----
+    let activeSosIncidents = [];
+    const sosSoundPlayedFor = new Set();
+    const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function renderSosBanner() {
+      const banner = document.getElementById('admin-sos-banner');
+      const detail = document.getElementById('admin-sos-detail');
+      if (!banner || !detail) return;
+      if (activeSosIncidents.length === 0) {
+        banner.classList.add('hidden');
+        return;
+      }
+      const i = activeSosIncidents[0];
+      const more = activeSosIncidents.length > 1 ? ` (+${activeSosIncidents.length - 1} more open)` : '';
+      const trip = i.trip ? ` Trip: ${escapeHtml(i.trip.pickup)} &rarr; ${escapeHtml(i.trip.dropoff)}${i.trip.driverName ? ', driver ' + escapeHtml(i.trip.driverName) + ' ' + escapeHtml(i.trip.driverPhone || '') : ''}.` : '';
+      detail.innerHTML =
+        `${escapeHtml(i.reporterName || 'A user')} (${escapeHtml(i.reporterPhone || 'no phone')}) pressed SOS${more}.` +
+        ` <a href="${escapeHtml(i.mapsUrl)}" target="_blank" rel="noopener" class="underline font-bold">Open location</a>.` +
+        ` Emergency contact: ${escapeHtml(i.emergencyContactPhone || 'none on file')}.${trip}` +
+        ` Call them now. Police: 997.`;
+      banner.classList.remove('hidden');
+      if (!sosSoundPlayedFor.has(i.id)) {
+        sosSoundPlayedFor.add(i.id);
+        try { if (window.mwendoSound && window.mwendoSound.playEmergencyAlarm) window.mwendoSound.playEmergencyAlarm(); } catch (e) {}
+      }
     }
 
-    function resolveAdminSOS() {
-      const banner = document.getElementById('admin-sos-banner');
-      banner.classList.add('hidden');
-      const state = window.mwendoStore.getState();
-      if (state.emergencyAlerts.length > 0) {
-        window.mwendoStore.resolveSOS(state.emergencyAlerts[0].id);
+    async function refreshActiveSos() {
+      try {
+        const res = await authFetch('/api/admin/sos/active');
+        if (!res.ok) return;
+        const data = await res.json();
+        activeSosIncidents = data.incidents || [];
+        renderSosBanner();
+      } catch (err) {
+        console.warn('[Admin] SOS refresh failed:', err);
       }
+    }
+
+    async function resolveAdminSOS() {
+      const incident = activeSosIncidents[0];
+      if (!incident) return;
+      const notes = prompt('What was done? (resolution note, e.g. "Called rider, safe at home")', '');
+      if (notes === null) return;
+      const falseAlarm = confirm('Was this a FALSE ALARM?\n\nOK = false alarm\nCancel = real incident, now resolved');
+      try {
+        const res = await authFetch(`/api/admin/sos/${incident.id}/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes, falseAlarm })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert('Could not resolve: ' + (err.error || res.statusText));
+        }
+      } catch (e) {
+        alert('Network error: ' + e.message);
+      }
+      refreshActiveSos();
     }
 
     // Subscribe to State Engine
-    window.mwendoStore.subscribe((state, eventName, payload) => {
-      // Active Status
-      const statusEl = document.getElementById('admin-active-status');
-      if (statusEl) {
-        statusEl.innerText = state.activeTrip.status;
-        if (state.activeTrip.status === 'REQUESTED') {
-          statusEl.className = 'font-extrabold text-secondary animate-pulse';
-        } else if (state.activeTrip.status === 'ACCEPTED' || state.activeTrip.status === 'IN_TRANSIT') {
-          statusEl.className = 'font-extrabold text-primary-fixed';
-        } else if (state.activeTrip.status === 'COMPLETED') {
-          statusEl.className = 'font-extrabold text-primary';
-        } else {
-          statusEl.className = 'font-extrabold text-secondary-container';
-        }
+    async function refreshLiveMetrics() {
+      try {
+        const res = await authFetch('/api/admin/metrics');
+        if (!res.ok) return;
+        const m = await res.json();
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.innerText = v; };
+        set('admin-active-status', `${m.activeTripsCount} active`);
+        set('admin-online-drivers', `${m.onlineDriversCount} online`);
+        set('admin-escrow-vault', 'MWK ' + (m.outstandingCashCommission || 0).toLocaleString());
+        set('ops-active-trips', m.activeTripsCount);
+        set('ops-online-drivers', m.onlineDriversCount);
+        set('ops-open-sos', m.emergencyAlertsCount);
+        set('ops-completed-trips', m.completedTripsCount);
+        set('ops-live-stamp', 'Updated ' + new Date().toLocaleTimeString());
+      } catch (err) {
+        console.warn('[Admin] Live metrics failed:', err);
       }
+    }
 
-      // Online Drivers
-      const driverEl = document.getElementById('admin-online-drivers');
-      if (driverEl) {
-        driverEl.innerText = state.driver.status === 'ONLINE' ? '1 Active (Chikondi)' : '0 Active (Offline)';
-        driverEl.className = state.driver.status === 'ONLINE' ? 'font-extrabold text-primary-fixed' : 'font-extrabold text-outline';
-      }
-
-      // Vault
-      const vaultEl = document.getElementById('admin-escrow-vault');
-      if (vaultEl) {
-        const total = state.rider.walletBalance + state.driver.availableBalance;
-        vaultEl.innerText = 'MWK ' + total.toLocaleString();
-      }
-
-      // PIN
-      const pinEl = document.getElementById('admin-trip-pin');
-      if (pinEl) pinEl.innerText = state.activeTrip.pin;
-
-      // Handle SOS Banner
-      const sosBanner = document.getElementById('admin-sos-banner');
-      if (sosBanner) {
-        if (state.emergencyAlerts && state.emergencyAlerts.length > 0) {
-          sosBanner.classList.remove('hidden');
-          document.getElementById('admin-sos-detail').innerText = `${state.emergencyAlerts[0].source} triggered emergency assistance on ${state.emergencyAlerts[0].location}!`;
-        } else {
-          sosBanner.classList.add('hidden');
-        }
+    // Live events (ops room only) just trigger a refresh from the database.
+    window.mwendoStore.subscribe((state, eventName) => {
+      if (eventName === 'EMERGENCY_SOS' || eventName === 'SOS_RESOLVED') refreshActiveSos();
+      if (['TRIP_REQUESTED', 'TRIP_ACCEPTED', 'DRIVER_ARRIVED', 'TRIP_IN_TRANSIT', 'TRIP_COMPLETED', 'TRIP_CANCELLED'].includes(eventName)) {
+        refreshLiveMetrics();
       }
     });
 
     // =========================================================================
-    // GAMAN FINANCIAL LEDGER & PRICING CONTROLLER (30% SPLIT & RECONCILIATION)
+    // AAROHAN FINANCIAL LEDGER & PRICING CONTROLLER (30% SPLIT & RECONCILIATION)
     // =========================================================================
     function authFetch(url, options = {}) {
       if (window.aarohanAuth) {
@@ -1275,8 +1246,8 @@
         if (repRes.ok) {
           const report = await repRes.json();
           document.getElementById('admin-gmv-val').innerText = 'MWK ' + (report.totalGMV || 0).toLocaleString();
-          document.getElementById('admin-commission-val').innerText = 'MWK ' + (report.gamanCommissionEarned || 0).toLocaleString();
-          document.getElementById('admin-driver-share-val').innerText = 'MWK ' + (report.totalDriverNetShare || 0).toLocaleString();
+          document.getElementById('admin-commission-val').innerText = 'MWK ' + (report.netPlatformRevenue || 0).toLocaleString();
+          document.getElementById('admin-driver-share-val').innerText = 'MWK ' + (report.driverEarningsTotal || 0).toLocaleString();
           document.getElementById('admin-cash-debt-val').innerText = 'MWK ' + (report.outstandingCashCommission || 0).toLocaleString();
         }
 
@@ -1443,7 +1414,7 @@
           body: JSON.stringify({ baseFare, pricePerKm, pricePerMinute, minimumFare, bookingFee, adminId: 'ADMIN_SUPER' })
         });
         if (res.ok) {
-          alert(`Success! Updated authoritative pricing rates for Gaman ${categoryId.toUpperCase()}. New rides will immediately quote at these rates.`);
+          alert(`Success! Updated authoritative pricing rates for Aarohan ${categoryId.toUpperCase()}. New rides will immediately quote at these rates.`);
           if (window.mwendoSound) window.mwendoSound.playClick();
         } else {
           const err = await res.json();
@@ -1455,68 +1426,47 @@
     }
 
     async function refreshCashReconciliation() {
+      const tbody = document.getElementById('admin-cash-debt-tbody');
+      if (!tbody) return;
+      const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const mwk = (n) => 'MWK ' + (Number(n) || 0).toLocaleString();
       try {
-        const res = await authFetch('/api/driver/financial-summary/DRV-MW-101');
-        if (res.ok) {
-          const summary = await res.json();
-          const tbody = document.getElementById('admin-cash-debt-tbody');
-          tbody.innerHTML = `
-            <tr>
-              <td class="p-3 font-mono font-bold text-primary">DRV-MW-101</td>
-              <td class="p-3">Chikondi Phiri</td>
-              <td class="p-3">MWK ${summary.cashCollectedByDriver.toLocaleString()}</td>
-              <td class="p-3 font-bold text-error">MWK ${summary.totalCashCommissionIncurred.toLocaleString()}</td>
-              <td class="p-3 font-bold text-primary">MWK ${summary.verifiedCashRemitted.toLocaleString()}</td>
-              <td class="p-3 font-black ${summary.outstandingCashCommissionDebt > 0 ? 'text-error' : 'text-primary'}">MWK ${summary.outstandingCashCommissionDebt.toLocaleString()}</td>
-              <td class="p-3">
-                ${summary.outstandingCashCommissionDebt > 0 
-                  ? `<button onclick="verifySampleRemittance('DRV-MW-101', ${summary.outstandingCashCommissionDebt})" class="px-2.5 py-1 bg-primary text-on-primary rounded text-[10px] font-bold hover:bg-primary-container shadow-xs">Verify Remittance</button>`
-                  : `<span class="bg-primary-fixed text-primary px-2 py-0.5 rounded-full font-bold text-[10px]">Settled &bull; Zero Debt</span>`}
-              </td>
-            </tr>
-          `;
+        const res = await authFetch('/api/admin/drivers/debts');
+        if (!res.ok) return;
+        const data = await res.json();
+        const rows = data.drivers || [];
+        if (rows.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-on-surface-variant font-medium">No drivers have completed trips yet.</td></tr>`;
+          return;
         }
+        tbody.innerHTML = rows.map((d) => `
+          <tr>
+            <td class="p-3 font-mono font-bold text-primary">${esc(String(d.driverId).slice(0, 8).toUpperCase())}</td>
+            <td class="p-3">${esc(d.name)}<div class="text-[10px] text-on-surface-variant">${esc(d.plateNumber || '')}</div></td>
+            <td class="p-3">${mwk(d.cashCollectedMWK)}</td>
+            <td class="p-3 font-bold text-error">${mwk(d.commissionIncurredMWK)}</td>
+            <td class="p-3 font-bold text-primary">${mwk(d.verifiedRemittedMWK)}</td>
+            <td class="p-3 font-black ${d.outstandingDebtMWK > 0 ? 'text-error' : 'text-primary'}">${mwk(d.outstandingDebtMWK)}</td>
+            <td class="p-3">
+              ${d.outstandingDebtMWK > 0
+                ? `<span class="text-[10px] font-bold text-on-surface-variant">Awaiting driver payment</span>`
+                : `<span class="bg-primary-fixed text-primary px-2 py-0.5 rounded-full font-bold text-[10px]">Settled &bull; Zero Debt</span>`}
+            </td>
+          </tr>
+        `).join('');
       } catch (err) {
         console.warn('[Admin] Cash reconciliation error:', err);
       }
     }
 
-    async function verifySampleRemittance(driverId, amount) {
-      const ref = prompt(`Confirm Cash Commission Remittance from Captain ${driverId}\nAmount: MWK ${amount.toLocaleString()}\nEnter Airtel/TNM Till Reference:`, 'AM-TILL-99812');
-      if (!ref) return;
-
-      try {
-        // Submit remittance
-        const submitRes = await fetch('/api/driver/cash-settlement/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ driverId, amount, remittanceReference: ref, remittanceMethod: 'AIRTEL_BUSINESS_TILL' })
-        });
-        const subData = await submitRes.json();
-
-        // Verify remittance
-        await fetch('/api/admin/cash-settlement/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ settlementId: subData.settlement.settlementId, approved: true, adminId: 'ADMIN_SUPER' })
-        });
-
-        alert(`Success: Remittance verified! Captain's cash commission debt reduced by MWK ${amount.toLocaleString()}.`);
-        refreshCashReconciliation();
-        refreshFinancialLedger();
-      } catch (err) {
-        alert('Verification failed: ' + err.message);
-      }
-    }
-
     function exportFinancialReport() {
-      fetch('/api/admin/financial-ledger')
+      authFetch('/api/admin/financial-ledger')
         .then(res => res.json())
         .then(data => {
           const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
           const dlAnchorElem = document.createElement('a');
           dlAnchorElem.setAttribute("href", jsonStr);
-          dlAnchorElem.setAttribute("download", `gaman_financial_audit_${Date.now()}.json`);
+          dlAnchorElem.setAttribute("download", `aarohan_financial_audit_${Date.now()}.json`);
           dlAnchorElem.click();
         });
     }
@@ -2240,6 +2190,9 @@
             refreshPendingDrivers();
             refreshFleetDrivers();
             loadAdminSmsStats();
+            refreshActiveSos();
+            refreshLiveMetrics();
+            setInterval(() => { refreshActiveSos(); refreshLiveMetrics(); }, 15000);
           }
         });
       } else {
@@ -2250,6 +2203,9 @@
         refreshPendingDrivers();
         refreshFleetDrivers();
         loadAdminSmsStats();
+        refreshActiveSos();
+        refreshLiveMetrics();
+        setInterval(() => { refreshActiveSos(); refreshLiveMetrics(); }, 15000);
       }
     });
   </script>
@@ -2309,7 +2265,7 @@
           </div>
           <div class="border-t border-outline-variant/20 pt-2 flex flex-col gap-1">
             <div class="flex justify-between"><span class="text-on-surface-variant">Gross Fare:</span><strong id="inspect-fare-text" class="text-on-surface">MWK 0</strong></div>
-            <div class="flex justify-between"><span class="text-on-surface-variant">Gaman 30% Commission:</span><strong id="inspect-comm-text" class="text-primary">MWK 0</strong></div>
+            <div class="flex justify-between"><span class="text-on-surface-variant">Aarohan 30% Commission:</span><strong id="inspect-comm-text" class="text-primary">MWK 0</strong></div>
             <div class="flex justify-between"><span class="text-on-surface-variant">Driver 70% Share:</span><strong id="inspect-share-text" class="text-secondary">MWK 0</strong></div>
             <div class="flex justify-between"><span class="text-on-surface-variant">Payment &amp; Status:</span><span id="inspect-pay-text" class="font-bold uppercase">CASH (PAID)</span></div>
           </div>

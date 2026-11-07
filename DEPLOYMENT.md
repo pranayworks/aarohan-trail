@@ -114,3 +114,13 @@ Configure the following variable names in your Railway Dashboard (**Variables** 
    - Development location simulation button is hidden on Rider home.
 6. [ ] **PII Scrubbing**: Sentry reports redact phones, OTPs, auth tokens, GPS coordinates, and document paths.
 7. [ ] **End-to-End Smoke Test**: Verify passenger booking, captain dispatch notification, safety PIN verification, and completed cash/wallet journal balancing in Lilongwe corridor.
+
+## Running migrations inside the production container (release / pre-deploy command)
+The runtime image does not include the `npx` shortcut for dev tools, but it does include the pinned Prisma CLI. Use:
+
+```
+node node_modules/prisma/build/index.js migrate deploy
+```
+
+Never run `migrate dev` or the seed in production. To create the first admin, open a shell in the deployed service and run
+`node scripts/create-admin.js` (see `docs/first-admin.md`). Also set `CONTACT_EMAIL` so the landing page shows a contact address.

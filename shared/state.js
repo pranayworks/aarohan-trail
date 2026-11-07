@@ -576,6 +576,13 @@
       return state.activeTrip;
     }
 
+    // Tell the server the driver declined the open offer so the next driver is tried right away.
+    declineTrip(tripId) {
+      if (tripId && this.socket && this.isRealtimeConnected) {
+        this.socket.emit('trip:decline', { tripId });
+      }
+    }
+
     acceptTrip(tripIdOrData, callback) {
       const state = this.getState();
       const id = (typeof tripIdOrData === 'string')
@@ -783,7 +790,7 @@
 
         state.driverSettlements.unshift({
           id: 'DS-TIP-' + Math.floor(100 + Math.random() * 900),
-          title: `Passenger Gratuity (Chisomo)`,
+          title: `Passenger Gratuity`,
           amount: tip,
           method: '100% Direct Driver Tip',
           time: 'Just now',
@@ -858,30 +865,44 @@
       this.notifyListeners(state, 'DRIVER_STATUS', status);
     }
 
-    triggerSOS(source, note = 'Emergency assistance requested on corridor') {
+    // Sends an SOS to the Aarohan safety team with the active trip and the best GPS fix.
+    // Resolves with { delivered, alert?, error? }: callers MUST tell the user the truth
+    // (never claim help is coming unless the server confirmed it).
+    triggerSOS(source, note = 'Emergency assistance requested') {
       const state = this.getState();
-      const alertItem = {
-        id: 'SOS-' + Date.now().toString().slice(-4),
-        source: source,
-        passenger: state.rider.name,
-        driver: state.driver.name,
-        location: 'Kenyatta Drive, Lilongwe',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: 'ACTIVE_DISPATCH_ALERT',
-        note: note
-      };
-      state.emergencyAlerts.unshift(alertItem);
+      const tripId = state && state.activeTrip && state.activeTrip.id ? state.activeTrip.id : undefined;
 
-      this.saveState(state);
-      this.broadcast('EMERGENCY_SOS', alertItem);
-      this.notifyListeners(state, 'EMERGENCY_SOS', alertItem);
+      return new Promise((resolve) => {
+        let settled = false;
+        const finish = (result) => { if (!settled) { settled = true; resolve(result); } };
 
-      if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('sos:trigger', { source, note });
-      }
+        const send = (coords) => {
+          if (!this.socket || !this.isRealtimeConnected) {
+            return finish({ delivered: false, error: 'No connection to Aarohan' });
+          }
+          const payload = { source, note, tripId };
+          if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
+            payload.lat = coords.latitude;
+            payload.lng = coords.longitude;
+          }
+          this.socket.timeout(8000).emit('sos:trigger', payload, (err, res) => {
+            if (err || !res || !res.success) {
+              return finish({ delivered: false, error: (res && res.error) || 'No response from Aarohan' });
+            }
+            finish({ delivered: true, alert: res.alert, duplicate: !!res.duplicate });
+          });
+        };
 
-      if (window.mwendoSound) window.mwendoSound.playEmergencyAlarm();
-      return alertItem;
+        if (typeof navigator !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => send(pos.coords),
+            () => send(null),
+            { enableHighAccuracy: true, timeout: 4000, maximumAge: 15000 }
+          );
+        } else {
+          send(null);
+        }
+      });
     }
 
     resolveSOS(id) {

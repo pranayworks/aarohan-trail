@@ -68,7 +68,7 @@
         </button>
 
         <button onclick="switchDriverView('profile')" class="relative">
-          <img class="w-9 h-9 rounded-full object-cover shadow-sm ring-2 ring-primary" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw" alt="Chikondi"/>
+          <span class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center ring-2 ring-primary"><svg viewBox="0 0 24 24" class="w-5 h-5 text-primary" fill="currentColor" aria-hidden="true"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg></span>
           <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-primary border-2 border-white"></span>
         </button>
       </div>
@@ -133,7 +133,7 @@
             <animate attributeName="opacity" values="0.8;0" dur="2.4s" repeatCount="indefinite"/>
           </circle>
 
-          <!-- Driver Vehicle Position (Chikondi) with Radar Ping -->
+          <!-- Driver vehicle position with radar ping -->
           <circle cx="205" cy="225" r="45" fill="url(#radarScan)"/>
           <circle cx="205" cy="225" r="28" fill="none" stroke="#FF6A00" stroke-width="1.5" opacity="0.7">
             <animate attributeName="r" values="10;50" dur="1.8s" repeatCount="indefinite"/>
@@ -228,7 +228,7 @@
       
       <!-- Live Map Area -->
       <div class="relative w-full h-[440px] overflow-hidden bg-surface-container">
-        <div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBokS_WsKfgPa-bRql1y1dHeTJ5uDYOt6CHAAbXENkXKf9eqPTCLh9VEyWn21r4ucBcb1URVsiuccbx8AmiHsoihOTXpxYHJDjkr2U2-2UJtJgUNZEIXEAwke2MDWwW9u_jwoyOZnhyArU-weHmkXyXJbkwCtLvM9CZe_EKg8LjdK9ConNZORLlZvGNXtsL9P1w6YvqGhHh_jkb_Y20lwuBwGaCqRSojF2d0M8mxdK0yOB9J8NDNZOpFw');"></div>
+        <div class="w-full h-full bg-surface-container"></div>
         
         <!-- Top Turn-by-Turn Instruction Banner -->
         <div class="absolute top-2.5 inset-x-3 z-20">
@@ -562,7 +562,7 @@
             <span class="material-symbols-outlined text-primary text-[20px]">directions_car</span>
             <div class="flex flex-col">
               <span class="text-xs font-bold text-on-surface">Net Fares</span>
-              <span class="text-[10px] text-on-surface-variant">Base fares after 30% Gaman commission</span>
+              <span class="text-[10px] text-on-surface-variant">Base fares after 30% Aarohan commission</span>
             </div>
           </div>
           <span class="text-sm font-bold text-on-surface">MWK 225,000</span>
@@ -803,34 +803,17 @@
 
             currentDriverCoords = { lat, lng, heading, accuracy, timestamp: Date.now() };
 
-            // 1. Post to Gaman server-side spatial driver registry
+            // 1. Publish GPS to the server. Identity comes from the login token on the
+            //    server side; only coordinates are sent. Unregistered users send nothing.
             const user = window.aarohanAuth ? window.aarohanAuth.getUser() : null;
-            const driverId = (user && user.driverProfile) ? user.driverProfile.id : 'DRV-MW-101';
-            const name = (user && user.name) ? user.name : 'Captain Partner';
-            const phone = (user && user.phone) ? user.phone : '+265 99 554 1122';
-            const plate = (user && user.driverProfile) ? (user.driverProfile.plateNumber || 'BW 4920') : 'BW 4920';
-            const tier = (user && user.driverProfile && user.driverProfile.vehicleType) ? user.driverProfile.vehicleType.toLowerCase() : 'moto';
-            const headers = { 'Content-Type': 'application/json' };
-            if (window.aarohanAuth && window.aarohanAuth.getAccessToken()) {
-              headers['Authorization'] = `Bearer ${window.aarohanAuth.getAccessToken()}`;
+            const token = window.aarohanAuth ? window.aarohanAuth.getAccessToken() : null;
+            if (user && user.driverProfile && token) {
+              fetch('/api/drivers/location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ lat, lng, heading, accuracy })
+              }).catch(() => {});
             }
-
-            fetch('/api/drivers/location', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                driverId,
-                name,
-                phone,
-                vehicleTier: tier,
-                vehiclePlate: plate,
-                vehicleModel: 'Verified Partner Vehicle',
-                lat,
-                lng,
-                heading,
-                accuracy
-              })
-            }).catch(() => {});
 
             // 2. Broadcast to connected rider via WebSocket state bus
             if (window.mwendoStore) {
@@ -838,7 +821,7 @@
             }
           },
           (err) => {
-            console.warn('[GamanDriver] Geolocation error:', err.message);
+            console.warn('[AarohanDriver] Geolocation error:', err.message);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 2000 }
         );
@@ -859,32 +842,19 @@
       currentDriverCoords.timestamp = Date.now();
 
       const user = window.aarohanAuth ? window.aarohanAuth.getUser() : null;
-      const driverId = (user && user.driverProfile) ? user.driverProfile.id : 'DRV-MW-101';
-      const name = (user && user.name) ? user.name : 'Captain Partner';
-      const phone = (user && user.phone) ? user.phone : '+265 99 554 1122';
-      const plate = (user && user.driverProfile) ? (user.driverProfile.plateNumber || 'BW 4920') : 'BW 4920';
-      const tier = (user && user.driverProfile && user.driverProfile.vehicleType) ? user.driverProfile.vehicleType.toLowerCase() : 'moto';
-      const headers = { 'Content-Type': 'application/json' };
-      if (window.aarohanAuth && window.aarohanAuth.getAccessToken()) {
-        headers['Authorization'] = `Bearer ${window.aarohanAuth.getAccessToken()}`;
+      const token = window.aarohanAuth ? window.aarohanAuth.getAccessToken() : null;
+      if (user && user.driverProfile && token) {
+        fetch('/api/drivers/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            lat: currentDriverCoords.lat,
+            lng: currentDriverCoords.lng,
+            heading: currentDriverCoords.heading,
+            accuracy: 5
+          })
+        }).catch(() => {});
       }
-
-      fetch('/api/drivers/location', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          driverId,
-          name,
-          phone,
-          vehicleTier: tier,
-          vehiclePlate: plate,
-          vehicleModel: 'Verified Partner Vehicle',
-          lat: currentDriverCoords.lat,
-          lng: currentDriverCoords.lng,
-          heading: currentDriverCoords.heading,
-          accuracy: 5
-        })
-      }).catch(() => {});
 
       if (window.mwendoStore) {
         window.mwendoStore.sendDriverLocation(currentDriverCoords);
@@ -1230,7 +1200,11 @@
     }
 
     function declineIncomingTrip() {
+      const raw = pendingIncomingTrip || (window.mwendoStore && window.mwendoStore.getState()?.activeTrip);
+      const trip = (raw && raw.trip) ? raw.trip : raw;
+      const tripId = trip?.id || trip?.tripId;
       hideIncomingRequest();
+      if (tripId && window.mwendoStore && window.mwendoStore.declineTrip) window.mwendoStore.declineTrip(tripId);
     }
 
     function handleDriverArrived() {
@@ -1459,9 +1433,14 @@
       if (window.mwendoSound) window.mwendoSound.playClick();
     }
 
-    function triggerDriverSOS() {
-      window.mwendoStore.triggerSOS('DRIVER', 'Driver Chikondi signaled emergency corridor assist');
-      alert('Emergency response triggered! Lilongwe Rapid Dispatch alerted.');
+    async function triggerDriverSOS() {
+      const result = await window.mwendoStore.triggerSOS('DRIVER', 'Driver pressed the SOS button');
+      if (result.delivered) {
+        alert('SOS sent. The Aarohan safety team has been alerted and will call you.\n\nIf you are in immediate danger, call 997 now.');
+      } else {
+        alert('We could not reach Aarohan (' + (result.error || 'no connection') + ').\n\nCALL 997 NOW.');
+        window.location.href = 'tel:997';
+      }
     }
 
     // Reactive State Subscriptions

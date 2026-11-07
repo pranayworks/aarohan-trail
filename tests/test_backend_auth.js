@@ -3,6 +3,9 @@
 // Lilongwe, Malawi • PostgreSQL, JWT, HMAC-SHA256, Refresh Token Rotation
 // ============================================================================
 
+// This suite books trips directly to test PIN, ledger and ownership rules. Dispatch (nearest-driver
+// offers) is covered by test_dispatch_* and the Playwright flow.
+process.env.AUTO_DISPATCH = 'false';
 require('dotenv').config();
 const assert = require('assert');
 const crypto = require('crypto');

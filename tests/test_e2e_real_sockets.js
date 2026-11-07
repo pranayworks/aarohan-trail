@@ -20,6 +20,9 @@
 //      - Real Wallet balance mutations (Rider debit, Driver credit)
 // ============================================================================
 
+// This suite books trips directly to test PIN, ledger and ownership rules. Dispatch (nearest-driver
+// offers) is covered by test_dispatch_* and the Playwright flow.
+process.env.AUTO_DISPATCH = 'false';
 const assert = require('assert');
 const ioClient = require('socket.io-client');
 const prisma = require('../lib/prisma');

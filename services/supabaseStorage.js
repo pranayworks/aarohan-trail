@@ -48,10 +48,20 @@ function getSupabaseClient() {
 
 // Local filesystem fallback directory for testing & offline local dev
 const LOCAL_STORAGE_DIR = path.join(__dirname, '../uploads/driver-documents');
-if (!fs.existsSync(LOCAL_STORAGE_DIR)) {
+
+// Identity documents must NEVER be written to the server disk in production.
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}
+
+if (!isProduction() && !fs.existsSync(LOCAL_STORAGE_DIR)) {
   try {
     fs.mkdirSync(LOCAL_STORAGE_DIR, { recursive: true });
   } catch (e) {}
+}
+
+function storageUnavailableError() {
+  return new Error('Document storage is temporarily unavailable. Please try again later.');
 }
 
 /**
@@ -96,6 +106,10 @@ async function uploadDriverDocument({ driverId, documentType, file }) {
         });
 
       if (error) {
+        if (isProduction()) {
+          console.error('[SupabaseStorage] Remote upload error (no local fallback in production):', error.message);
+          throw storageUnavailableError();
+        }
         console.warn('[SupabaseStorage] Remote upload error, falling back to local:', error.message);
       } else {
         return {
@@ -106,11 +120,19 @@ async function uploadDriverDocument({ driverId, documentType, file }) {
         };
       }
     } catch (err) {
+      if (isProduction()) {
+        if (err && err.message === storageUnavailableError().message) throw err;
+        console.error('[SupabaseStorage] Remote client exception (no local fallback in production):', err.message);
+        throw storageUnavailableError();
+      }
       console.warn('[SupabaseStorage] Remote client exception, using fallback:', err.message);
     }
+  } else if (isProduction()) {
+    console.error('[SupabaseStorage] Supabase client is not configured; refusing to store documents locally in production.');
+    throw storageUnavailableError();
   }
 
-  // Graceful local disk storage for test suite & offline dev
+  // Local disk storage: development and test suite ONLY
   const targetDir = path.join(LOCAL_STORAGE_DIR, driverId);
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
@@ -148,7 +170,8 @@ async function getSignedUrl(storagePath, expiresIn = 900) {
     }
   }
 
-  // Fallback for local files / offline test suite
+  // Local files are served only outside production (development / test suite)
+  if (isProduction()) return null;
   return `/api/driver/documents/raw?path=${encodeURIComponent(storagePath)}`;
 }
 
@@ -159,5 +182,6 @@ module.exports = {
   validateFile,
   uploadDriverDocument,
   getSignedUrl,
-  LOCAL_STORAGE_DIR
+  LOCAL_STORAGE_DIR,
+  isProduction
 };

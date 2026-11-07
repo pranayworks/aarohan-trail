@@ -58,7 +58,12 @@ COPY --from=builder /app/admin ./admin
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/assets ./assets
 COPY --from=builder /app/server.js ./server.js
-COPY --from=builder /app/index.html ./index.html
+COPY --from=builder /app/landing.html ./landing.html
+# Needed at runtime: location data, legal pages, admin script, and the Prisma CLI for `migrate deploy`
+COPY --from=builder /app/data ./data
+COPY --from=builder /app/legal ./legal
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Set proper ownership
 RUN chown -R aarohan:aarohan /app

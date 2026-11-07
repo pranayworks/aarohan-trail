@@ -1,4 +1,7 @@
 const crypto = require('crypto');
+const featureFlags = require('../services/featureFlags');
+const { emitTripEvent, stripSecrets, emitToDriver } = require('./emitters');
+const dispatchService = require('../services/dispatch');
 const { z } = require('zod');
 const prisma = require('../lib/prisma');
 const dbLedger = require('../services/dbLedger');
@@ -121,6 +124,23 @@ function registerTripHandlers(io, socket) {
       }
       const reqData = parsed.data;
 
+      // Money-safety rules ---------------------------------------------------
+      // 1) Production (or REQUIRE_FARE_QUOTE=true): the price MUST come from a
+      //    server-signed quote. A request without one is refused, so a client can
+      //    never choose its own fare, distance or coordinates.
+      const strictMode = featureFlags.isProduction() || process.env.REQUIRE_FARE_QUOTE === 'true';
+      if (strictMode && !reqData.quoteId) {
+        throw new Error('A valid fare quote is required. Please recalculate your route and try again.');
+      }
+      if (strictMode && (typeof reqData.pickup !== 'object' || typeof reqData.destination !== 'object')) {
+        throw new Error('Pickup and destination coordinates are required.');
+      }
+      // 2) While real payments are off (cash-only pilot), only cash can be booked.
+      const requestedMethod = String(reqData.paymentMethod || '').toUpperCase();
+      if (!featureFlags.paymentsEnabled() && !requestedMethod.includes('CASH')) {
+        throw new Error('Only cash payment is available right now. Please choose Cash and pay your driver directly.');
+      }
+
       const user = await prisma.user.findUnique({ where: { id: socket.userId }, select: { status: true } });
       if (!user || user.status !== 'ACTIVE') {
         throw new Error('Account inactive. Cannot request trips.');
@@ -175,14 +195,14 @@ function registerTripHandlers(io, socket) {
 
       const commission = Math.round(fare * 0.30);
       const driverShare = fare - commission;
-      const pin = Math.floor(1000 + Math.random() * 9000).toString();
+      const pin = crypto.randomInt(1000, 10000).toString(); // cryptographically secure
 
       // For parcels: generate 4-digit recipient delivery code
       let deliveryCode = null;
       let deliveryCodeHash = null;
       const parcelDeliveryChannel = (process.env.PARCEL_CODE_DELIVERY || 'sender').toLowerCase(); // 'sms' | 'sender'
       if (serviceType === 'PARCEL') {
-        deliveryCode = Math.floor(1000 + Math.random() * 9000).toString();
+        deliveryCode = crypto.randomInt(1000, 10000).toString();
         deliveryCodeHash = hashDeliveryCode(deliveryCode);
 
         const parcelRecipientPhone = (reqData.parcelDetail?.recipientPhone || reqData.parcel?.recipientPhone);
@@ -286,8 +306,14 @@ function registerTripHandlers(io, socket) {
       }
 
       socket.join(`trip:${trip.id}`);
-      io.emit('trip:requested', trip);
+      emitTripEvent(io, 'trip:requested', trip);
       if (typeof callback === 'function') callback({ success: true, trip });
+
+      // Start the sequential driver offers: nearest eligible driver first, 15 seconds each.
+      // (Only the offered driver is told about the ride; nothing is broadcast.)
+      if (process.env.AUTO_DISPATCH !== 'false') {
+        dispatchService.startDispatch(trip.id).catch((e) => console.warn('[Dispatch] Could not start dispatch:', e.message));
+      }
     } catch (err) {
       console.warn('[TripRequest] Error:', err.message);
       const isDuplicateActive = err.code === 'P2002' || err.message.includes('unique_active_trip_per_rider');
@@ -310,6 +336,15 @@ function registerTripHandlers(io, socket) {
 
       if (socket.userRole !== 'DRIVER' || !socket.driverId) {
         throw new Error('Unauthorized: Only registered drivers can accept trips');
+      }
+
+      // In production (or REQUIRE_OFFER_TO_ACCEPT=true) a driver can only accept a ride that was
+      // offered to them and whose 15-second window is still open.
+      if (featureFlags.isProduction() || process.env.REQUIRE_OFFER_TO_ACCEPT === 'true') {
+        const openOffer = await prisma.tripOffer.findFirst({
+          where: { tripId, driverId: socket.driverId, status: 'PENDING', expiresAt: { gt: new Date() } }
+        });
+        if (!openOffer) throw new Error('This ride was not offered to you, or the offer has expired');
       }
 
       const updatedTrip = await prisma.$transaction(async (tx) => {
@@ -354,6 +389,16 @@ function registerTripHandlers(io, socket) {
           throw new Error('Trip already accepted by another driver');
         }
 
+        // Keep the dispatch records consistent with what just happened.
+        await tx.tripOffer.updateMany({
+          where: { tripId, driverId: socket.driverId, status: 'PENDING' },
+          data: { status: 'ACCEPTED', respondedAt: new Date() }
+        });
+        await tx.tripOffer.updateMany({
+          where: { tripId, status: 'PENDING' },
+          data: { status: 'EXPIRED', respondedAt: new Date() }
+        });
+
         const accepted = await tx.trip.findUnique({
           where: { id: tripId },
           include: {
@@ -375,10 +420,11 @@ function registerTripHandlers(io, socket) {
         return accepted;
       }, { maxWait: 10000, timeout: 30000 });
 
+      dispatchService.clearOfferTimer(tripId);
       socket.join(`trip:${updatedTrip.id}`);
-      io.to(`trip:${updatedTrip.id}`).emit('trip:accepted', { trip: updatedTrip, driver: updatedTrip.driver });
-      io.emit('trip:accepted', { trip: updatedTrip, driver: updatedTrip.driver });
-      if (typeof callback === 'function') callback({ success: true, trip: updatedTrip });
+      emitTripEvent(io, 'trip:accepted', updatedTrip, (t) => ({ trip: t, driver: t.driver }));
+      // The driver's own acknowledgement never contains the rider's safety PIN.
+      if (typeof callback === 'function') callback({ success: true, trip: stripSecrets(updatedTrip) });
     } catch (err) {
       console.warn('[TripAccept] Error:', err.message);
       const isDuplicateDriver = err.code === 'P2002' || err.message.includes('already accepted');
@@ -467,9 +513,34 @@ function registerTripHandlers(io, socket) {
         }).catch(e => console.warn('[GPSTrail] recordLocationPoint error:', e.message));
       }
 
-      socket.broadcast.emit('trip:driver_moved', { ...parsed.data, driverId: socket.driverId });
+      // Live GPS goes only to the rider of the driver's active trip and to ops staff.
+      const movePayload = { ...parsed.data, driverId: socket.driverId };
+      if (activeTrip) {
+        io.to(`trip:${activeTrip.id}`).emit('trip:driver_moved', movePayload);
+      }
+      io.to('ops').emit('trip:driver_moved', movePayload);
     } catch (err) {
       console.warn('[DriverMoved] Error:', err.message);
+    }
+  });
+
+  // 4b. Driver declines the current offer: dispatch moves on to the next nearest driver
+  socket.on('trip:decline', async (data = {}, callback) => {
+    try {
+      const tripId = typeof data === 'string' ? data : data?.tripId;
+      if (typeof tripId !== 'string' || !tripId) throw new Error('tripId is required');
+      if (socket.userRole !== 'DRIVER' || !socket.driverId) {
+        throw new Error('Unauthorized: Only registered drivers can decline offers');
+      }
+      // Only the driver who actually holds the open offer can decline it.
+      const offer = await prisma.tripOffer.findFirst({
+        where: { tripId, driverId: socket.driverId, status: 'PENDING' }
+      });
+      if (offer) await dispatchService.declineTripOffer(tripId, socket.driverId);
+      if (typeof callback === 'function') callback({ success: true });
+    } catch (err) {
+      console.warn('[TripDecline] Error:', err.message);
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
@@ -508,9 +579,8 @@ function registerTripHandlers(io, socket) {
         return t;
       }, { maxWait: 10000, timeout: 30000 });
 
-      io.to(`trip:${updated.id}`).emit('trip:arrived', updated);
-      io.emit('trip:arrived', updated);
-      if (typeof callback === 'function') callback({ success: true, trip: updated });
+      emitTripEvent(io, 'trip:arrived', updated);
+      if (typeof callback === 'function') callback({ success: true, trip: stripSecrets(updated) });
     } catch (err) {
       socket.emit('trip:error', { error: err.message });
       if (typeof callback === 'function') callback({ success: false, error: err.message });
@@ -564,9 +634,8 @@ function registerTripHandlers(io, socket) {
         return t;
       }, { maxWait: 10000, timeout: 30000 });
 
-      io.to(`trip:${updated.id}`).emit('trip:in_transit', updated);
-      io.emit('trip:in_transit', updated);
-      if (typeof callback === 'function') callback({ success: true, trip: updated });
+      emitTripEvent(io, 'trip:in_transit', updated);
+      if (typeof callback === 'function') callback({ success: true, trip: stripSecrets(updated) });
     } catch (err) {
       socket.emit('trip:error', { error: err.message });
       if (typeof callback === 'function') callback({ success: false, error: err.message });
@@ -590,8 +659,10 @@ function registerTripHandlers(io, socket) {
         throw new Error('Unauthorized: Driver does not own this trip');
       }
 
-      const paymentMethod = completionData.paymentMethod || trip.paymentMethod || 'CASH';
-      const driverTip = completionData.driverTip || trip.driverTipMWK || 0;
+      // Authoritative values come from the stored trip. A driver can never pick the
+      // payment method or invent a tip that gets charged to the rider.
+      const paymentMethod = trip.paymentMethod || 'CASH';
+      const driverTip = trip.driverTipMWK || 0;
 
       // Parcel delivery verification: recipient one-time code required
       if (trip.serviceType === 'PARCEL') {
@@ -669,22 +740,22 @@ function registerTripHandlers(io, socket) {
         }).catch(e => console.warn('[TripComplete] Error resetting driver availability:', e.message));
       }
 
-      io.to(`trip:${trip.id}`).emit('trip:completed', {
-        trip: settleResult.trip,
-        journalId: settleResult.journalId,
-        netBalanceSum: settleResult.netBalanceSum,
-        breakdown: settleResult.breakdown
-      });
-      io.emit('trip:completed', {
-        trip: settleResult.trip,
-        journalId: settleResult.journalId,
-        netBalanceSum: settleResult.netBalanceSum,
-        breakdown: settleResult.breakdown
-      });
+      emitTripEvent(
+        io,
+        'trip:completed',
+        settleResult.trip,
+        (t) => ({
+          trip: t,
+          journalId: settleResult.journalId,
+          netBalanceSum: settleResult.netBalanceSum,
+          breakdown: settleResult.breakdown
+        }),
+        { riderId: trip.riderId, driverUserId: trip.driver?.userId || null }
+      );
       if (typeof callback === 'function') {
         callback({
           success: true,
-          trip: settleResult.trip,
+          trip: stripSecrets(settleResult.trip),
           journalId: settleResult.journalId,
           breakdown: settleResult.breakdown
         });
@@ -753,11 +824,18 @@ function registerTripHandlers(io, socket) {
       const tripId = typeof data === 'string' ? data : data.tripId;
       const reason = (typeof data === 'object' && data.reason) ? data.reason : 'Cancelled by user';
 
+      // Only the trip's own rider or assigned driver may cancel it (never by ID alone),
+      // and finished trips can no longer be cancelled.
+      const ownership = [{ riderId: socket.userId }];
+      if (socket.driverId) ownership.push({ driverId: socket.driverId });
       const trip = await prisma.trip.findFirst({
-        where: tripId ? { id: tripId } : {
-          OR: [{ riderId: socket.userId }, { driverId: socket.driverId }],
-          status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED'] }
-        }
+        where: tripId
+          ? {
+              id: tripId,
+              OR: ownership,
+              status: { notIn: ['COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED', 'NO_DRIVERS'] }
+            }
+          : { OR: ownership, status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED'] } }
       });
 
       if (trip) {
@@ -786,8 +864,32 @@ function registerTripHandlers(io, socket) {
           return t;
         });
 
-        io.to(`trip:${updated.id}`).emit('trip:cancelled', { tripId: updated.id, status: newStatus, reason });
-        io.emit('trip:cancelled', { tripId: updated.id, status: newStatus, reason });
+        const cancelledDriver = trip.driverId
+          ? await prisma.driver.findUnique({ where: { id: trip.driverId }, select: { userId: true } })
+          : null;
+        emitTripEvent(
+          io,
+          'trip:cancelled',
+          updated,
+          () => ({ tripId: updated.id, status: newStatus, reason }),
+          { riderId: trip.riderId, driverUserId: cancelledDriver?.userId || null }
+        );
+
+        // Withdraw any open ride offer and tell the driver it was offered to.
+        dispatchService.clearOfferTimer(trip.id);
+        const openOffers = await prisma.tripOffer.findMany({
+          where: { tripId: trip.id, status: 'PENDING' },
+          select: { driverId: true }
+        });
+        if (openOffers.length) {
+          await prisma.tripOffer.updateMany({
+            where: { tripId: trip.id, status: 'PENDING' },
+            data: { status: 'EXPIRED', respondedAt: new Date() }
+          });
+          for (const o of openOffers) {
+            emitToDriver(io, o.driverId, 'trip:cancelled', { tripId: trip.id, status: newStatus, reason });
+          }
+        }
         if (typeof callback === 'function') callback({ success: true, trip: updated });
       }
     } catch (err) {

@@ -4,6 +4,9 @@ const { z } = require('zod');
 const prisma = require('../lib/prisma');
 const dispatchService = require('../services/dispatch');
 const financeService = require('../services/finance');
+const settlementService = require('../services/settlements');
+const reportService = require('../services/reports');
+const featureFlags = require('../services/featureFlags');
 const paymentManager = require('../services/payments');
 const authService = require('../services/auth');
 const pushNotificationService = require('../services/pushNotification');
@@ -103,13 +106,19 @@ router.post('/drivers/location', requireDriverApproval, validateBody(restDriverL
   }
 });
 
-// 3. Driver Financial Summary
-router.get('/driver/financial-summary/:driverId', (req, res) => {
-  if (req.user?.role !== 'ADMIN' && req.user?.driverId !== req.params.driverId) {
-    return res.status(403).json({ error: 'Forbidden: You can only view your own financial summary' });
+// 3. Driver Financial Summary (computed from PostgreSQL)
+router.get('/driver/financial-summary/:driverId', async (req, res) => {
+  try {
+    const privileged = ['ADMIN', 'FINANCE', 'SUPPORT'].includes(req.user?.role);
+    if (!privileged && req.user?.driverId !== req.params.driverId) {
+      return res.status(403).json({ error: 'Forbidden: You can only view your own financial summary' });
+    }
+    const summary = await reportService.driverFinancialSummary(req.params.driverId);
+    if (!summary) return res.status(404).json({ error: 'Driver not found' });
+    res.json(summary);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  const summary = financeService.getDriverFinancialSummary(req.params.driverId);
-  res.json(summary);
 });
 
 // 3b. Driver Commission & Earnings Summary
@@ -165,36 +174,26 @@ router.get('/driver/commission-summary', async (req, res) => {
 // 4. Submit Cash Commission Settlement (Supports /driver/settlements and /driver/cash-settlement/submit)
 const handleSettlementSubmission = async (req, res) => {
   try {
+    // Identity comes ONLY from the verified JWT, never from the request body.
     const driver = await prisma.driver.findFirst({ where: { userId: req.user.id } });
-    const driverId = driver ? driver.id : (req.body.driverId || req.user.driverId);
-    if (!driverId) {
+    if (!driver) {
       return res.status(400).json({ error: 'Driver identity required' });
     }
 
-    const amount = parseInt(req.body.amount, 10);
-    const reference = (req.body.mobileMoneyReference || req.body.remittanceReference || req.body.reference || '').trim();
-    if (!amount || amount <= 0) {
-      return res.status(400).json({ error: 'Valid settlement amount required (must be > 0)' });
-    }
-    if (!reference) {
-      return res.status(400).json({ error: 'Mobile money reference required' });
-    }
-
-    const remittanceMethod = req.body.provider || req.body.remittanceMethod || 'AIRTEL_MONEY';
-    const settlement = financeService.submitCashCommissionSettlement({
-      driverId,
-      amount,
-      remittanceMethod,
-      remittanceReference: reference,
-      notes: req.body.notes || `Settlement submitted by driver ${driverId}`
+    const settlement = await settlementService.submit({
+      driverId: driver.id,
+      amountMWK: req.body.amount,
+      method: req.body.provider || req.body.remittanceMethod,
+      reference: req.body.mobileMoneyReference || req.body.remittanceReference || req.body.reference,
+      notes: req.body.notes
     });
 
     if (req.app.get('io')) {
-      req.app.get('io').emit('commission:settlement_submitted', settlement);
+      req.app.get('io').to('ops').emit('commission:settlement_submitted', settlement);
     }
     res.json({ success: true, settlement });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 };
 
@@ -204,8 +203,14 @@ router.post('/driver/cash-settlement/submit', requireRole('DRIVER'), handleSettl
 // 5. Driver Payout Request
 router.post('/driver/payout/request', requireRole('DRIVER'), validateBody(restPayoutRequestSchema), async (req, res) => {
   try {
+    if (!featureFlags.payoutsEnabled()) {
+      return res.status(403).json({
+        error: 'Driver payouts are not enabled yet. Your earnings are recorded and will be paid out when mobile money payouts launch.',
+        code: 'PAYOUTS_DISABLED'
+      });
+    }
     const { amount, provider, destinationPhone, idempotencyKey } = req.body;
-    const driverId = req.user.driverId || req.body.driverId;
+    const driverId = req.user.driverId;
     const adapter = paymentManager.getAdapter(provider || 'sandbox');
     const payout = await financeService.requestDriverPayout({
       driverId,
@@ -217,7 +222,7 @@ router.post('/driver/payout/request', requireRole('DRIVER'), validateBody(restPa
     });
 
     if (req.app.get('io')) {
-      req.app.get('io').emit('driver:payout_processed', payout);
+      req.app.get('io').to(`driver:${driverId}`).emit('driver:payout_processed', payout);
     }
     res.json({ success: true, payout });
   } catch (err) {
@@ -388,6 +393,24 @@ router.get('/driver/documents', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    if (req.user.role === 'ADMIN' || req.user.role === 'SUPPORT') {
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId: req.user.id,
+            action: 'ADMIN_DOCUMENTS_VIEWED',
+            entityType: 'DRIVER',
+            entityId: targetDriverId,
+            details: { documentCount: docs.length },
+            ipAddress: req.ip || null,
+            userAgent: req.headers['user-agent'] || null
+          }
+        });
+      } catch (auditErr) {
+        console.error('[Audit] Failed to record document access:', auditErr.message);
+      }
+    }
+
     const driverUser = await prisma.driver.findUnique({
       where: { id: targetDriverId },
       include: { user: true }
@@ -431,6 +454,9 @@ router.get('/driver/documents', async (req, res) => {
 // Raw file streaming for local offline fallback with strict ownership protection
 router.get('/driver/documents/raw', async (req, res) => {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ error: 'Not found' });
+    }
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -456,7 +482,11 @@ router.get('/driver/documents/raw', async (req, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const fullPath = path.join(supabaseStorage.LOCAL_STORAGE_DIR, relPath);
+    const baseDir = path.resolve(supabaseStorage.LOCAL_STORAGE_DIR);
+    const fullPath = path.resolve(baseDir, relPath);
+    if (!fullPath.startsWith(baseDir + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
     if (!fs.existsSync(fullPath)) {
       return res.status(404).json({ error: 'Document file not found' });
     }

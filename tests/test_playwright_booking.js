@@ -16,10 +16,12 @@
 
 require('dotenv').config();
 const assert = require('assert');
+const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const { chromium } = require('playwright');
 const prisma = require('../lib/prisma');
 const authService = require('../services/auth');
+const dispatchService = require('../services/dispatch');
 const { server } = require('../server');
 const { JWT_SECRET } = require('./auth_helper');
 
@@ -68,7 +70,13 @@ async function runBrowserE2E() {
       });
     } catch (err) {
       if (err.code !== 'EADDRINUSE') throw err;
-      console.log('[Setup] Server already running on port 3000.');
+      // Another process is already serving port 3000: either an old `node server.js` (stale code)
+      // or another test run using the same database and the same demo users. Either one makes this
+      // browser test unreliable (events and trips from the other run leak into this one).
+      throw new Error(
+        'Port 3000 is already in use. Stop any other server or test run first ' +
+        '(Ctrl+C in every other terminal), then run this test on its own.'
+      );
     }
   }
 
@@ -91,10 +99,35 @@ async function runBrowserE2E() {
     include: { driverProfile: true }
   });
   if (driverUser && driverUser.driverProfile) {
+    // Make the test driver eligible for dispatch: approved, online, no commission debt (over the
+    // limit blocks offers), and a fresh GPS fix close to the rider's pickup.
     await prisma.driver.update({
       where: { id: driverUser.driverProfile.id },
-      data: { approvalStatus: 'APPROVED', availability: 'ONLINE' }
+      data: {
+        approvalStatus: 'APPROVED',
+        availability: 'ONLINE',
+        commissionDebtMWK: 0,
+        currentLat: -13.9650,
+        currentLng: 33.7820,
+        lastLocationAt: new Date()
+      }
     });
+  }
+
+  // Isolate dispatch: only the test driver may receive the ride offer. Drivers that earlier test
+  // suites left ONLINE would otherwise (correctly) be offered the ride first, since ride requests
+  // are no longer broadcast to every driver. They are put back in the `finally` block.
+  let restoreDriverIds = [];
+  if (driverUser && driverUser.driverProfile) {
+    const others = await prisma.driver.findMany({
+      where: { availability: 'ONLINE', id: { not: driverUser.driverProfile.id } },
+      select: { id: true }
+    });
+    restoreDriverIds = others.map((d) => d.id);
+    if (restoreDriverIds.length) {
+      await prisma.driver.updateMany({ where: { id: { in: restoreDriverIds } }, data: { availability: 'OFFLINE' } });
+    }
+    console.log(`[Setup] Isolated test driver (${restoreDriverIds.length} other online driver(s) set offline for this run).`);
   }
 
   // 3. Launch Playwright Chromium
@@ -117,6 +150,25 @@ async function runBrowserE2E() {
 
   const pageRider = await riderContext.newPage();
   const pageDriver = await driverContext.newPage();
+
+  // Diagnostics: print real browser errors as they happen (and save them to a file),
+  // so a failure explains itself.
+  const DIAG_FILE = 'docs/playwright-diagnostics.txt';
+  try { fs.writeFileSync(DIAG_FILE, `Playwright run ${new Date().toISOString()}\n`); } catch (e) {}
+  const stripQuery = (u) => String(u).split('?')[0].slice(0, 120); // never log tokens in URLs
+  const diagLog = (line) => {
+    console.log(line);
+    try { fs.appendFileSync(DIAG_FILE, line + '\n'); } catch (e) {}
+  };
+  const NOISE = /tailwind|favicon|Origin-Agent-Cluster|enable_copy/i;
+  for (const [label, pg] of [['rider', pageRider], ['driver', pageDriver]]) {
+    pg.on('pageerror', (e) => diagLog(`  [Browser error · ${label}] ${e.message}`));
+    pg.on('console', (m) => {
+      if (m.type() === 'error' && !NOISE.test(m.text())) diagLog(`  [Browser console · ${label}] ${m.text().slice(0, 300)}`);
+    });
+    pg.on('requestfailed', (r) => diagLog(`  [Request failed · ${label}] ${r.method()} ${stripQuery(r.url())}`));
+    pg.on('response', (r) => { if (r.status() >= 400) diagLog(`  [HTTP ${r.status()} · ${label}] ${stripQuery(r.url())}`); });
+  }
 
   // Auto-accept alert/confirm dialogs
   pageRider.on('dialog', async d => {
@@ -345,7 +397,11 @@ async function runBrowserE2E() {
     // STEP 4: Driver Receives Dispatch Offer & Accepts
     // -------------------------------------------------------------------------
     console.log('\n--- Step 4: Driver Accepts Incoming Request ---');
-    await pageDriver.waitForSelector('#incoming-request-modal:not(.hidden)', { timeout: 12000 });
+    // Dispatch makes several database calls before the offer is sent; from a remote machine each one
+    // is slow, so allow a realistic wait. The offer then stays open for 15 seconds.
+    const offerWaitStart = Date.now();
+    await pageDriver.waitForSelector('#incoming-request-modal:not(.hidden)', { timeout: 45000 });
+    console.log(`  [Timing] Offer reached the driver screen ${((Date.now() - offerWaitStart) / 1000).toFixed(1)}s after the rider booked`);
 
     const incomingFare = await pageDriver.locator('#incoming-fare-num').innerText();
     const incomingPickup = await pageDriver.locator('#incoming-pickup-text').innerText();
@@ -612,7 +668,7 @@ async function runBrowserE2E() {
     console.log('  [PASS] Parcel courier booking dispatched');
 
     // Driver receives incoming request modal
-    await pageDriver.waitForSelector('#incoming-request-modal:not(.hidden)', { timeout: 20000 });
+    await pageDriver.waitForSelector('#incoming-request-modal:not(.hidden)', { timeout: 45000 });
     const isIncomingParcel = await pageDriver.locator('#incoming-parcel-card').isVisible();
     assert.strictEqual(isIncomingParcel, true, 'Incoming parcel card must be visible on incoming modal');
     console.log('  [PASS] Driver received incoming request with Parcel indicator');
@@ -697,6 +753,55 @@ async function runBrowserE2E() {
     testPassed = true;
 
   } finally {
+    if (!testPassed) {
+      // Dispatch state straight from the database: why did (or didn't) the driver get an offer?
+      try {
+        if (driverUser && driverUser.driverProfile) {
+          const drv = await prisma.driver.findUnique({
+            where: { id: driverUser.driverProfile.id },
+            select: { availability: true, approvalStatus: true, commissionDebtMWK: true, lastLocationAt: true, currentLat: true, currentLng: true, vehicle: { select: { type: true } } }
+          });
+          diagLog(`  [Dispatch snapshot] test driver: ${JSON.stringify({ ...drv, gpsAgeSec: drv.lastLocationAt ? Math.round((Date.now() - drv.lastLocationAt.getTime()) / 1000) : null })}`);
+          const riderRow = await prisma.user.findUnique({ where: { phone: RIDER_PHONE }, select: { id: true } });
+          const trip = riderRow && await prisma.trip.findFirst({
+            where: { riderId: riderRow.id },
+            orderBy: { createdAt: 'desc' },
+            include: { offers: { select: { driverId: true, status: true, expiresAt: true } } }
+          });
+          if (trip) {
+            diagLog(`  [Dispatch snapshot] latest rider trip: ${JSON.stringify({ status: trip.status, tier: trip.tier, driverId: trip.driverId, pickup: [trip.pickupLat, trip.pickupLng], offers: trip.offers })}`);
+            const eligible = await dispatchService.findNearbyDrivers(trip.pickupLat, trip.pickupLng, String(trip.tier).toLowerCase());
+            diagLog(`  [Dispatch snapshot] eligible drivers for this pickup: ${JSON.stringify(eligible.map((d) => ({ id: d.driverId || d.id, km: d.distanceKm })))}`);
+            diagLog(`  [Dispatch snapshot] test driver id: ${driverUser.driverProfile.id}`);
+          } else {
+            diagLog('  [Dispatch snapshot] no trip exists for the rider (booking request was not accepted)');
+          }
+        }
+      } catch (e) {
+        diagLog(`  [Dispatch snapshot] unavailable: ${e.message}`);
+      }
+      // Show what each screen looked like at the moment of failure.
+      for (const [label, pg] of [['rider', pageRider], ['driver', pageDriver]]) {
+        try {
+          const info = await pg.evaluate(() => ({
+            url: location.pathname,
+            visiblePanels: Array.from(document.querySelectorAll('.view-panel'))
+              .filter((p) => !p.classList.contains('hidden')).map((p) => p.id),
+            authModalOpen: !!document.getElementById('aarohan-auth-modal'),
+            activeTripStatus: (window.mwendoStore && window.mwendoStore.getState().activeTrip || {}).status || null
+          }));
+          diagLog(`  [Failure snapshot · ${label}] ${JSON.stringify(info)}`);
+          await pg.screenshot({ path: `docs/screenshots/playwright-failure-${label}.png` });
+        } catch (e) {
+          diagLog(`  [Failure snapshot · ${label}] unavailable: ${e.message}`);
+        }
+      }
+    }
+    try {
+      if (restoreDriverIds.length) {
+        await prisma.driver.updateMany({ where: { id: { in: restoreDriverIds } }, data: { availability: 'ONLINE' } });
+      }
+    } catch (e) { console.log('  [Cleanup] Could not restore driver availability:', e.message); }
     await browser.close();
     if (serverStartedLocally && server.listening) {
       server.close();

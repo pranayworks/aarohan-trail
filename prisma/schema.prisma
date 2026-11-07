@@ -209,6 +209,7 @@ enum AuditAction {
   PARCEL_DELIVERED
   SMS_CAP_EXCEEDED
   SMS_TEST_SENT
+  ADMIN_DOCUMENTS_VIEWED
 }
 
 enum SmsPurpose {
@@ -315,6 +316,7 @@ model Driver {
   tripsAsDriver     Trip[]             @relation("DriverTrips")
   offers            TripOffer[]
   settlements       DriverSettlement[]
+  remittances       CommissionRemittance[]
   locationPoints    TripLocationPoint[]
 
   @@index([approvalStatus, availability])
@@ -846,4 +848,36 @@ model SmsLog {
   @@index([status, createdAt])
   @@index([provider, createdAt])
   @@index([providerMessageId])
+}
+
+// ============================================================================
+// DRIVER CASH-COMMISSION REMITTANCES (replaces the legacy JSON settlement queue)
+// Partial unique index on lower(reference) WHERE status <> 'REJECTED' lives in
+// the raw SQL migration (Prisma cannot express partial indexes).
+// ============================================================================
+
+enum RemittanceStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+}
+
+model CommissionRemittance {
+  id          String           @id @default(uuid())
+  driverId    String
+  driver      Driver           @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  amountMWK   Int
+  method      String           // AIRTEL_MONEY | TNM_MPAMBA | BANK_TRANSFER
+  reference   String           // Mobile money transaction reference
+  notes       String?
+  status      RemittanceStatus @default(PENDING_VERIFICATION)
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNotes String?
+  journalId   String?
+  submittedAt DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([status, submittedAt])
+  @@index([driverId, status])
 }

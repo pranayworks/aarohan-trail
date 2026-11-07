@@ -30,6 +30,11 @@
     category: 'Printing & Commercial'
   };
 
+  // Login-protected API calls MUST carry the access token (and refresh it once on 401).
+  const authFetch = (url, options) => (window.aarohanAuth && window.aarohanAuth.fetchWithAuth)
+    ? window.aarohanAuth.fetchWithAuth(url, options)
+    : fetch(url, options);
+
   // Active Quote from Backend
   let activeQuote = null;
   let activeTierId = 'moto'; // 'moto' | 'auto' | 'cab'
@@ -2630,7 +2635,7 @@
   };
 
   window.confirmIntercityReservationAction = function () {
-    const passName = document.getElementById('intercity-pass-name')?.value.trim() || 'Chisomo Banda';
+    const passName = document.getElementById('intercity-pass-name')?.value.trim() || '';
     const passPhone = document.getElementById('intercity-pass-phone')?.value.trim() || '+265 99 123 4567';
     const data = window.selectedIntercityData;
     const fare = (data.mode === 'sedan') ? data.sedanFare : data.shuttleFare;
@@ -3114,6 +3119,22 @@
         const btn = document.getElementById('btn-dev-simulate-location');
         if (btn) btn.classList.remove('hidden');
       }
+      // Cash-only pilot: real payments are off, so offer Cash as the ONLY method.
+      if (cfg && cfg.paymentsEnabled === false) {
+        const cash = PAYMENT_METHODS.find(m => m.badge === 'MK');
+        if (cash) {
+          PAYMENT_METHODS.splice(0, PAYMENT_METHODS.length, cash);
+          paymentIdx = 0;
+          activePaymentMethod = cash.name;
+          const nameEl = document.getElementById('payment-name');
+          if (nameEl) nameEl.innerText = cash.name;
+          const subEl = document.getElementById('payment-sub');
+          if (subEl) subEl.innerText = cash.sub;
+          const badgeEl = document.getElementById('payment-badge');
+          if (badgeEl) badgeEl.innerText = cash.badge;
+          if (typeof updateBookingCtaButton === 'function') updateBookingCtaButton();
+        }
+      }
     })
     .catch(() => {});
 
@@ -3233,16 +3254,18 @@
     }
   };
 
-  window.escalateToPoliceEmergency = function () {
+  window.escalateToPoliceEmergency = async function () {
     const modal = document.getElementById('route-deviation-modal');
     if (modal) modal.classList.add('hidden');
 
     const store = window.aarohanStore || window.mwendoStore;
-    if (store) {
-      store.triggerSOS('RIDER', 'CRITICAL: Route deviation >400m from corridor. Police notified.');
-    }
+    const result = store
+      ? await store.triggerSOS('RIDER', 'Rider reported a route deviation of more than 400 m')
+      : { delivered: false };
     if (window.showToast) {
-      window.showToast('🚨 997 Police & AArohan Security Desk dispatched with live telemetry');
+      window.showToast(result.delivered
+        ? '🚨 Aarohan safety team alerted. Calling 997...'
+        : '⚠️ Could not reach Aarohan. Calling 997...');
     }
     setTimeout(() => {
       window.location.href = 'tel:997';
@@ -3267,7 +3290,7 @@
     `;
 
     try {
-      const res = await fetch('/api/trips/history');
+      const res = await authFetch('/api/trips/history');
       if (!res.ok) throw new Error('Failed to load activity');
       const data = await res.json();
       window.allActivityTrips = data.trips || [];
@@ -3502,7 +3525,7 @@
     }
 
     try {
-      const res = await fetch('/api/tickets', {
+      const res = await authFetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tripId, category, subject, description, priority: 'NORMAL' })
@@ -3526,7 +3549,7 @@
     if (!list) return;
 
     try {
-      const res = await fetch('/api/tickets');
+      const res = await authFetch('/api/tickets');
       if (!res.ok) return;
       const data = await res.json();
       const tickets = data.tickets || [];
@@ -3560,7 +3583,7 @@
     if (!modal) return;
 
     try {
-      const res = await fetch(`/api/tickets/${ticketId}/messages`);
+      const res = await authFetch(`/api/tickets/${ticketId}/messages`);
       if (res.ok) {
         const data = await res.json();
         const container = document.getElementById('ticket-chat-messages-container');
@@ -3601,7 +3624,7 @@
     if (!body) return;
 
     try {
-      const res = await fetch(`/api/tickets/${window.activeChatTicketId}/messages`, {
+      const res = await authFetch(`/api/tickets/${window.activeChatTicketId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body })

@@ -107,3 +107,19 @@ Configure in Railway **Settings -> Healthchecks**:
    - HTTP Method: `POST`
 2. Signature verification enforces `X-Twilio-Signature` HMAC-SHA1 against `PUBLIC_BASE_URL`.
 
+## Added: cash-pilot and safety variables (names only; type the values into Railway yourself)
+- `AAROHAN_SECURITY_DESK_PHONE`: REQUIRED. A real +265 number answered 24/7. The server refuses to start in production without it.
+- `PAYMENTS_ENABLED=false` and `PAYOUTS_ENABLED=false`: keep both false for the cash-only pilot.
+- Do NOT set `DATABASE_URL_TEST` or `TEST_DB_PROJECT_REF` (the server refuses to start).
+- After the first deploy run `npx prisma migrate deploy` so the `CommissionRemittance` migration (`20261108_commission_remittance`) is applied.
+- See `docs/cash-pilot.md` for what is on and off during the pilot.
+
+## Running migrations inside the production container (release / pre-deploy command)
+The runtime image does not include the `npx` shortcut for dev tools, but it does include the pinned Prisma CLI. Use:
+
+```
+node node_modules/prisma/build/index.js migrate deploy
+```
+
+Never run `migrate dev` or the seed in production. To create the first admin, open a shell in the deployed service and run
+`node scripts/create-admin.js` (see `docs/first-admin.md`). Also set `CONTACT_EMAIL` so the landing page shows a contact address.

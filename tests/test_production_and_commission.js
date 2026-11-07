@@ -8,7 +8,8 @@ const assert = require('assert');
 const ioClient = require('socket.io-client');
 const prisma = require('../lib/prisma');
 const authService = require('../services/auth');
-const financeService = require('../services/finance');
+// Settlements now live in PostgreSQL (CommissionRemittance), not in the legacy JSON ledger.
+const settlementService = require('../services/settlements');
 const dbLedger = require('../services/dbLedger');
 const { validateStartupConfig, isKnownPlaceholder } = require('../services/configValidator');
 const { logger, maskPhoneNumber, sanitizeString, sanitizeData } = require('../services/logger');
@@ -147,7 +148,8 @@ async function runProductionAndCommissionSuite() {
       JWT_SECRET: 'aarohan-super-strong-production-jwt-secret-key-64-bytes-long-ok',
       OTP_HMAC_SECRET: 'aarohan-otp-hmac-production-key-32-bytes-ok',
       DATABASE_URL: 'postgresql://postgres:securepass@db.supabase.co:5432/aarohan',
-      SUPABASE_SECRET_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.super-long-valid-supabase-service-key'
+      SUPABASE_SECRET_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.super-long-valid-supabase-service-key',
+      AAROHAN_SECURITY_DESK_PHONE: '+265881234567'
     }, true);
     report('Startup configuration check passes with valid production credentials', validConfigResult.valid === true);
 
@@ -376,7 +378,8 @@ async function runProductionAndCommissionSuite() {
       },
       body: JSON.stringify({
         amount: 7500,
-        mobileMoneyReference: 'AM-MW-TEST-7500-REF',
+        // Unique per run: one payment reference can back only one active remittance.
+        mobileMoneyReference: `AM-MW-TEST-7500-${Date.now()}`,
         provider: 'AIRTEL_MONEY'
       })
     });
@@ -413,11 +416,11 @@ async function runProductionAndCommissionSuite() {
 
     // Test: Admin rejection with reason
     // Create a temporary settlement to reject
-    const tempSubmit = financeService.submitCashCommissionSettlement({
+    const tempSubmit = await settlementService.submit({
       driverId: highDebtUser.driverProfile.id,
-      amount: 1000,
-      remittanceReference: 'INVALID-REF-999',
-      remittanceMethod: 'TNM_MPAMBA'
+      amountMWK: 1000,
+      reference: `INVALID-REF-${Date.now()}`,
+      method: 'TNM_MPAMBA'
     });
 
     const rejectRes = await fetch(`${BASE_URL}/api/admin/settlements/${tempSubmit.settlementId}/reject`, {

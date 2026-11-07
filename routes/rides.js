@@ -197,32 +197,14 @@ router.get('/places/search', async (req, res) => {
   }
 });
 
-// 4. Authoritative Ride Completion Endpoint
-router.post('/rides/complete', requireRole('DRIVER', 'ADMIN'), validateBody(restRideCompleteSchema), async (req, res) => {
-  try {
-    const { rideId, driverTip, paymentMethod } = req.body;
-    if (!rideId) return res.status(400).json({ error: 'rideId is required' });
-
-    const completion = dispatchService.completeTrip ? dispatchService.completeTrip(rideId, { driverTip, paymentMethod }) : { rideId, status: 'COMPLETED' };
-
-    let dbResult = null;
-    try {
-      dbResult = await dbLedger.settleRide({
-        tripId: rideId,
-        paymentMethod: paymentMethod || 'CASH',
-        driverTipMWK: driverTip || 0,
-        changedBy: req.user?.id || 'DRIVER'
-      });
-    } catch (e) {
-      // Handled in dispatchService for in-memory / mock rides
-    }
-
-    const io = req.app.get('io');
-    if (io) io.emit('trip:completed', completion);
-    res.json({ success: true, ...completion, dbTrip: dbResult?.trip });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
+// 4. Ride completion over REST is RETIRED. Trips complete only through the realtime
+// `trip:complete` flow, which enforces driver ownership, IN_TRANSIT status and the
+// rider's safety PIN, and takes the payment method and tip from the stored trip.
+router.post('/rides/complete', requireRole('DRIVER', 'ADMIN'), validateBody(restRideCompleteSchema), (req, res) => {
+  res.status(410).json({
+    error: 'This endpoint has been retired. Trips are completed from the driver app after the rider PIN is verified.',
+    code: 'ENDPOINT_RETIRED'
+  });
 });
 
 // 5. Active Trips Lookup (DB Query with strict user isolation)

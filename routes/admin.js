@@ -1,7 +1,8 @@
 const express = require('express');
 const { z } = require('zod');
 const prisma = require('../lib/prisma');
-const financeService = require('../services/finance');
+const settlementService = require('../services/settlements');
+const reportService = require('../services/reports');
 const dbLedger = require('../services/dbLedger');
 const pricingService = require('../services/pricing');
 const dispatchService = require('../services/dispatch');
@@ -28,29 +29,17 @@ const restCashSettlementVerifySchema = z.object({
   notes: z.string().optional()
 });
 
-// Admin Metrics
+// Admin Metrics (every figure is computed from PostgreSQL)
 router.get('/admin/metrics', requireRole('ADMIN'), async (req, res) => {
   try {
-    const finReport = financeService.getPlatformFinancialReport();
-    const activeTripsCount = await prisma.trip.count({
-      where: { status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } }
-    });
-    const completedTripsCount = await prisma.trip.count({
-      where: { status: 'COMPLETED' }
-    });
-    const onlineDriversCount = await prisma.driver.count({
-      where: { availability: 'ONLINE' }
-    });
-
-    const ledgerAgg = await prisma.ledgerEntry.aggregate({
-      where: { account: 'PLATFORM_REVENUE' },
-      _sum: { amountMWK: true }
-    });
-    const dbRevenue = ledgerAgg._sum.amountMWK || 0;
-    const platformRevenueMWK = dbRevenue > 0 ? dbRevenue : (finReport.netPlatformRevenue || 0);
-    const totalVolumeMWK = finReport.totalGMV > 0 ? finReport.totalGMV : Math.round(platformRevenueMWK / 0.30);
-
-    const sosAlertsCount = await prisma.sosEvent.count({ where: { status: 'ACTIVE' } });
+    const [finReport, activeTripsCount, onlineDriversCount, sosAlertsCount] = await Promise.all([
+      reportService.platformFinancialReport(),
+      prisma.trip.count({
+        where: { status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] } }
+      }),
+      prisma.driver.count({ where: { availability: 'ONLINE' } }),
+      prisma.sosEvent.count({ where: { status: 'ACTIVE' } })
+    ]);
 
     const io = req.app.get('io');
     const connectedClients = io ? io.engine?.clientsCount || 0 : 0;
@@ -58,9 +47,9 @@ router.get('/admin/metrics', requireRole('ADMIN'), async (req, res) => {
     res.json({
       activeTripsCount,
       onlineDriversCount: onlineDriversCount || 0,
-      completedTripsCount: completedTripsCount || finReport.totalRidesCount || 0,
-      totalVolumeMWK,
-      platformRevenueMWK,
+      completedTripsCount: finReport.totalRidesCount,
+      totalVolumeMWK: finReport.totalGMV,
+      platformRevenueMWK: finReport.netPlatformRevenue,
       commissionRate: 0.30,
       driverShareRate: 0.70,
       cashGrossVolume: finReport.cashGrossVolume,
@@ -75,12 +64,33 @@ router.get('/admin/metrics', requireRole('ADMIN'), async (req, res) => {
   }
 });
 
-router.get('/admin/financial-report', requireRole('ADMIN'), (req, res) => {
-  res.json(financeService.getPlatformFinancialReport());
+router.get('/admin/financial-report', requireRole('ADMIN', 'FINANCE'), async (req, res) => {
+  try {
+    res.json(await reportService.platformFinancialReport());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.get('/admin/financial-ledger', requireRole('ADMIN'), (req, res) => {
-  res.json(financeService.ledger);
+router.get('/admin/financial-ledger', requireRole('ADMIN', 'FINANCE'), async (req, res) => {
+  try {
+    const [breakdowns, entries] = await Promise.all([
+      reportService.tripBreakdowns({ limit: 200 }),
+      reportService.ledgerEntries({ limit: 200 })
+    ]);
+    res.json({ source: 'postgres', breakdowns, entries });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Per-driver cash collection vs commission remitted (admin reconciliation table)
+router.get('/admin/drivers/debts', requireRole('ADMIN', 'FINANCE', 'SUPPORT'), async (req, res) => {
+  try {
+    res.json({ success: true, drivers: await reportService.driverDebtTable({ limit: 100 }) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Pricing Endpoints
@@ -106,7 +116,7 @@ router.post('/pricing/versions', requireRole('ADMIN'), validateBody(restPricingV
   try {
     const version = await pricingService.createPricingVersion(req.body);
     const io = req.app.get('io');
-    if (io) io.emit('pricing:version_created', version);
+    if (io) io.to('ops').emit('pricing:version_created', version);
     res.json({ success: true, version });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -149,21 +159,28 @@ router.post('/pricing/global', requireRole('ADMIN'), async (req, res) => {
   }
 });
 
-// Cash Commission Verification
-router.post('/admin/cash-settlement/verify', requireRole('ADMIN'), validateBody(restCashSettlementVerifySchema), (req, res) => {
+// Cash Commission Verification (legacy endpoint; same Postgres-backed logic as the queue below)
+router.post('/admin/cash-settlement/verify', requireRole('ADMIN', 'FINANCE'), validateBody(restCashSettlementVerifySchema), async (req, res) => {
   try {
     const { settlementId, approved, notes } = req.body;
-    const result = financeService.verifyCashCommissionSettlement({
-      settlementId,
-      adminId: req.user?.id || 'ADMIN_SUPER',
-      approved,
-      notes
-    });
+    let result;
+    if (approved) {
+      const out = await settlementService.approve({ settlementId, adminUserId: req.user.id, notes });
+      result = out.remittance;
+    } else {
+      result = await settlementService.reject({
+        settlementId,
+        adminUserId: req.user.id,
+        reason: notes || 'Rejected by admin',
+        ipAddress: req.ip || null,
+        userAgent: req.headers['user-agent'] || null
+      });
+    }
     const io = req.app.get('io');
-    if (io) io.emit('commission:settlement_verified', result);
+    if (io) io.to('ops').emit('commission:settlement_verified', result);
     res.json({ success: true, result });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 });
 
@@ -356,7 +373,7 @@ router.post('/admin/drivers/:driverId/approve', requireRole('ADMIN', 'SUPPORT'),
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('driver:status_changed', { driverId, approvalStatus: 'APPROVED' });
+      io.to('ops').to(`driver:${driverId}`).emit('driver:status_changed', { driverId, approvalStatus: 'APPROVED' });
     }
 
     res.json({ success: true, message: 'Driver approved successfully', driver: updated });
@@ -423,7 +440,7 @@ router.post('/admin/drivers/:driverId/reject', requireRole('ADMIN', 'SUPPORT'), 
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('driver:status_changed', { driverId, approvalStatus: 'REJECTED', reason });
+      io.to('ops').to(`driver:${driverId}`).emit('driver:status_changed', { driverId, approvalStatus: 'REJECTED', reason });
     }
 
     res.json({ success: true, message: 'Driver rejected', driver: updated });
@@ -480,7 +497,7 @@ router.post('/admin/drivers/:driverId/suspend', requireRole('ADMIN', 'SUPPORT'),
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('driver:status_changed', { driverId, approvalStatus: 'SUSPENDED', reason });
+      io.to('ops').to(`driver:${driverId}`).emit('driver:status_changed', { driverId, approvalStatus: 'SUSPENDED', reason });
     }
 
     res.json({ success: true, message: 'Driver suspended', driver: updated });
@@ -492,84 +509,32 @@ router.post('/admin/drivers/:driverId/suspend', requireRole('ADMIN', 'SUPPORT'),
 // 6. List Pending Driver Commission Settlements (ADMIN, FINANCE, SUPPORT)
 router.get('/admin/settlements/pending', requireRole('ADMIN', 'FINANCE', 'SUPPORT'), async (req, res) => {
   try {
-    const rawSettlements = (financeService.ledger.cashSettlements || []).filter(s => s.status === 'PENDING_VERIFICATION');
-
-    const enriched = await Promise.all(rawSettlements.map(async (s) => {
-      let driver = null;
-      if (s.driverId) {
-        driver = await prisma.driver.findFirst({
-          where: { OR: [{ id: s.driverId }, { userId: s.driverId }] },
-          include: { user: { select: { name: true, phone: true } }, vehicle: true }
-        });
-      }
-      return {
-        ...s,
-        driverName: driver?.user?.name || 'Driver Partner',
-        driverPhone: driver?.user?.phone || 'N/A',
-        currentDebtMWK: driver?.commissionDebtMWK ?? s.amount,
-        plateNumber: driver?.vehicle?.plateNumber || 'N/A',
-        realDriverId: driver?.id || s.driverId
-      };
-    }));
-
-    res.json({
-      success: true,
-      count: enriched.length,
-      settlements: enriched
-    });
+    const settlements = await settlementService.listPending();
+    res.json({ success: true, count: settlements.length, settlements });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // 7. Approve Commission Settlement (ADMIN, FINANCE)
-// "Approval writes a balanced ledger journal and reduces Driver.commissionDebtMWK in one transaction."
+// The status change and the balanced ledger journal commit in ONE database transaction.
 router.post('/admin/settlements/:settlementId/approve', requireRole('ADMIN', 'FINANCE'), async (req, res) => {
   try {
     const { settlementId } = req.params;
     const { notes } = req.body || {};
 
-    const rawSettlement = (financeService.ledger.cashSettlements || []).find(s => s.settlementId === settlementId);
-    if (!rawSettlement) {
-      return res.status(404).json({ error: `Settlement ${settlementId} not found` });
-    }
-    if (rawSettlement.status === 'VERIFIED') {
-      return res.status(400).json({ error: 'Settlement is already verified' });
-    }
-
-    // Resolve Postgres driver ID
-    let driver = await prisma.driver.findFirst({
-      where: { OR: [{ id: rawSettlement.driverId }, { userId: rawSettlement.driverId }] }
-    });
-
-    if (!driver) {
-      return res.status(404).json({ error: 'Driver associated with settlement not found in database' });
-    }
-
-    // Atomic transaction: write balanced ledger journal and reduce Driver.commissionDebtMWK
-    const ledgerResult = await dbLedger.recordCommissionSettlement({
-      driverId: driver.id,
-      amountMWK: rawSettlement.amount,
-      reference: rawSettlement.remittanceReference,
-      settlementId: rawSettlement.settlementId,
-      verifiedByUserId: req.user.id,
-      notes: notes || 'Admin verified commission remittance'
-    });
-
-    // Update in-memory finance service
-    financeService.verifyCashCommissionSettlement({
-      settlementId: rawSettlement.settlementId,
-      adminId: req.user.id,
-      approved: true,
+    const { remittance, ledgerResult } = await settlementService.approve({
+      settlementId,
+      adminUserId: req.user.id,
       notes
     });
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('commission:settled', {
+      io.to('ops').to(`driver:${remittance.driverId}`).emit('commission:settled', {
         settlementId,
-        driverId: driver.id,
-        amountMWK: rawSettlement.amount,
+        driverId: remittance.driverId,
+        amountMWK: remittance.amount,
         newDebtMWK: ledgerResult.newDebtMWK
       });
     }
@@ -586,7 +551,7 @@ router.post('/admin/settlements/:settlementId/approve', requireRole('ADMIN', 'FI
       entriesCount: ledgerResult.entries.length
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
 });
 
@@ -595,54 +560,118 @@ router.post('/admin/settlements/:settlementId/reject', requireRole('ADMIN', 'FIN
   try {
     const { settlementId } = req.params;
     const reason = req.body?.reason || req.body?.notes;
-    if (!reason) {
-      return res.status(400).json({ error: 'Rejection reason is required' });
-    }
 
-    const rawSettlement = (financeService.ledger.cashSettlements || []).find(s => s.settlementId === settlementId);
-    if (!rawSettlement) {
-      return res.status(404).json({ error: `Settlement ${settlementId} not found` });
-    }
-    if (rawSettlement.status === 'VERIFIED') {
-      return res.status(400).json({ error: 'Cannot reject an already verified settlement' });
-    }
-
-    financeService.verifyCashCommissionSettlement({
-      settlementId: rawSettlement.settlementId,
-      adminId: req.user.id,
-      approved: false,
-      notes: reason
+    const settlement = await settlementService.reject({
+      settlementId,
+      adminUserId: req.user.id,
+      reason,
+      ipAddress: req.ip || null,
+      userAgent: req.headers['user-agent'] || null
     });
 
-    // Log AuditLog
+    const io = req.app.get('io');
+    if (io) io.to('ops').to(`driver:${settlement.driverId}`).emit('commission:rejected', { settlementId, reason: settlement.reviewNotes });
+
+    res.json({
+      success: true,
+      message: 'Settlement rejected',
+      reason: settlement.reviewNotes,
+      settlement
+    });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// 8b. SOS DESK (ADMIN & SUPPORT): unresolved safety incidents
+// ============================================================================
+router.get('/admin/sos/active', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+  try {
+    const events = await prisma.sosEvent.findMany({
+      where: { status: { in: ['ACTIVE', 'ESCALATED_POLICE'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        user: { select: { name: true, phone: true, emergencyContactName: true, emergencyContactPhone: true } },
+        trip: {
+          select: {
+            id: true, status: true, pickupAddress: true, dropoffAddress: true,
+            driver: { select: { user: { select: { name: true, phone: true } }, vehicle: { select: { plateNumber: true } } } }
+          }
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      count: events.length,
+      incidents: events.map((e) => ({
+        id: e.id,
+        status: e.status,
+        createdAt: e.createdAt,
+        lat: e.lat,
+        lng: e.lng,
+        mapsUrl: `https://maps.google.com/?q=${e.lat},${e.lng}`,
+        notes: e.notes,
+        reporterName: e.user?.name || null,
+        reporterPhone: e.user?.phone || null,
+        emergencyContactName: e.user?.emergencyContactName || null,
+        emergencyContactPhone: e.user?.emergencyContactPhone || null,
+        trip: e.trip
+          ? {
+              id: e.trip.id,
+              status: e.trip.status,
+              pickup: e.trip.pickupAddress,
+              dropoff: e.trip.dropoffAddress,
+              driverName: e.trip.driver?.user?.name || null,
+              driverPhone: e.trip.driver?.user?.phone || null,
+              plateNumber: e.trip.driver?.vehicle?.plateNumber || null
+            }
+          : null
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/admin/sos/:id/resolve', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const note = String(req.body?.notes || '').trim().slice(0, 500);
+    const falseAlarm = req.body?.falseAlarm === true;
+
+    const existing = await prisma.sosEvent.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'SOS incident not found' });
+
+    const mergedNotes = [existing.notes, note ? `RESOLUTION: ${note}` : null].filter(Boolean).join('\n');
+    const updated = await prisma.sosEvent.updateMany({
+      where: { id, status: { in: ['ACTIVE', 'ESCALATED_POLICE'] } },
+      data: {
+        status: falseAlarm ? 'FALSE_ALARM' : 'RESOLVED',
+        resolvedAt: new Date(),
+        resolvedBy: req.user.id,
+        notes: mergedNotes
+      }
+    });
+    if (updated.count === 0) return res.status(400).json({ error: 'SOS incident was already resolved' });
+
     await prisma.auditLog.create({
       data: {
         userId: req.user.id,
-        action: 'MANUAL_ADJUSTMENT',
-        entityType: 'COMMISSION_SETTLEMENT',
-        entityId: settlementId,
-        details: {
-          settlementId,
-          reason,
-          driverId: rawSettlement.driverId,
-          amountMWK: rawSettlement.amount
-        },
+        action: 'SOS_RESOLVED',
+        entityType: 'SOS',
+        entityId: id,
+        details: { falseAlarm, note },
         ipAddress: req.ip || null,
         userAgent: req.headers['user-agent'] || null
       }
     });
 
     const io = req.app.get('io');
-    if (io) {
-      io.emit('commission:rejected', { settlementId, reason });
-    }
-
-    res.json({
-      success: true,
-      message: 'Settlement rejected',
-      reason,
-      settlement: rawSettlement
-    });
+    if (io) io.to('ops').emit('sos:resolved', id);
+    res.json({ success: true, status: falseAlarm ? 'FALSE_ALARM' : 'RESOLVED' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

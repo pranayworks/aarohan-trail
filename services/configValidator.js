@@ -99,6 +99,22 @@ function validateStartupConfig(env = process.env, enforceProduction = false) {
     errors.push('SUPABASE_SECRET_KEY uses an insecure placeholder.');
   }
 
+  // 5a. SOS alerts need a confirmed security desk number (no silent default)
+  const desk = (env.AAROHAN_SECURITY_DESK_PHONE || '').trim();
+  if (!/^\+265\d{9}$/.test(desk)) {
+    errors.push('AAROHAN_SECURITY_DESK_PHONE must be set to a real +265 number that staff answer 24/7.');
+  } else if (desk === '+265991234567') {
+    errors.push('AAROHAN_SECURITY_DESK_PHONE must not be the demo rider number (+265991234567).');
+  }
+
+  // 5b. Test-only variables must never exist in production
+  if (env.DATABASE_URL_TEST && String(env.DATABASE_URL_TEST).trim()) {
+    errors.push('DATABASE_URL_TEST must not be set in production.');
+  }
+  if (env.TEST_DB_PROJECT_REF && String(env.TEST_DB_PROJECT_REF).trim()) {
+    errors.push('TEST_DB_PROJECT_REF must not be set in production.');
+  }
+
   if (errors.length > 0) {
     const message = `FATAL: Production startup refused due to configuration errors:\n - ${errors.join('\n - ')}`;
     throw new Error(message);

@@ -14,6 +14,7 @@ const pricingService = require('./services/pricing');
 const locationService = require('./services/location');
 const dispatchService = require('./services/dispatch');
 const financeService = require('./services/finance');
+const featureFlags = require('./services/featureFlags');
 const paymentManager = require('./services/payments');
 const notificationService = require('./services/notifications');
 const prisma = require('./lib/prisma');
@@ -139,8 +140,7 @@ async function expireStaleTrips() {
           }
         });
       }, { maxWait: 10000, timeout: 30000 });
-      io.to(`trip:${trip.id}`).emit('trip:expired', { tripId: trip.id, status: 'NO_DRIVERS' });
-      io.emit('trip:expired', { tripId: trip.id, status: 'NO_DRIVERS' });
+      io.to(`trip:${trip.id}`).to(`user:${trip.riderId}`).emit('trip:expired', { tripId: trip.id, status: 'NO_DRIVERS' });
     }
     return staleTrips;
   } catch (err) {
@@ -180,16 +180,21 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://api.mapbox.com', 'https://cdn.jsdelivr.net'],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com', 'https://fonts.googleapis.com'],
-      imgSrc: ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org'],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://api.mapbox.com', 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
+      // The app screens use inline onclick="..." handlers. Helmet's default `script-src-attr 'none'`
+      // silently disables EVERY one of them, so it must be allowed explicitly.
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com', 'https://fonts.googleapis.com', 'https://unpkg.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'https://api.maptiler.com', 'https://unpkg.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-      connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://nominatim.openstreetmap.org', '*.sentry.io'],
+      connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://api.maptiler.com', 'https://nominatim.openstreetmap.org', '*.sentry.io'],
       workerSrc: ["'self'", 'blob:'],
       childSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
-      formAction: ["'self'"]
+      formAction: ["'self'"],
+      // Only force HTTPS in production, so the app can still be tested over http on a LAN.
+      upgradeInsecureRequests: process.env.NODE_ENV === 'production' ? [] : null
     }
   },
   crossOriginEmbedderPolicy: false
@@ -320,9 +325,9 @@ app.use('/prototypes', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, 'prototypes'), noCacheStatic));
 
-// Ecosystem landing page
+// Public landing page (also the website link shared with SMS and payment providers)
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'landing.html'));
 });
 
 // Network info & QR code
@@ -375,9 +380,10 @@ app.get('/api/app-config', (req, res) => {
     platform: 'Aarohan Mobility',
     appName: 'Aarohan Smart Urban Mobility Platform',
     serviceDescription: 'Real-time urban ride-hailing and parcel logistics ecosystem for Lilongwe, Malawi',
-    contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || 'support@aarohan.mw',
+    contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || '',
     env: process.env.NODE_ENV || 'development',
     allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development',
+    paymentsEnabled: featureFlags.paymentsEnabled(),
     sentryDsn: (process.env.SENTRY_DSN || '').trim(),
     serviceArea: {
       city: 'Lilongwe',

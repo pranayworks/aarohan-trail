@@ -699,9 +699,7 @@
         <div class="bg-white rounded-3xl p-4 shadow-xl border border-slate-100 flex flex-col gap-3">
           <div class="flex items-start justify-between">
             <div class="flex items-center gap-3">
-              <img class="w-12 h-12 rounded-full object-cover shadow-sm ring-2 ring-emerald-500/20"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0aIpY3289Ng22kxuvVA8vpqmfwlDA7tz7TgPwCTpBblBLmfIfEPG-JH9CwdrPV5IN5d_GKyyvYkxbCUIERdF4osBC2Hu9mtMvwVkUDc5-V8WlJgeJJxaSWlGAQv8KQ_JbSPolbq32rh5alrsqzog7mMMHtdvptAuceSsChgRplhWgtLOYXloLQHZLcF2oB9h8Ek6bz9NA8-8I5bgY7m41O6KWIUBV1WAx2B7yeOs56IQNn1i4yCEEcw"
-                alt="Captain" />
+              <span class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center ring-2 ring-emerald-500/20" aria-label="Captain"><svg viewBox="0 0 24 24" class="w-6 h-6 text-slate-500" fill="currentColor" aria-hidden="true"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5z"/></svg></span>
               <div>
                 <h4 class="font-extrabold text-sm text-slate-900" id="tracking-driver-name">Blessings Phiri</h4>
                 <div class="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5" id="tracking-driver-stats">
@@ -1505,7 +1503,7 @@
       <!-- Service & Driver Card -->
       <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
         <div>
-          <span class="font-bold text-slate-900 block" id="receipt-modal-driver-name">Chikondi Phiri</span>
+          <span class="font-bold text-slate-900 block" id="receipt-modal-driver-name">-</span>
           <span class="text-[10px] text-slate-400" id="receipt-modal-driver-veh">TVS King Auto &bull; BT 4421</span>
         </div>
         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800" id="receipt-modal-status">COMPLETED</span>
@@ -3081,14 +3079,21 @@
     function closeSosModal() {
       document.getElementById('sos-modal').classList.add('hidden');
     }
-    function confirmSosAlert() {
-      if (window.mwendoStore) {
-        window.mwendoStore.triggerSOS('RIDER', 'Passenger in Lilongwe triggered emergency alert');
-      }
-      if (typeof window.showToast === 'function') {
-        window.showToast('🚨 Aarohan Security Desk & Police (997) notified with live GPS');
-      }
+    async function confirmSosAlert() {
       closeSosModal();
+      const toast = (msg) => { if (typeof window.showToast === 'function') window.showToast(msg); };
+      toast('Sending SOS...');
+      const result = window.mwendoStore
+        ? await window.mwendoStore.triggerSOS('RIDER', 'Rider pressed the SOS button')
+        : { delivered: false, error: 'App not ready' };
+      if (result.delivered) {
+        toast('🚨 SOS sent to the Aarohan safety team. If you are in immediate danger, call 997 now.');
+      } else {
+        toast('⚠️ Could not reach Aarohan. Call 997 now.');
+        if (confirm('We could not reach the Aarohan safety team.\n\nCall 997 (police) now?')) {
+          window.location.href = 'tel:997';
+        }
+      }
     }
 
     // --- Search Helpers ---

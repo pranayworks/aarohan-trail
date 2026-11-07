@@ -12,6 +12,7 @@
 //   - Zero Client-Side Secret Leakage
 // ============================================================================
 
+const { isProduction } = require('./featureFlags');
 const crypto = require('crypto');
 
 /**
@@ -145,10 +146,12 @@ class AirtelMoneyAdapter extends PaymentAdapter {
           }
         }
       } catch (err) {
-        console.warn('[AirtelMoneyAdapter] Production initiation failed, falling back to sandbox mode:', err.message);
+        console.warn('[AirtelMoneyAdapter] Production initiation failed:', err.message);
+        if (isProduction()) throw new Error('Airtel Money collection failed. Please try again or pay in cash.');
       }
     }
 
+    if (isProduction()) throw new Error('Airtel Money is not configured for production.');
     console.log(`[AirtelMoneyAdapter] Operating in SANDBOX/TEST mode for phone ${phone}, amount ${amount} MWK`);
     return {
       provider: 'airtel_money',
@@ -236,9 +239,12 @@ class AirtelMoneyAdapter extends PaymentAdapter {
           }
         }
       } catch (err) {
-        console.warn('[AirtelMoneyAdapter] Production disbursement failed, using sandbox fallback:', err.message);
+        console.warn('[AirtelMoneyAdapter] Production disbursement failed:', err.message);
+        if (isProduction()) throw new Error('Airtel Money disbursement failed.');
       }
     }
+
+    if (isProduction()) throw new Error('Airtel Money disbursement is not configured for production.');
 
     return {
       provider: 'airtel_money',
@@ -322,9 +328,12 @@ class TnmMpambaAdapter extends PaymentAdapter {
           };
         }
       } catch (err) {
-        console.warn('[TnmMpambaAdapter] Live collection failed, using sandbox fallback:', err.message);
+        console.warn('[TnmMpambaAdapter] Live collection failed:', err.message);
+        if (isProduction()) throw new Error('TNM Mpamba collection failed. Please try again or pay in cash.');
       }
     }
+
+    if (isProduction()) throw new Error('TNM Mpamba is not configured for production.');
 
     console.log(`[TnmMpambaAdapter] Collection request: MWK ${amount} from ${phone} [${this.isSandbox ? 'SANDBOX' : 'PROD'}]`);
     return {
@@ -512,6 +521,7 @@ class PaymentManager {
     const key = (providerName || '').toLowerCase().replace(/[\s-]/g, '_');
     if (key.includes('airtel')) return this.adapters.airtel_money;
     if (key.includes('tnm') || key.includes('mpamba')) return this.adapters.tnm_mpamba;
+    if (isProduction()) throw new Error('The sandbox payment adapter is not available in production.');
     return this.adapters.sandbox;
   }
 }

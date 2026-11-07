@@ -436,7 +436,8 @@ class DbLedgerService {
     reference,
     settlementId = null,
     verifiedByUserId = null,
-    notes = ''
+    notes = '',
+    tx: externalTx = null
   }) {
     const amount = Math.max(0, parseInt(amountMWK, 10));
     if (amount <= 0) throw new Error('Settlement amount must be strictly greater than 0 MWK');
@@ -444,7 +445,7 @@ class DbLedgerService {
     const journalId = this.generateJournalId();
     const idemKey = `SETTLE-${driverId}-${settlementId || Date.now()}`;
 
-    return await prisma.$transaction(async (tx) => {
+    const run = async (tx) => {
       // 1. Fetch authoritative driver
       const driver = await tx.driver.findUnique({
         where: { id: driverId },
@@ -525,7 +526,12 @@ class DbLedgerService {
         netBalanceSum, // Strictly 0
         auditLog
       };
-    }, { maxWait: 10000, timeout: 30000 });
+    };
+
+    // When called from an outer transaction (settlement approval), join it so the
+    // status change and the ledger journal commit or roll back together.
+    if (externalTx) return run(externalTx);
+    return await prisma.$transaction(run, { maxWait: 10000, timeout: 30000 });
   }
 
   /**

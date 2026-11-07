@@ -31,3 +31,7 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 uploads/
+
+# Local test diagnostics
+docs/playwright-diagnostics.txt
+docs/screenshots/playwright-failure-*.png

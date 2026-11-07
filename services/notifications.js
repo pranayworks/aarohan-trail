@@ -85,7 +85,8 @@ function validateTwilioSignature({ authToken, signature, url, params }) {
 class NotificationService {
   constructor() {
     this.policeHotline = process.env.EMERGENCY_POLICE_HOTLINE || '997';
-    this.securityDeskPhone = process.env.AAROHAN_SECURITY_DESK_PHONE || '+265991234567';
+    // No default: an SOS must never be sent to a number nobody confirmed.
+    this.securityDeskPhone = (process.env.AAROHAN_SECURITY_DESK_PHONE || '').trim();
     this.history = [];
   }
 
@@ -468,29 +469,46 @@ class NotificationService {
   }
 
   async sendEmergencySosAlert(alert) {
-    const lat = alert.lat || -13.9722;
-    const lng = alert.lng || 33.7667;
-    const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
+    const hasLocation = alert.locationKnown !== false && Number.isFinite(alert.lat) && Number.isFinite(alert.lng);
+    const mapsLink = hasLocation ? `https://maps.google.com/?q=${alert.lat},${alert.lng}` : 'LOCATION UNKNOWN';
+    const approx = alert.locationApproximate ? ' (approximate: trip pickup)' : '';
     const timeStr = alert.time || new Date().toLocaleTimeString();
+    const reporter = alert.passenger || 'User';
 
-    const emergencyMsg = 
-      `🚨 [AAROHAN EMERGENCY SOS ALERT - LILONGWE]\n` +
-      `Incident ID: ${alert.id || 'SOS-ALERT'}\n` +
-      `Passenger: ${alert.passenger || 'Rider'}\n` +
-      `Driver: ${alert.driver || 'Captain'}\n` +
-      `Coordinates: ${lat}, ${lng}\n` +
-      `Live Map: ${mapsLink}\n` +
+    const deskMsg =
+      `[AAROHAN SOS] Incident ${alert.id || 'N/A'}\n` +
+      `Reporter: ${reporter} (${alert.riderPhone || 'no phone'}) [${alert.source || 'USER'}]\n` +
+      (alert.driver ? `Driver: ${alert.driver}\n` : '') +
+      `Location${approx}: ${mapsLink}\n` +
       `Time: ${timeStr}\n` +
-      `Police Hotline: ${this.policeHotline}\n` +
-      `Security Desk: ${this.securityDeskPhone}\n` +
-      `Status: ESCALATED TO 997 DISPATCH`;
+      `ACTION: call the reporter now. Police: ${this.policeHotline}.`;
 
     const tasks = [];
-    tasks.push(this.sendSms({ to: this.securityDeskPhone, message: emergencyMsg, purpose: 'SOS' }));
+    let desk = 'NOT_CONFIGURED';
+    if (this.securityDeskPhone) {
+      desk = 'SENT';
+      tasks.push(this.sendSms({ to: this.securityDeskPhone, message: deskMsg, purpose: 'SOS' }));
+    } else {
+      console.error('[SOS] AAROHAN_SECURITY_DESK_PHONE is not configured: the security desk was NOT messaged. Staff must watch the admin dashboard.');
+    }
+
+    if (alert.emergencyPhone) {
+      tasks.push(this.sendSms({
+        to: alert.emergencyPhone,
+        message:
+          `Aarohan Safety: ${reporter} pressed the SOS button.\n` +
+          `Last location${approx}: ${mapsLink}\n` +
+          `Please try to call them now. If they may be in danger, call ${this.policeHotline}.`,
+        purpose: 'SOS'
+      }));
+    }
+
     if (alert.riderPhone) {
       tasks.push(this.sendSms({
         to: alert.riderPhone,
-        message: `🚨 AArohan Safety: Your SOS was received. 997 Police & AArohan Security Desk alerted with coordinates (${lat}, ${lng}). Stay calm.`,
+        message:
+          `Aarohan Safety: your SOS was received and our safety team has been alerted. ` +
+          `If you are in immediate danger, call ${this.policeHotline} now.`,
         purpose: 'SOS'
       }));
     }
@@ -499,8 +517,10 @@ class NotificationService {
     return {
       alertId: alert.id,
       broadcastCount: tasks.length,
-      escalatedToPolice: true,
-      results: results.map(r => r.status === 'fulfilled' ? r.value : { error: r.reason?.message })
+      securityDesk: desk,
+      // The police are NOT contacted automatically; staff or the user must call.
+      escalatedToPolice: false,
+      results: results.map((r) => (r.status === 'fulfilled' ? r.value : { error: r.reason?.message }))
     };
   }
 

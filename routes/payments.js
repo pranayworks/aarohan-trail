@@ -3,7 +3,20 @@ const { z } = require('zod');
 const paymentManager = require('../services/payments');
 const { validateBody } = require('../middleware/auth');
 
+const featureFlags = require('../services/featureFlags');
+
 const router = express.Router();
+
+// Real payments are OFF in production unless PAYMENTS_ENABLED=true (cash-only pilot).
+router.use('/payments', (req, res, next) => {
+  if (!featureFlags.paymentsEnabled()) {
+    return res.status(403).json({
+      error: 'Mobile money payments are not available yet. Please pay the driver in cash.',
+      code: 'PAYMENTS_DISABLED'
+    });
+  }
+  next();
+});
 
 const restPaymentInitiateSchema = z.object({
   amount: z.number().int().positive('Amount must be positive'),

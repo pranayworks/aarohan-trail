@@ -60,8 +60,11 @@ class DispatchService {
     const cosLat = Math.cos(pLat * Math.PI / 180);
     const lngDelta = radiusKm / (111.0 * (Math.abs(cosLat) > 0.001 ? Math.abs(cosLat) : 1.0));
 
-    // Fresh GPS threshold (up to 30 mins, or 24h in development mode for seeded fixtures)
-    const freshWindowMs = process.env.NODE_ENV === 'development' ? 24 * 60 * 60 * 1000 : 30 * 60 * 1000;
+    // Only drivers with a RECENT GPS fix may receive an offer. Production default: 3 minutes
+    // (DRIVER_GPS_FRESH_SECONDS). Development keeps a long window so seeded fixtures stay eligible.
+    const defaultFreshSeconds = process.env.NODE_ENV === 'production' ? 180 : 24 * 60 * 60;
+    const freshSeconds = parseInt(process.env.DRIVER_GPS_FRESH_SECONDS, 10) || defaultFreshSeconds;
+    const freshWindowMs = freshSeconds * 1000;
     const freshCutoff = new Date(Date.now() - freshWindowMs);
 
     const maxDebtLimit = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
@@ -195,8 +198,9 @@ class DispatchService {
       // Quiet fail on lookup
     }
 
+    // Live driver GPS goes only to ops staff (the trip room above covers the rider).
     if (this.io) {
-      this.io.emit('trip:driver_moved', locPayload);
+      this.io.to('ops').emit('trip:driver_moved', locPayload);
     }
 
     return {
@@ -285,8 +289,7 @@ class DispatchService {
       });
 
       if (this.io) {
-        this.io.to(`trip:${tripId}`).emit('trip:no_drivers', { tripId });
-        this.io.emit('trip:no_drivers', { tripId });
+        this.io.to(`trip:${tripId}`).to(`user:${trip.riderId}`).emit('trip:no_drivers', { tripId });
       }
       return null;
     }
@@ -320,9 +323,9 @@ class DispatchService {
     if (this.io) {
       const driverSafeTrip = this.getDriverSafeTrip(trip);
       this.io.to(`driver:${targetDriver.driverId}`).emit('trip:offer', { offer, trip: driverSafeTrip });
-      this.io.emit('trip:offered', {
+      // Only the rider learns that an offer was made (never the other drivers).
+      this.io.to(`user:${trip.riderId}`).emit('trip:offered', {
         tripId,
-        driverId: targetDriver.driverId,
         offerId: offer.id,
         expiresAt
       });
