@@ -49,7 +49,18 @@
 
 ---
 
-## 5. Reviewer Sign-Off Checklist
+## 5. SMS Delivery Failure & Retry Messaging
+
+| Key | English Source | Chichewa Draft (`shared/i18n.js`) | Review Status | Notes for Native Reviewer |
+| :--- | :--- | :--- | :--- | :--- |
+| `smsDeliveryFailedTitle` | Unable to Send Code | **Sizingatheke Kutumiza Khodi** | ⚠️ Needs Review | Modal header when SMS delivery fails or carrier network rejects. |
+| `smsDeliveryFailedMsg` | SMS delivery failed. Please check your network or try again later. | **Kutumiza uthenga walephereka. Chonde onetsetsani kuti muli ndi netiweki kapena yesaninso nthawi ina.** | ⚠️ Needs Review | Error toast/alert advising user to retry when telecom network recovers. |
+| `tryAgainLaterBtn` | Try Again Later | **Yesaninso Pambuyo** | ⚠️ Needs Review | Action button on error dialog. |
+
+---
+
+## 6. Reviewer Sign-Off Checklist
 - [ ] Tagline conveys optimism and forward progress in colloquial Chichewa.
 - [ ] Technical concepts (GPS, HTTPS, Account, Activity) use natural terms rather than cumbersome loan-word constructs.
 - [ ] Legal warnings are clear, binding, and easily understood by both urban and peri-urban users.
+

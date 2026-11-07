@@ -37,3 +37,4 @@
 1. Save the official vector files into `assets/brand/` using the exact file names above.
 2. If PNG icons change, convert the official `icon-512.svg` to raster PNG using sharp/canvas or an image editor at 512×512 and 192×192.
 3. No code references need changing: `rider/index.html`, `driver/index.html`, `admin/index.html`, `rider/manifest.json`, and `driver/manifest.json` already point directly to these filenames.
+

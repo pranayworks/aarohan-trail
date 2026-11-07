@@ -622,7 +622,9 @@
           otpInput.focus();
           showAlert(`Verification code sent via SMS to ${currentPhoneE164}`, false);
         } catch (err) {
-          showAlert(err.message);
+          const isSmsFailure = err.message && (err.message.includes('SMS delivery failed') || err.message.includes('telecom') || err.message.includes('network'));
+          const errorMsg = isSmsFailure ? i18n.t('smsDeliveryFailedMsg') : err.message;
+          showAlert(errorMsg);
         } finally {
           submitBtn.disabled = false;
           submitBtn.classList.remove('opacity-70');
@@ -716,7 +718,9 @@
             onLoginSuccess(fullUser);
           }
         } catch (err) {
-          showAlert(err.message);
+          const isSmsFailure = err.message && (err.message.includes('SMS delivery failed') || err.message.includes('telecom') || err.message.includes('network'));
+          const errorMsg = isSmsFailure ? i18n.t('smsDeliveryFailedMsg') : err.message;
+          showAlert(errorMsg);
         } finally {
           submitBtn.disabled = false;
           submitBtn.classList.remove('opacity-70');
@@ -837,7 +841,9 @@
           document.getElementById('auth-title').innerText = 'Application Pending Approval';
           document.getElementById('auth-sub').innerText = '';
         } catch (err) {
-          showAlert(err.message);
+          const isSmsFailure = err.message && (err.message.includes('SMS delivery failed') || err.message.includes('telecom') || err.message.includes('network'));
+          const errorMsg = isSmsFailure ? i18n.t('smsDeliveryFailedMsg') : err.message;
+          showAlert(errorMsg);
         } finally {
           submitBtn.disabled = false;
           submitBtn.classList.remove('opacity-70');

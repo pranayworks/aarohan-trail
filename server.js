@@ -37,23 +37,11 @@ const setupSockets = require('./sockets');
 
 const { validateStartupConfig } = require('./services/configValidator');
 const { logger } = require('./services/logger');
+const sentry = require('./services/sentry');
 
 // Refuse startup if auth secrets or production configs are missing or insecure
 authService.assertAuthSecrets();
 validateStartupConfig();
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
-  }
-});
-
-// Attach io to app and dispatchService
-app.set('io', io);
-dispatchService.setSocketServer(io);
 
 const PORT = process.env.PORT || 3000;
 
@@ -71,6 +59,44 @@ function getLocalIpAddress() {
 }
 
 const LOCAL_IP = getLocalIpAddress();
+
+// Dynamic CORS allowlist driven by APP_ORIGINS env variable
+function getAllowedOrigins() {
+  const envOrigins = (process.env.APP_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const localOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    `http://${LOCAL_IP}:${PORT}`,
+    'http://localhost:5173'
+  ];
+
+  return [...new Set([...localOrigins, ...envOrigins])];
+}
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const origins = getAllowedOrigins();
+      if (origins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Attach io to app and dispatchService
+app.set('io', io);
+dispatchService.setSocketServer(io);
 
 // =========================================================================
 // STALE TRIPS WATCHDOG (Moves REQUESTED/OFFERED trips > 3 mins to NO_DRIVERS)
@@ -140,31 +166,40 @@ const operationalState = {
 };
 
 // =========================================================================
-// SECURITY MIDDLEWARE: Helmet, CORS Allowlist & General Rate Limiting
+// SECURITY MIDDLEWARE: Helmet (Strict CSP), CORS Allowlist & Rate Limiting
 // =========================================================================
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://api.mapbox.com', 'https://cdn.jsdelivr.net'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com', 'https://fonts.googleapis.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://nominatim.openstreetmap.org', '*.sentry.io'],
+      workerSrc: ["'self'", 'blob:'],
+      childSrc: ["'self'", 'blob:'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"]
+    }
+  },
   crossOriginEmbedderPolicy: false
 }));
-
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  `http://${LOCAL_IP}:${PORT}`,
-  'http://localhost:5173'
-];
 
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    const origins = getAllowedOrigins();
+    if (origins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
       return callback(null, true);
     }
-    return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true
 }));
 
+// Global API rate limiter (300 requests / 15 mins)
 const generalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -174,12 +209,23 @@ const generalApiLimiter = rateLimit({
 });
 app.use('/api/', generalApiLimiter);
 
+// Per-IP Auth rate limiter (30 requests / 15 mins)
+const authIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts from this IP address. Please wait 15 minutes.' }
+});
+app.use('/api/auth/', authIpLimiter);
+
 app.use(express.json());
 app.use(logger.httpMiddleware());
 
 // Public API endpoints whitelist
 const PUBLIC_API_ROUTES = [
   '/api/health',
+  '/api/ready',
   '/api/app-config',
   '/api/network-info',
   '/api/map-config',
@@ -207,8 +253,20 @@ app.use('/api', (req, res, next) => {
 // Favicon handler
 app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Health check endpoint (Zero secrets returned)
-app.get('/api/health', async (req, res) => {
+// Basic Health check endpoint (Fast process health, zero secrets)
+app.get('/api/health', (req, res) => {
+  return res.status(200).json({
+    status: 'HEALTHY',
+    platform: 'Aarohan Mobility',
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+    database: 'CONNECTED',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// Readiness probe (Database ping check, zero secrets)
+app.get('/api/ready', async (req, res) => {
   let dbStatus = 'CONNECTED';
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -216,17 +274,17 @@ app.get('/api/health', async (req, res) => {
     dbStatus = 'DISCONNECTED';
   }
 
-  const isHealthy = dbStatus === 'CONNECTED';
+  const isReady = dbStatus === 'CONNECTED';
   const responseData = {
-    status: isHealthy ? 'HEALTHY' : 'DEGRADED',
-    platform: 'AArohan Mobility',
+    status: isReady ? 'READY' : 'NOT_READY',
+    platform: 'Aarohan Mobility',
+    database: dbStatus,
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor(process.uptime()),
-    database: dbStatus,
     environment: process.env.NODE_ENV || 'development'
   };
 
-  return res.status(isHealthy ? 200 : 503).json(responseData);
+  return res.status(isReady ? 200 : 503).json(responseData);
 });
 
 // Serve static apps
@@ -312,6 +370,7 @@ app.get('/api/app-config', (req, res) => {
     contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || 'support@aarohan.mw',
     env: process.env.NODE_ENV || 'development',
     allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development',
+    sentryDsn: (process.env.SENTRY_DSN || '').trim(),
     serviceArea: {
       city: 'Lilongwe',
       country: 'Malawi',
@@ -332,6 +391,9 @@ app.use('/api', paymentsRouter);
 app.use('/api', notificationsRouter);
 app.use('/api', devRouter);
 app.use('/api', ticketsRouter);
+
+// Sentry Error Handler Middleware
+app.use(sentry.expressErrorHandler());
 
 // =========================================================================
 // SETUP SOCKET.IO ENGINE

@@ -88,6 +88,9 @@
       adminLoginTitle: 'Operations Desk Access',
       adminPasswordLabel: 'Admin Password',
       adminLoginBtn: 'Verify & Sign In',
+      smsDeliveryFailedTitle: 'Unable to Send Code',
+      smsDeliveryFailedMsg: 'SMS delivery failed. Please check your network or try again later.',
+      tryAgainLaterBtn: 'Try Again Later',
       useCurrentLocation: 'Use current location',
       simulateLocation: 'Simulate Lilongwe location (Dev)',
       gpsDeniedMsg: 'Location permission denied. Please allow location access in your browser or search your pickup.',
@@ -191,7 +194,10 @@
       driverPendingSub: 'Mbiri yanu yaudilaiva ikudikira kuvomerezedwa ndi oyang\'anira Aarohan ku Lilongwe.',
       adminLoginTitle: 'Kulowa kwa Oyang\'anira',
       adminPasswordLabel: 'Mawu Achinsinsi',
-      adminLoginBtn: 'Tsimikizani & Lowani'
+      adminLoginBtn: 'Tsimikizani & Lowani',
+      smsDeliveryFailedTitle: 'Sizingatheke Kutumiza Khodi', // NEEDS NATIVE REVIEW (EN: "Unable to Send Code")
+      smsDeliveryFailedMsg: 'Kutumiza uthenga walephereka. Chonde onetsetsani kuti muli ndi netiweki kapena yesaninso nthawi ina.', // NEEDS NATIVE REVIEW (EN: "SMS delivery failed...")
+      tryAgainLaterBtn: 'Yesaninso Pambuyo' // NEEDS NATIVE REVIEW (EN: "Try Again Later")
     }
   };
 

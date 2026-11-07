@@ -16,6 +16,8 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const prisma = require('../lib/prisma');
+const notificationService = require('./notifications');
+const { maskPhoneNumber } = require('./notifications');
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -43,6 +45,32 @@ function assertAuthSecrets() {
 // Key: phone or IP -> { lastRequestAt, countLast15Mins, dailyCount, resetDailyAt }
 const phoneRateLimits = new Map();
 const ipRateLimits = new Map();
+let globalSmsTracking = {
+  dailyCount: 0,
+  dailyResetAt: Date.now() + 24 * 60 * 60 * 1000
+};
+
+function getOtpDailyCapPerPhone() {
+  const cap = parseInt(process.env.OTP_DAILY_CAP_PER_PHONE, 10);
+  return Number.isFinite(cap) && cap > 0 ? cap : 5;
+}
+
+function getSmsDailyCapTotal() {
+  const cap = parseInt(process.env.SMS_DAILY_CAP_TOTAL, 10);
+  return Number.isFinite(cap) && cap > 0 ? cap : 200;
+}
+
+function resetRateLimitsForTesting() {
+  phoneRateLimits.clear();
+  ipRateLimits.clear();
+  globalSmsTracking.dailyCount = 0;
+  globalSmsTracking.dailyResetAt = Date.now() + 24 * 60 * 60 * 1000;
+}
+
+function resetCooldownForTesting(phone) {
+  const rec = phoneRateLimits.get(phone);
+  if (rec) rec.lastRequestedAt = 0;
+}
 
 /**
  * Validates Malawian E.164 phone numbers:
@@ -80,13 +108,36 @@ function hashRefreshToken(rawToken) {
 
 /**
  * Check and record rate limits for OTP requests.
- * - Per Phone: max 1 per 60 seconds, max 10 per 24 hours (Daily SMS Cap)
+ * - Global Platform SMS Cap: configurable via SMS_DAILY_CAP_TOTAL
+ * - Per Phone: max 1 per 60 seconds, max OTP_DAILY_CAP_PER_PHONE per 24 hours
  * - Per IP: max 10 per 15 minutes
  */
-function checkOtpRateLimits(phone, ip) {
+async function checkOtpRateLimits(phone, ip) {
   const now = Date.now();
 
-  // 1. Check IP rate limit
+  // 1. Check Global Platform Daily SMS Cap
+  if (now > globalSmsTracking.dailyResetAt) {
+    globalSmsTracking.dailyCount = 0;
+    globalSmsTracking.dailyResetAt = now + 24 * 60 * 60 * 1000;
+  }
+  const maxTotalSms = getSmsDailyCapTotal();
+  if (globalSmsTracking.dailyCount >= maxTotalSms) {
+    await prisma.auditLog.create({
+      data: {
+        action: 'SMS_CAP_EXCEEDED',
+        entityType: 'SMS',
+        details: {
+          phoneMasked: maskPhoneNumber(phone),
+          dailyCount: globalSmsTracking.dailyCount,
+          totalCap: maxTotalSms
+        },
+        ipAddress: ip
+      }
+    }).catch(() => {});
+    throw new Error('Platform daily SMS dispatch limit reached. Please contact Aarohan operations.');
+  }
+
+  // 2. Check IP rate limit
   if (ip) {
     const ipRecord = ipRateLimits.get(ip) || { count: 0, resetAt: now + 15 * 60 * 1000 };
     if (now > ipRecord.resetAt) {
@@ -101,7 +152,7 @@ function checkOtpRateLimits(phone, ip) {
     ipRateLimits.set(ip, ipRecord);
   }
 
-  // 2. Check Phone rate limit
+  // 3. Check Phone rate limit
   const phoneRecord = phoneRateLimits.get(phone) || {
     lastRequestedAt: 0,
     dailyCount: 0,
@@ -120,13 +171,15 @@ function checkOtpRateLimits(phone, ip) {
     throw new Error(`Please wait ${waitSecs} seconds before requesting a new verification code.`);
   }
 
-  // Daily SMS Cap (10 requests / 24h)
-  if (phoneRecord.dailyCount >= 10) {
-    throw new Error('Daily SMS verification quota exceeded for this phone number. Please try again tomorrow.');
+  // Per-phone Daily SMS Cap
+  const maxPerPhone = getOtpDailyCapPerPhone();
+  if (phoneRecord.dailyCount >= maxPerPhone) {
+    throw new Error(`Daily SMS verification quota (${maxPerPhone}) exceeded for this phone number. Please try again tomorrow.`);
   }
 
   phoneRecord.lastRequestedAt = now;
   phoneRecord.dailyCount++;
+  globalSmsTracking.dailyCount++;
   phoneRateLimits.set(phone, phoneRecord);
 }
 
@@ -142,14 +195,37 @@ async function requestOtp(phone, ip = null) {
   }
 
   // Enforce rate limits
-  checkOtpRateLimits(cleanPhone, ip);
+  await checkOtpRateLimits(cleanPhone, ip);
 
   // Generate 6-digit cryptographic random OTP (100000 to 999999)
   const otpCode = crypto.randomInt(100000, 1000000).toString();
   const codeHash = hashOtp(cleanPhone, otpCode);
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
 
-  // Upsert OtpCode in database
+  // Provider Dispatch FIRST: If the provider call fails, do NOT mark OTP as sent
+  try {
+    await notificationService.sendOtp({
+      phone: cleanPhone,
+      code: otpCode
+    });
+  } catch (err) {
+    // Audit log failure without logging raw code or full phone
+    prisma.auditLog.create({
+      data: {
+        action: 'OTP_FAILED',
+        entityType: 'OTP',
+        details: {
+          phoneMasked: maskPhoneNumber(cleanPhone),
+          error: err.message
+        },
+        ipAddress: ip
+      }
+    }).catch(() => {});
+
+    throw new Error('SMS delivery failed. Please try again later.');
+  }
+
+  // Provider succeeded -> record in database
   await prisma.otpCode.upsert({
     where: { phone: cleanPhone },
     create: {
@@ -183,12 +259,6 @@ async function requestOtp(phone, ip = null) {
         ipAddress: ip
       }
     });
-  }
-
-  // Security Rule: NEVER return the OTP in the API response
-  // Console-log ONLY when NODE_ENV === 'development'
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[DEV OTP] ${cleanPhone} : ${otpCode}`);
   }
 
   return {
@@ -434,5 +504,10 @@ module.exports = {
   revokeRefreshToken,
   verifyAccessToken,
   hashOtp,
-  hashRefreshToken
+  hashRefreshToken,
+  getOtpDailyCapPerPhone,
+  getSmsDailyCapTotal,
+  resetRateLimitsForTesting,
+  resetCooldownForTesting,
+  checkOtpRateLimits
 };

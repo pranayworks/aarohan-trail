@@ -207,6 +207,22 @@ enum AuditAction {
   CONSENT_RECORDED
   PARCEL_DELIVERY_CODE_ATTEMPT
   PARCEL_DELIVERED
+  SMS_CAP_EXCEEDED
+  SMS_TEST_SENT
+}
+
+enum SmsPurpose {
+  OTP
+  PARCEL_CODE
+  SOS
+  OTHER
+}
+
+enum SmsStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
 }
 
 // ============================================================================
@@ -808,4 +824,26 @@ model ConsentRecord {
 
   @@index([userId, documentType])
   @@index([documentType, version])
+}
+
+// ============================================================================
+// SMS LOGGING & AUDIT TRAIL (No message body, no OTP code stored)
+// ============================================================================
+
+model SmsLog {
+  id                String      @id @default(uuid())
+  phoneHash         String      // SHA-256 hash of E.164 phone
+  phoneMasked       String      // e.g. +26599****123
+  provider          String      // "simulator", "twilio", "africastalking"
+  purpose           SmsPurpose  @default(OTP)
+  status            SmsStatus   @default(QUEUED)
+  providerMessageId String?
+  errorCode         String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([phoneHash, createdAt])
+  @@index([status, createdAt])
+  @@index([provider, createdAt])
+  @@index([providerMessageId])
 }

@@ -152,6 +152,11 @@
           <span class="material-symbols-outlined text-[20px]">support_agent</span>
           <span>Disputes &amp; Care Desk</span>
         </button>
+
+        <button onclick="switchAdminTab('sms')" id="tab-btn-sms" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">sms</span>
+          <span>SMS Gateway &amp; Caps</span>
+        </button>
       </div>
 
       <!-- Quick Launch Links to Mobile Apps -->
@@ -191,6 +196,20 @@
 
     <!-- Main Workspace Content -->
     <main class="flex-1 flex flex-col gap-6">
+
+      <!-- Platform SMS Cap Warning Banner (Auto-rendered when daily ceiling is reached) -->
+      <div id="admin-sms-cap-warning" class="hidden p-4 bg-error/15 border-2 border-error text-error rounded-2xl flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-2xl">warning</span>
+          <div>
+            <div class="font-extrabold text-sm">Platform Daily SMS Cap Exceeded</div>
+            <div class="text-xs opacity-90" id="admin-sms-cap-warning-detail">Daily limit of 200 SMS messages has been reached. Dispatches are paused.</div>
+          </div>
+        </div>
+        <button onclick="switchAdminTab('sms')" class="px-3 py-1.5 bg-error text-white font-bold text-xs rounded-xl hover:opacity-90 transition-opacity">
+          View SMS Panel
+        </button>
+      </div>
 
       <!-- ============================================== -->
       <!-- TAB 1: LIVE FLEET & RADAR DISPATCH             -->
@@ -881,6 +900,129 @@
 
       </section>
 
+      <!-- ============================================== -->
+      <!-- TAB 8: SMS GATEWAY, COST CONTROL & TELEMETRY   -->
+      <!-- ============================================== -->
+      <section id="tab-sms" class="admin-panel hidden flex flex-col gap-4">
+        
+        <!-- Header & Gateway Status Card -->
+        <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2.5">
+              <span class="material-symbols-outlined text-primary text-[26px]">sms</span>
+              <div>
+                <h2 class="text-base font-extrabold text-on-surface">SMS Gateway &amp; Carrier Delivery Panel</h2>
+                <p class="text-xs text-on-surface-variant">Live telemetry across Airtel Malawi &amp; TNM Mpamba networks</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="sms-active-provider-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-surface-container text-primary border border-primary/20">Provider: Simulator</span>
+              <button onclick="loadAdminSmsStats()" class="px-3 py-1.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-bold text-on-surface flex items-center gap-1.5 transition-colors">
+                <span class="material-symbols-outlined text-base">refresh</span>
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Metrics Row: Quota & Carrier Delivery Rates -->
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div class="bg-surface-container-low rounded-xl p-3.5 border border-outline-variant/20 flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Daily Dispatches</span>
+              <div class="flex items-baseline gap-1.5 mt-1">
+                <span id="sms-stat-today" class="text-2xl font-black text-on-surface">0</span>
+                <span id="sms-stat-cap" class="text-xs text-on-surface-variant font-bold">/ 200 Max</span>
+              </div>
+              <span id="sms-stat-remaining" class="text-[11px] text-primary font-semibold mt-1">200 remaining today</span>
+            </div>
+
+            <div class="bg-surface-container-low rounded-xl p-3.5 border border-outline-variant/20 flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Overall Delivery Rate</span>
+              <div class="flex items-baseline gap-1.5 mt-1">
+                <span id="sms-stat-delivery-rate" class="text-2xl font-black text-emerald-500">100%</span>
+              </div>
+              <span class="text-[11px] text-on-surface-variant font-medium mt-1">Real-time status callback sync</span>
+            </div>
+
+            <div class="bg-surface-container-low rounded-xl p-3.5 border border-outline-variant/20 flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Airtel Malawi (+2659)</span>
+              <div class="flex items-baseline gap-1.5 mt-1">
+                <span id="sms-stat-airtel-rate" class="text-2xl font-black text-on-surface">100%</span>
+              </div>
+              <span id="sms-stat-airtel-counts" class="text-[11px] text-on-surface-variant font-medium mt-1">0 sent • 0 failed</span>
+            </div>
+
+            <div class="bg-surface-container-low rounded-xl p-3.5 border border-outline-variant/20 flex flex-col">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">TNM Malawi (+2658)</span>
+              <div class="flex items-baseline gap-1.5 mt-1">
+                <span id="sms-stat-tnm-rate" class="text-2xl font-black text-on-surface">100%</span>
+              </div>
+              <span id="sms-stat-tnm-counts" class="text-[11px] text-on-surface-variant font-medium mt-1">0 sent • 0 failed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Failure Log Table & Admin Test Dispatcher -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          
+          <!-- Failure Log Table (Left 2 Columns) -->
+          <div class="lg:col-span-2 bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-extrabold text-on-surface">Carrier Delivery Failures &amp; Error Codes</h3>
+              <span class="text-[11px] text-on-surface-variant">Today's Failures</span>
+            </div>
+            <div class="overflow-x-auto border border-outline-variant/20 rounded-xl">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-surface-container-low text-on-surface-variant uppercase font-bold text-[10px]">
+                  <tr>
+                    <th class="p-3">Network</th>
+                    <th class="p-3">Provider</th>
+                    <th class="p-3">Error Code</th>
+                    <th class="p-3 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="sms-failures-tbody" class="divide-y divide-outline-variant/20 text-on-surface">
+                  <tr>
+                    <td colspan="4" class="p-6 text-center text-on-surface-variant">No delivery failures recorded today.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Admin Test SMS Dispatch Tool (Right Column) -->
+          <div class="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-xl">send_to_mobile</span>
+              <h3 class="text-sm font-extrabold text-on-surface">Admin Single-Test Dispatch</h3>
+            </div>
+            <p class="text-[11px] text-on-surface-variant leading-relaxed">
+              Rate-limited to 5/15m. Requires two-step number entry confirmation. Never sends bulk messages.
+            </p>
+
+            <form id="admin-test-sms-form" onsubmit="handleAdminTestSmsSubmit(event)" class="flex flex-col gap-2.5 mt-1">
+              <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Recipient Phone</label>
+                <input id="test-sms-phone" type="text" placeholder="+265991234567" required class="w-full px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/40 text-xs text-on-surface font-mono mt-1" />
+              </div>
+              <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Confirm Recipient Phone</label>
+                <input id="test-sms-phone-confirm" type="text" placeholder="+265991234567" required class="w-full px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/40 text-xs text-on-surface font-mono mt-1" />
+              </div>
+              <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Message Body</label>
+                <textarea id="test-sms-message" rows="2" placeholder="Test notification from Aarohan Admin..." required class="w-full px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/40 text-xs text-on-surface mt-1"></textarea>
+              </div>
+              <button id="test-sms-submit-btn" type="submit" class="w-full py-2.5 rounded-xl bg-primary text-on-primary font-bold text-xs hover:opacity-95 transition-opacity mt-1">
+                Confirm &amp; Send Test SMS
+              </button>
+              <div id="test-sms-result" class="text-xs font-semibold text-center hidden"></div>
+            </form>
+          </div>
+
+        </div>
+
+      </section>
+
     </main>
 
   </div>
@@ -914,6 +1056,128 @@
       } else if (tabName === 'cash-reconciliation') {
         refreshPendingSettlements();
         refreshCashReconciliation();
+      } else if (tabName === 'sms') {
+        loadAdminSmsStats();
+      }
+    }
+
+    async function loadAdminSmsStats() {
+      try {
+        const res = await window.mwendoAuth.fetchWithAuth('/api/notifications/stats');
+        if (!res || !res.ok) return;
+        const data = await res.json();
+        const stats = data.stats;
+        if (!stats) return;
+
+        // Active Provider Badge
+        const provBadge = document.getElementById('sms-active-provider-badge');
+        if (provBadge) {
+          provBadge.innerText = `Provider: ${stats.provider.toUpperCase()} (${stats.senderName})`;
+        }
+
+        // Metrics
+        const todayEl = document.getElementById('sms-stat-today');
+        if (todayEl) todayEl.innerText = stats.messagesToday;
+
+        const capEl = document.getElementById('sms-stat-cap');
+        if (capEl) capEl.innerText = `/ ${stats.dailyCap} Max`;
+
+        const remEl = document.getElementById('sms-stat-remaining');
+        if (remEl) {
+          remEl.innerText = `${stats.remainingCap} remaining today`;
+          remEl.className = stats.capExceeded ? 'text-[11px] text-error font-bold mt-1' : 'text-[11px] text-primary font-semibold mt-1';
+        }
+
+        // Header Warning Banner
+        const warnBanner = document.getElementById('admin-sms-cap-warning');
+        if (warnBanner) {
+          if (stats.capExceeded) {
+            warnBanner.classList.remove('hidden');
+            const det = document.getElementById('admin-sms-cap-warning-detail');
+            if (det) det.innerText = `Daily limit of ${stats.dailyCap} SMS messages reached (${stats.messagesToday}/${stats.dailyCap}). New dispatches are blocked.`;
+          } else {
+            warnBanner.classList.add('hidden');
+          }
+        }
+
+        // Rates
+        const delEl = document.getElementById('sms-stat-delivery-rate');
+        if (delEl) delEl.innerText = `${stats.deliveryRate}%`;
+
+        const airtelRateEl = document.getElementById('sms-stat-airtel-rate');
+        if (airtelRateEl) airtelRateEl.innerText = `${stats.networks.airtel.deliveryRate}%`;
+        const airtelCounts = document.getElementById('sms-stat-airtel-counts');
+        if (airtelCounts) airtelCounts.innerText = `${stats.networks.airtel.total} sent • ${stats.networks.airtel.failed} failed`;
+
+        const tnmRateEl = document.getElementById('sms-stat-tnm-rate');
+        if (tnmRateEl) tnmRateEl.innerText = `${stats.networks.tnm.deliveryRate}%`;
+        const tnmCounts = document.getElementById('sms-stat-tnm-counts');
+        if (tnmCounts) tnmCounts.innerText = `${stats.networks.tnm.total} sent • ${stats.networks.tnm.failed} failed`;
+
+        // Failures Table
+        const tbody = document.getElementById('sms-failures-tbody');
+        if (tbody) {
+          if (!stats.recentFailures || stats.recentFailures.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="p-6 text-center text-on-surface-variant">No delivery failures recorded today.</td></tr>';
+          } else {
+            tbody.innerHTML = stats.recentFailures.map(f => `
+              <tr class="hover:bg-surface-container/50">
+                <td class="p-3 font-semibold uppercase text-xs">${f.carrier}</td>
+                <td class="p-3 text-xs text-on-surface-variant">${f.provider}</td>
+                <td class="p-3 font-mono text-xs text-error">${f.errorCode || 'UNKNOWN'}</td>
+                <td class="p-3 text-right"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-error/15 text-error">FAILED</span></td>
+              </tr>
+            `).join('');
+          }
+        }
+      } catch (err) {
+        console.error('[AdminSMS] Failed to load SMS metrics:', err);
+      }
+    }
+
+    async function handleAdminTestSmsSubmit(e) {
+      e.preventDefault();
+      const phone = document.getElementById('test-sms-phone').value.trim();
+      const confirmPhone = document.getElementById('test-sms-phone-confirm').value.trim();
+      const message = document.getElementById('test-sms-message').value.trim();
+      const resEl = document.getElementById('test-sms-result');
+      const submitBtn = document.getElementById('test-sms-submit-btn');
+
+      if (phone !== confirmPhone) {
+        resEl.className = 'text-xs font-semibold text-center text-error block';
+        resEl.innerText = '❌ Phone numbers do not match. Please verify.';
+        resEl.classList.remove('hidden');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Sending...';
+      resEl.classList.add('hidden');
+
+      try {
+        const res = await window.mwendoAuth.fetchWithAuth('/api/notifications/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: phone, confirmPhone, message, channel: 'SMS' })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Dispatch failed');
+        }
+
+        resEl.className = 'text-xs font-semibold text-center text-emerald-500 block';
+        resEl.innerText = `✅ Test SMS dispatched successfully via ${data.provider}!`;
+        resEl.classList.remove('hidden');
+        document.getElementById('admin-test-sms-form').reset();
+        loadAdminSmsStats();
+      } catch (err) {
+        resEl.className = 'text-xs font-semibold text-center text-error block';
+        resEl.innerText = `❌ Error: ${err.message}`;
+        resEl.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Confirm & Send Test SMS';
       }
     }
 
@@ -1973,6 +2237,7 @@
             refreshPendingSettlements();
             refreshPendingDrivers();
             refreshFleetDrivers();
+            loadAdminSmsStats();
           }
         });
       } else {
@@ -1982,6 +2247,7 @@
         refreshPendingSettlements();
         refreshPendingDrivers();
         refreshFleetDrivers();
+        loadAdminSmsStats();
       }
     });
   </script>
