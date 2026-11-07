@@ -23,4 +23,9 @@ function payoutsEnabled(env = process.env) {
   return !isProduction(env) || flagOn(env.PAYOUTS_ENABLED);
 }
 
-module.exports = { isProduction, paymentsEnabled, payoutsEnabled };
+// How people sign in: 'phone' (SMS codes, default) or 'email' (email codes, zero-cost demo mode).
+function authMode(env = process.env) {
+  return String(env.AUTH_MODE || '').trim().toLowerCase() === 'email' ? 'email' : 'phone';
+}
+
+module.exports = { isProduction, paymentsEnabled, payoutsEnabled, authMode };

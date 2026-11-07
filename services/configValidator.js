@@ -99,6 +99,20 @@ function validateStartupConfig(env = process.env, enforceProduction = false) {
     errors.push('SUPABASE_SECRET_KEY uses an insecure placeholder.');
   }
 
+  // 4b. Email login mode needs a real email provider (a simulator would send nothing in production)
+  if (String(env.AUTH_MODE || '').trim().toLowerCase() === 'email') {
+    const prov = String(env.EMAIL_PROVIDER || '').trim().toLowerCase();
+    const keyName = prov === 'brevo' ? 'BREVO_API_KEY' : (prov === 'resend' ? 'RESEND_API_KEY' : null);
+    if (!keyName) {
+      errors.push('AUTH_MODE=email requires EMAIL_PROVIDER to be brevo or resend.');
+    } else if (!env[keyName] || String(env[keyName]).trim().length < 16) {
+      errors.push(`AUTH_MODE=email with EMAIL_PROVIDER=${prov} requires ${keyName}.`);
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(env.EMAIL_FROM_ADDRESS || '').trim())) {
+      errors.push('AUTH_MODE=email requires EMAIL_FROM_ADDRESS (the verified sender address).');
+    }
+  }
+
   // 5a. SOS alerts need a confirmed security desk number (no silent default)
   const desk = (env.AAROHAN_SECURITY_DESK_PHONE || '').trim();
   if (!/^\+265\d{9}$/.test(desk)) {

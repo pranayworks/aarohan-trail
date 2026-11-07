@@ -403,7 +403,7 @@ const count = (log, ev) => log.filter((e) => e.ev === ev).length;
   report('Drivers must accept the Driver Agreement during onboarding',
     authJs.includes('id="onboard-agreement"') && authJs.includes("recordConsent('DRIVER_AGREEMENT')") && authJs.includes('driverAgreementRequired'));
   report('Consent wording exists in English and Chichewa (Chichewa flagged for native review)',
-    (read('shared/i18n.js').match(/consentLead:/g) || []).length === 2 && read('shared/i18n.js').includes('NEEDS NATIVE REVIEW (consent wording'));
+    (read('shared/i18n.js').match(/consentLead:/g) || []).length === 2 && /NEEDS NATIVE REVIEW[^\n]*consent wording/.test(read('shared/i18n.js')));
   report('The browser test ticks the consent box on every rider and driver login',
     (read('tests/test_playwright_booking.js').match(/#auth-consent'\)\.check\(\)/g) || []).length >= 2);
 

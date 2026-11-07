@@ -8,9 +8,20 @@ const bcrypt = require('bcryptjs');
 const { rateLimit } = require('express-rate-limit');
 const prisma = require('../lib/prisma');
 const authService = require('../services/auth');
+const emailAuth = require('../services/emailAuth');
+const { authMode } = require('../services/featureFlags');
 const { requireAuth, validateBody } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Only one sign-in method is open at a time (AUTH_MODE). The other one answers 404, so a demo that
+// uses email codes can never be used to trigger SMS sends, and vice versa.
+function requireMode(mode) {
+  return (req, res, next) => {
+    if (authMode() === mode) return next();
+    return res.status(404).json({ error: mode === 'email' ? 'Email login is not enabled.' : 'Phone login is not enabled.' });
+  };
+}
 
 // Track admin failed password attempts and lockouts: phone -> { attempts, lockedUntil }
 const adminLoginAttempts = new Map();
@@ -62,7 +73,7 @@ const driverRegisterSchema = z.object({
 // ---------------------------------------------------------------------------
 // 1. POST /api/auth/otp/request
 // ---------------------------------------------------------------------------
-router.post('/otp/request', validateBody(otpRequestSchema), async (req, res) => {
+router.post('/otp/request', requireMode('phone'), validateBody(otpRequestSchema), async (req, res) => {
   try {
     const result = await authService.requestOtp(req.body.phone, req.ip);
     return res.json(result);
@@ -74,7 +85,7 @@ router.post('/otp/request', validateBody(otpRequestSchema), async (req, res) => 
 // ---------------------------------------------------------------------------
 // 2. POST /api/auth/otp/verify (Riders only - never accept role from client)
 // ---------------------------------------------------------------------------
-router.post('/otp/verify', validateBody(otpVerifySchema), async (req, res) => {
+router.post('/otp/verify', requireMode('phone'), validateBody(otpVerifySchema), async (req, res) => {
   try {
     const { phone, otp } = req.body;
     await authService.verifyOtp(phone, otp, req.ip);
@@ -162,7 +173,7 @@ router.post('/otp/verify', validateBody(otpVerifySchema), async (req, res) => {
 // ---------------------------------------------------------------------------
 // 3. POST /api/auth/admin/login (OTP + Password required)
 // ---------------------------------------------------------------------------
-router.post('/admin/login', adminLoginLimiter, validateBody(adminLoginSchema), async (req, res) => {
+router.post('/admin/login', adminLoginLimiter, requireMode('phone'), validateBody(adminLoginSchema), async (req, res) => {
   try {
     const { phone, password, otp } = req.body;
 
@@ -255,6 +266,61 @@ router.post('/admin/login', adminLoginLimiter, validateBody(adminLoginSchema), a
     });
   } catch (err) {
     return res.status(400).json({ error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 3b. EMAIL LOGIN (AUTH_MODE=email): email is the verified identity
+// ---------------------------------------------------------------------------
+const emailRequestSchema = z.object({ email: z.string().min(5).max(254) });
+const emailVerifySchema = z.object({
+  email: z.string().min(5).max(254),
+  otp: z.string().length(6, 'Verification code must be 6 digits'),
+  name: z.string().max(80).optional(),
+  phone: z.string().max(20).optional()
+});
+const adminEmailLoginSchema = z.object({
+  email: z.string().min(5).max(254),
+  password: z.string().min(6).max(200),
+  otp: z.string().length(6, 'Verification code must be 6 digits')
+});
+const sendAuthError = (res, err) =>
+  res.status(err.statusCode || 400).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+
+router.post('/email/otp/request', requireMode('email'), validateBody(emailRequestSchema), async (req, res) => {
+  try {
+    return res.json(await emailAuth.requestEmailOtp(req.body.email, req.ip));
+  } catch (err) {
+    return sendAuthError(res, err);
+  }
+});
+
+router.post('/email/otp/verify', requireMode('email'), validateBody(emailVerifySchema), async (req, res) => {
+  try {
+    return res.json(await emailAuth.loginWithEmail({
+      email: req.body.email,
+      otp: req.body.otp,
+      name: req.body.name,
+      phone: req.body.phone,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || null
+    }));
+  } catch (err) {
+    return sendAuthError(res, err);
+  }
+});
+
+router.post('/admin/email-login', adminLoginLimiter, requireMode('email'), validateBody(adminEmailLoginSchema), async (req, res) => {
+  try {
+    return res.json(await emailAuth.adminEmailLogin({
+      email: req.body.email,
+      password: req.body.password,
+      otp: req.body.otp,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || null
+    }));
+  } catch (err) {
+    return sendAuthError(res, err);
   }
 });
 
@@ -394,6 +460,7 @@ router.get('/me', requireAuth, async (req, res) => {
       success: true,
       user: {
         id: user.id,
+        email: user.email || null,
         phone: user.phone,
         name: user.name,
         role: user.role,

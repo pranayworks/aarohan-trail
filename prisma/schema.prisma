@@ -881,3 +881,21 @@ model CommissionRemittance {
   @@index([status, submittedAt])
   @@index([driverId, status])
 }
+
+// ============================================================================
+// EMAIL LOGIN CODES (AUTH_MODE=email). Keyed by lower-case email, like OtpCode is by phone.
+// The unique index on lower("User".email) lives in the raw SQL migration.
+// ============================================================================
+
+model EmailOtp {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  codeHash    String   // HMAC-SHA256 of "email:<address>:<code>" with OTP_HMAC_SECRET
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(5)
+  expiresAt   DateTime
+  isConsumed  Boolean  @default(false)
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

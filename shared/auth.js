@@ -252,6 +252,7 @@
     // BILINGUAL MOBILE-FIRST LOGIN MODAL (EN / NY)
     // -------------------------------------------------------------------------
     showLoginModal({ role = 'RIDER', onLoginSuccess } = {}) {
+      const emailMode = this._authMode === 'email';
       // Remove any existing modal
       const existing = document.getElementById('aarohan-auth-modal');
       if (existing) existing.remove();
@@ -317,6 +318,23 @@
 
           <!-- STEP 1: Phone Input -->
           <form id="auth-step-phone" class="space-y-4">
+            ${emailMode ? `
+            <div>
+              <label id="label-phone" class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1.5">
+                ${i18n.t('emailLabel')}
+              </label>
+              <input
+                type="email"
+                id="auth-email-input"
+                class="w-full h-12 px-4 bg-surface-container rounded-2xl border border-outline-variant/40 focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm font-bold text-on-surface outline-none transition-all placeholder:text-outline/60"
+                placeholder="you@example.com"
+                autocomplete="email"
+                autocapitalize="none"
+                spellcheck="false"
+                required
+              />
+            </div>
+            ` : `
             <div>
               <label id="label-phone" class="block text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1.5">
                 ${i18n.t('phoneLabel')}
@@ -334,6 +352,7 @@
               </div>
               <p class="text-[10px] text-on-surface-variant/80 mt-1.5 pl-1">Airtel (99, 98, 90) • TNM (88, 89, 31)</p>
             </div>
+            `}
 
             ${role === 'ADMIN' ? `
             <div>
@@ -372,7 +391,7 @@
             <div>
               <div class="flex items-center justify-between mb-1.5">
                 <label id="label-otp" class="text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant">
-                  ${i18n.t('otpLabel')}
+                  ${emailMode ? i18n.t('otpLabelEmail') : i18n.t('otpLabel')}
                 </label>
                 <button type="button" id="auth-change-phone-btn" class="text-[11px] font-extrabold text-primary hover:underline">
                   ${i18n.t('changePhoneBtn')}
@@ -392,6 +411,20 @@
               />
               <p id="otp-timer-sub" class="text-[11px] text-center text-on-surface-variant mt-2 font-medium">Valid for 5 minutes</p>
             </div>
+
+            ${emailMode && role !== 'ADMIN' ? `
+            <div id="auth-profile-fields" class="hidden space-y-3">
+              <p class="text-[11px] text-on-surface-variant font-medium">${i18n.t('profileRequiredMsg')}</p>
+              <div>
+                <label class="block text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">${i18n.t('profileNameLabel')}</label>
+                <input type="text" id="auth-profile-name" maxlength="60" autocomplete="name" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-sm font-bold text-on-surface outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant mb-1">${i18n.t('profilePhoneLabel')}</label>
+                <input type="tel" id="auth-profile-phone" autocomplete="tel" placeholder="99 123 4567" class="w-full h-11 px-3 bg-surface-container rounded-xl border border-outline-variant/40 focus:border-primary text-sm font-bold text-on-surface outline-none" />
+              </div>
+            </div>
+            ` : ''}
 
             <button 
               type="submit" 
@@ -527,7 +560,7 @@
       const stepOtp = document.getElementById('auth-step-otp');
       const stepOnboard = document.getElementById('auth-step-onboard');
       const stepPending = document.getElementById('auth-step-pending');
-      const phoneInput = document.getElementById('auth-phone-input');
+      const phoneInput = document.getElementById(emailMode ? 'auth-email-input' : 'auth-phone-input');
       const otpInput = document.getElementById('auth-otp-input');
       const adminPassInput = document.getElementById('auth-admin-password');
       const changePhoneBtn = document.getElementById('auth-change-phone-btn');
@@ -595,9 +628,9 @@
           document.getElementById('auth-sub').innerText = i18n.t('loginSub');
           const taglineEl = document.getElementById('auth-tagline');
           if (taglineEl) taglineEl.innerText = i18n.t('brandTagline') || (next === 'ny' ? 'Uka • Manga • Kula' : 'Rise • Build • Grow'); // NEEDS NATIVE REVIEW (EN: "Rise • Build • Grow")
-          document.getElementById('label-phone').innerText = i18n.t('phoneLabel');
+          document.getElementById('label-phone').innerText = i18n.t(emailMode ? 'emailLabel' : 'phoneLabel');
           document.getElementById('auth-btn-phone-text').innerText = i18n.t('requestOtpBtn');
-          document.getElementById('label-otp').innerText = i18n.t('otpLabel');
+          document.getElementById('label-otp').innerText = emailMode ? i18n.t('otpLabelEmail') : i18n.t('otpLabel');
           document.getElementById('auth-btn-otp-text').innerText = role === 'ADMIN' ? i18n.t('adminLoginBtn') : i18n.t('verifyOtpBtn');
           document.getElementById('auth-change-phone-btn').innerText = i18n.t('changePhoneBtn');
           const consentText = document.getElementById('auth-consent-text');
@@ -634,17 +667,27 @@
           consentGiven = true;
         }
 
-        currentPhoneE164 = rawPhone;
+        if (emailMode) {
+          // Email is the identity: the code is sent to this address.
+          const em = phoneInput.value.trim().toLowerCase();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em) || em.length > 254) {
+            showAlert(i18n.t('emailInvalid'));
+            return;
+          }
+          currentPhoneE164 = em;
+        } else {
+          currentPhoneE164 = rawPhone;
+        }
 
         const submitBtn = document.getElementById('auth-phone-submit');
         submitBtn.disabled = true;
         submitBtn.classList.add('opacity-70');
 
         try {
-          const res = await fetch('/api/auth/otp/request', {
+          const res = await fetch(emailMode ? '/api/auth/email/otp/request' : '/api/auth/otp/request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: currentPhoneE164 })
+            body: JSON.stringify(emailMode ? { email: currentPhoneE164 } : { phone: currentPhoneE164 })
           });
 
           const data = await res.json();
@@ -655,7 +698,9 @@
           document.getElementById('auth-title').innerText = i18n.t('otpTitle');
           document.getElementById('auth-sub').innerText = i18n.t('otpSub', { phone: currentPhoneE164 });
           otpInput.focus();
-          showAlert(`Verification code sent via SMS to ${currentPhoneE164}`, false);
+          showAlert(emailMode
+            ? `Verification code sent to ${currentPhoneE164}. Check your inbox (and spam folder).`
+            : `Verification code sent via SMS to ${currentPhoneE164}`, false);
         } catch (err) {
           const isSmsFailure = err.message && (err.message.includes('SMS delivery failed') || err.message.includes('telecom') || err.message.includes('network'));
           const errorMsg = isSmsFailure ? i18n.t('smsDeliveryFailedMsg') : err.message;
@@ -695,10 +740,22 @@
           let res;
           if (role === 'ADMIN') {
             const password = adminPassInput ? adminPassInput.value : '';
-            res = await fetch('/api/auth/admin/login', {
+            res = await fetch(emailMode ? '/api/auth/admin/email-login' : '/api/auth/admin/login', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ phone: currentPhoneE164, password, otp })
+              body: JSON.stringify(emailMode ? { email: currentPhoneE164, password, otp } : { phone: currentPhoneE164, password, otp })
+            });
+          } else if (emailMode) {
+            const payload = { email: currentPhoneE164, otp };
+            const profileBox = document.getElementById('auth-profile-fields');
+            if (profileBox && !profileBox.classList.contains('hidden')) {
+              payload.name = (document.getElementById('auth-profile-name').value || '').trim();
+              payload.phone = (document.getElementById('auth-profile-phone').value || '').trim();
+            }
+            res = await fetch('/api/auth/email/otp/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
             });
           } else {
             res = await fetch('/api/auth/otp/verify', {
@@ -709,6 +766,17 @@
           }
 
           const data = await res.json();
+          if (res.status === 409 && data.code === 'PROFILE_REQUIRED') {
+            // First time with this email: ask for name + mobile number, then resubmit the SAME code.
+            const profileBox = document.getElementById('auth-profile-fields');
+            if (profileBox) {
+              profileBox.classList.remove('hidden');
+              showAlert(data.error, false);
+              const nameEl = document.getElementById('auth-profile-name');
+              if (nameEl) nameEl.focus();
+              return;
+            }
+          }
           if (!res.ok) throw new Error(data.error || 'Verification failed');
 
           this.setSession(data.accessToken, data.refreshToken, data.user);
@@ -901,6 +969,17 @@
     }
 
     // Ensure user is authenticated before page loads; pops modal if unauthenticated
+    // How people sign in: 'phone' (SMS codes) or 'email' (email codes). Read once from /api/app-config.
+    loadAuthMode() {
+      if (!this._authModePromise) {
+        this._authModePromise = fetch('/api/app-config')
+          .then((r) => r.json())
+          .then((cfg) => { this._authMode = cfg && cfg.authMode === 'email' ? 'email' : 'phone'; return this._authMode; })
+          .catch(() => { this._authMode = 'phone'; return 'phone'; });
+      }
+      return this._authModePromise;
+    }
+
     // Records consent on the server. If it fails (e.g. no network), it is retried on the next load.
     async recordConsent(kind = 'TERMS_AND_PRIVACY') {
       const retryKey = CONSENT_RETRY_PREFIX + kind;
@@ -934,6 +1013,7 @@
     }
 
     async ensureAuth({ role = 'RIDER', onAuthenticated }) {
+      await this.loadAuthMode();
       if (this.isAuthenticated()) {
         this.retryPendingConsent();
         try {
@@ -995,5 +1075,6 @@
   }
 
   window.aarohanAuth = new AArohanAuth();
+  window.aarohanAuth.loadAuthMode();
   window.fetchWithAuth = (url, options) => window.aarohanAuth.fetchWithAuth(url, options);
 })(window);

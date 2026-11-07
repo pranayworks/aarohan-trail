@@ -391,6 +391,7 @@ app.get('/api/app-config', (req, res) => {
     env: process.env.NODE_ENV || 'development',
     allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development',
     paymentsEnabled: featureFlags.paymentsEnabled(),
+    authMode: featureFlags.authMode(),
     sentryDsn: (process.env.SENTRY_DSN || '').trim(),
     serviceArea: {
       city: 'Lilongwe',

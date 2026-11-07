@@ -87,6 +87,21 @@ async function createAdmin() {
     process.exit(1);
   }
 
+  // 1b. Email (required when AUTH_MODE=email, because admins then sign in with an email code)
+  let email = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+  if (!email) {
+    email = (await askQuestion('Enter Admin Email (required when AUTH_MODE=email; press Enter to skip): ')).trim().toLowerCase();
+  }
+  const emailOk = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && e.length <= 254;
+  if (email && !emailOk(email)) {
+    console.error(`❌ Error: Invalid email address "${email}".`);
+    process.exit(1);
+  }
+  if (!email && String(process.env.AUTH_MODE || '').toLowerCase() === 'email') {
+    console.error('❌ Error: AUTH_MODE=email requires an admin email address.');
+    process.exit(1);
+  }
+
   // 2. Name prompt
   let name = await askQuestion('Enter Admin Full Name [Aarohan Operations Admin]: ');
   if (!name) name = 'Aarohan Operations Admin';
@@ -121,6 +136,7 @@ async function createAdmin() {
       where: { phone },
       create: {
         phone,
+        ...(email ? { email } : {}),
         name,
         role: 'ADMIN',
         status: 'ACTIVE',
@@ -128,6 +144,7 @@ async function createAdmin() {
         kycTier: 'TIER_3_ADMIN'
       },
       update: {
+        ...(email ? { email } : {}),
         name,
         role: 'ADMIN',
         status: 'ACTIVE',
@@ -146,16 +163,11 @@ async function createAdmin() {
     // Audit log
     await tx.auditLog.create({
       data: {
-        actorId: user.id,
-        actorRole: 'ADMIN',
-        action: 'ADMIN_PROVISIONED',
-        targetType: 'USER',
-        targetId: user.id,
-        metadata: {
-          phone: user.phone,
-          name: user.name,
-          provisionedVia: 'CLI_SCRIPT'
-        }
+        userId: user.id,
+        action: 'USER_REGISTER',
+        entityType: 'USER',
+        entityId: user.id,
+        details: { role: 'ADMIN', provisionedVia: 'CLI_SCRIPT', hasEmail: !!email }
       }
     });
 
@@ -167,6 +179,7 @@ async function createAdmin() {
   console.log(`   User ID:   ${adminUser.id}`);
   console.log(`   Name:      ${adminUser.name}`);
   console.log(`   Phone:     ${adminUser.phone}`);
+  if (adminUser.email) console.log(`   Email:     ${adminUser.email}`);
   console.log(`   Role:      ${adminUser.role}`);
   console.log(`   Status:    ${adminUser.status}`);
   console.log('   Security:  Password securely hashed & audited in AuditLog');

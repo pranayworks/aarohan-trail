@@ -39,7 +39,9 @@ Generate each random secret on your PC with:
 | `TRUST_PROXY` | `1` |
 | `PAYMENTS_ENABLED`, `PAYOUTS_ENABLED` | `false` (cash-only pilot) |
 | `MAP_PROVIDER`, `MAPBOX_ACCESS_TOKEN`, `MAP_API_KEY` | a **new** Mapbox token restricted to your Railway domain |
-| `SMS_GATEWAY_PROVIDER` | `twilio` (see the SMS note below) |
+| `AUTH_MODE` | `email` for a zero-cost demo (see `docs/email-login.md`), `phone` for the real pilot (default) |
+| `EMAIL_PROVIDER`, `BREVO_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` | only when `AUTH_MODE=email` (Brevo free plan: 300 emails a day) |
+| `SMS_GATEWAY_PROVIDER` | `twilio` when `AUTH_MODE=phone` (see the SMS note below) |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_MESSAGING_SERVICE_SID`, `SMS_SENDER_NAME` | from your upgraded Twilio account |
 | `OTP_DAILY_CAP_PER_PHONE`, `SMS_DAILY_CAP_TOTAL`, `OTP_DAILY_CAP_PER_IP` | optional; defaults are 5 / 50 / 40 |
 | `SENTRY_DSN` | optional |
@@ -48,8 +50,9 @@ Set after the domain exists (step 5): `PUBLIC_BASE_URL` (for example `https://yo
 
 **Never set:** `DATABASE_URL_TEST`, `TEST_DB_PROJECT_REF`, `AUTO_DISPATCH`, `REQUIRE_FARE_QUOTE`, `REQUIRE_OFFER_TO_ACCEPT`. (The first two make the server refuse to start; the last three are production-safe by default.)
 
-> **SMS note.** In production the login code is never printed, so a real SMS provider is required for anyone to log in,
-> including you as admin. Use your upgraded Twilio account for staging.
+> **Login note.** In production the login code is never printed, so a real way to deliver codes is required for anyone to log in,
+> including you as admin: either a real SMS provider (`AUTH_MODE=phone`, for example your upgraded Twilio account) or a real email
+> provider (`AUTH_MODE=email`, free with Brevo). For a first zero-cost demo, use email mode.
 
 ## 4. First deploy
 1. Deploy. Watch the logs: the **pre-deploy** step applies the database migrations (including `20261108_commission_remittance`), then the app starts.
