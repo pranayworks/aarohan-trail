@@ -55,9 +55,14 @@ function getOtpDailyCapPerPhone() {
   return Number.isFinite(cap) && cap > 0 ? cap : 5;
 }
 
+function getOtpDailyCapPerIp() {
+  const cap = parseInt(process.env.OTP_DAILY_CAP_PER_IP, 10);
+  return Number.isFinite(cap) && cap > 0 ? cap : 15;
+}
+
 function getSmsDailyCapTotal() {
   const cap = parseInt(process.env.SMS_DAILY_CAP_TOTAL, 10);
-  return Number.isFinite(cap) && cap > 0 ? cap : 200;
+  return Number.isFinite(cap) && cap > 0 ? cap : 50;
 }
 
 function resetRateLimitsForTesting() {
@@ -137,18 +142,34 @@ async function checkOtpRateLimits(phone, ip) {
     throw new Error('Platform daily SMS dispatch limit reached. Please contact Aarohan operations.');
   }
 
-  // 2. Check IP rate limit
+  // 2. Check IP rate limit (window limit & daily IP cap)
   if (ip) {
-    const ipRecord = ipRateLimits.get(ip) || { count: 0, resetAt: now + 15 * 60 * 1000 };
+    const ipRecord = ipRateLimits.get(ip) || {
+      count: 0,
+      resetAt: now + 15 * 60 * 1000,
+      dailyCount: 0,
+      dailyResetAt: now + 24 * 60 * 60 * 1000
+    };
     if (now > ipRecord.resetAt) {
       ipRecord.count = 0;
       ipRecord.resetAt = now + 15 * 60 * 1000;
     }
+    if (now > ipRecord.dailyResetAt) {
+      ipRecord.dailyCount = 0;
+      ipRecord.dailyResetAt = now + 24 * 60 * 60 * 1000;
+    }
+
+    const maxIpDaily = getOtpDailyCapPerIp();
+    if (ipRecord.dailyCount >= maxIpDaily) {
+      throw new Error('Daily SMS verification quota exceeded for this IP address. Please try again tomorrow.');
+    }
+
     if (ipRecord.count >= 10) {
       const waitMins = Math.ceil((ipRecord.resetAt - now) / 60000);
       throw new Error(`Too many OTP requests from this IP address. Please wait ${waitMins} minute(s).`);
     }
     ipRecord.count++;
+    ipRecord.dailyCount++;
     ipRateLimits.set(ip, ipRecord);
   }
 
@@ -506,6 +527,7 @@ module.exports = {
   hashOtp,
   hashRefreshToken,
   getOtpDailyCapPerPhone,
+  getOtpDailyCapPerIp,
   getSmsDailyCapTotal,
   resetRateLimitsForTesting,
   resetCooldownForTesting,

@@ -8,6 +8,7 @@ const assert = require('assert');
 const prisma = require('../lib/prisma');
 const dispatchService = require('../services/dispatch');
 const { getTestToken } = require('./auth_helper');
+const { setupTestIsolation, teardownTestIsolation } = require('./test_helper');
 const { server } = require('../server');
 
 const BASE_URL = 'http://localhost:3000';
@@ -48,6 +49,7 @@ async function runConcurrencySimulation() {
   // Phase 1: Provision 20 Verified Drivers in Lilongwe Corridor
   // -------------------------------------------------------------------------
   console.log('--- Phase 1: Provisioning 20 Database Drivers (APPROVED + ONLINE + Fresh GPS) ---');
+  await setupTestIsolation(prisma);
   const drivers = [];
   const baseLat = -13.9700;
   const baseLng = 33.7650;
@@ -320,6 +322,8 @@ async function runConcurrencySimulation() {
   console.log('\n=============================================================');
   console.log(`CONCURRENCY AUDIT RESULT: ${passed}/${total} TESTS PASSED (${Math.round((passed / total) * 100)}%)`);
   console.log('=============================================================\n');
+
+  await teardownTestIsolation(prisma);
 
   return { passed, total, success: passed === total };
 }

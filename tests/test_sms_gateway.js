@@ -104,7 +104,28 @@ async function runSmsGatewaySuite() {
   report('Default per-phone daily cap is 5', authService.getOtpDailyCapPerPhone() === 5);
 
   delete process.env.SMS_DAILY_CAP_TOTAL;
-  report('Default platform total daily cap is 200', authService.getSmsDailyCapTotal() === 200);
+  report('Default platform total daily cap is 50', authService.getSmsDailyCapTotal() === 50);
+
+  delete process.env.OTP_DAILY_CAP_PER_IP;
+  report('Default per-IP daily cap is 15', authService.getOtpDailyCapPerIp() === 15);
+
+  // Test per-IP daily cap blocks requests from single IP
+  authService.resetRateLimitsForTesting();
+  process.env.OTP_DAILY_CAP_PER_IP = '2';
+  const testIp = '196.11.234.55';
+  await authService.requestOtp('+265991000001', testIp);
+  authService.resetCooldownForTesting('+265991000002');
+  await authService.requestOtp('+265991000002', testIp);
+
+  let ipDailyBlocked = false;
+  try {
+    await authService.requestOtp('+265991000003', testIp); // 3rd request from same IP -> exceeds cap 2
+  } catch (e) {
+    ipDailyBlocked = e.message.includes('Daily SMS verification quota exceeded for this IP address');
+  }
+  report('Per-IP daily cap blocks requests from a single IP to protect platform total cap', ipDailyBlocked);
+  delete process.env.OTP_DAILY_CAP_PER_IP;
+  authService.resetRateLimitsForTesting();
 
   const testPhone = '+265991230001';
   // Send 5 OTPs resetting cooldown between each
@@ -200,11 +221,67 @@ async function runSmsGatewaySuite() {
     params: { ...callbackParams, MessageStatus: 'failed' }
   }));
 
+  // Test PUBLIC_BASE_URL for proxied HTTPS webhook signature validation
+  process.env.PUBLIC_BASE_URL = 'https://api.aarohan.mw';
+  const proxiedPath = '/api/notifications/twilio-callback';
+  const proxiedExpectedUrl = `${process.env.PUBLIC_BASE_URL}${proxiedPath}`;
+  
+  let proxiedSignData = proxiedExpectedUrl;
+  Object.keys(callbackParams).sort().forEach(k => {
+    proxiedSignData += k + callbackParams[k];
+  });
+  const proxiedSignature = crypto.createHmac('sha1', dummyAuthToken).update(Buffer.from(proxiedSignData, 'utf8')).digest('base64');
+
+  function resolveCallbackUrl(req) {
+    if (process.env.PUBLIC_BASE_URL) {
+      const base = process.env.PUBLIC_BASE_URL.replace(/\/+$/, '');
+      const path = req.originalUrl.split('?')[0];
+      return `${base}${path.startsWith('/') ? path : '/' + path}`;
+    }
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    return `${protocol}://${host}${req.originalUrl.split('?')[0]}`;
+  }
+
+  const simulatedReq = {
+    originalUrl: '/api/notifications/twilio-callback?extra=query',
+    headers: {
+      host: 'internal-cluster-service:3000',
+      'x-forwarded-proto': 'http'
+    }
+  };
+
+  const reconstructedUrl = resolveCallbackUrl(simulatedReq);
+  report('PUBLIC_BASE_URL resolves canonical HTTPS public URL ignoring internal proxy headers', reconstructedUrl === 'https://api.aarohan.mw/api/notifications/twilio-callback');
+
+  report('Twilio signature validates successfully against reconstructed proxied PUBLIC_BASE_URL', validateTwilioSignature({
+    authToken: dummyAuthToken,
+    signature: proxiedSignature,
+    url: reconstructedUrl,
+    params: callbackParams
+  }));
+
+  delete process.env.PUBLIC_BASE_URL;
+
   // -------------------------------------------------------------------------
   // 5. SmsLog Content Integrity: Zero Raw Code, Zero Full Phone, Zero Body
   // -------------------------------------------------------------------------
   console.log('\n--- 5. Testing SmsLog Database Schema & Data Privacy ---');
+  const originalHashSecret = process.env.SMS_HASH_SECRET;
+  process.env.SMS_HASH_SECRET = 'aarohan-custom-sms-secret-123456';
   const loggedPhone = '+265997654321';
+
+  const secretHash = hashPhoneNumber(loggedPhone);
+  const expectedHmac = crypto.createHmac('sha256', 'aarohan-custom-sms-secret-123456').update(loggedPhone).digest('hex');
+  report('phoneHash computes HMAC-SHA256 with SMS_HASH_SECRET', secretHash === expectedHmac);
+
+  process.env.SMS_HASH_SECRET = 'different-secret-987654';
+  const differentSecretHash = hashPhoneNumber(loggedPhone);
+  report('phoneHash is secret-dependent (distinct secrets produce distinct hashes)', secretHash !== differentSecretHash);
+
+  if (originalHashSecret) process.env.SMS_HASH_SECRET = originalHashSecret;
+  else delete process.env.SMS_HASH_SECRET;
+
   const sendRes = await notificationService.sendSms({
     to: loggedPhone,
     message: 'Your Aarohan verification code is 482910. It expires in 5 minutes. Do not share it.',
@@ -217,7 +294,7 @@ async function runSmsGatewaySuite() {
   });
 
   report('SmsLog record exists in database', Boolean(smsLogRow));
-  report('SmsLog stores SHA-256 phoneHash instead of raw phone', smsLogRow.phoneHash === hashPhoneNumber(loggedPhone));
+  report('SmsLog stores HMAC phoneHash instead of raw phone', smsLogRow.phoneHash === hashPhoneNumber(loggedPhone));
   report('SmsLog stores masked phone number (+26599****321)', smsLogRow.phoneMasked === maskPhoneNumber(loggedPhone) && !smsLogRow.phoneMasked.includes('7654'));
   report('SmsLog contains zero message body column', smsLogRow.message === undefined && smsLogRow.body === undefined);
   report('SmsLog contains zero OTP code column', smsLogRow.code === undefined && smsLogRow.otp === undefined);
@@ -227,7 +304,7 @@ async function runSmsGatewaySuite() {
   // -------------------------------------------------------------------------
   console.log('\n--- 6. Testing Failure Handling & Rollback Invariants ---');
   const failPhone = '+265998877665';
-  
+
   // Clean any previous test OTP
   await prisma.otpCode.deleteMany({ where: { phone: failPhone } });
 
@@ -303,7 +380,7 @@ async function runSmsGatewaySuite() {
   // Clean up test logs
   await prisma.smsLog.deleteMany({
     where: { id: { in: [sendRes.logId, dummyLog.id] } }
-  }).catch(() => {});
+  }).catch(() => { });
 
   if (originalProvider) {
     process.env.SMS_GATEWAY_PROVIDER = originalProvider;

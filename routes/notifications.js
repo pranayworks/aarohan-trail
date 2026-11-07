@@ -41,10 +41,17 @@ router.post('/notifications/twilio-callback', async (req, res) => {
     return res.status(403).json({ error: 'Missing X-Twilio-Signature header.' });
   }
 
-  // Construct expected URL
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-  const host = req.headers['x-forwarded-host'] || req.get('host');
-  const fullUrl = `${protocol}://${host}${req.originalUrl.split('?')[0]}`;
+  // Construct expected URL (prioritizes PUBLIC_BASE_URL when behind reverse proxy)
+  let fullUrl;
+  if (process.env.PUBLIC_BASE_URL) {
+    const base = process.env.PUBLIC_BASE_URL.replace(/\/+$/, '');
+    const path = req.originalUrl.split('?')[0];
+    fullUrl = `${base}${path.startsWith('/') ? path : '/' + path}`;
+  } else {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    fullUrl = `${protocol}://${host}${req.originalUrl.split('?')[0]}`;
+  }
 
   try {
     const result = await notificationService.handleTwilioStatusCallback({

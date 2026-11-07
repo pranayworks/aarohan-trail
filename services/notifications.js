@@ -37,11 +37,12 @@ function validateSenderName(name) {
 }
 
 /**
- * Computes SHA-256 hash of E.164 phone number.
+ * Computes HMAC-SHA256 hash of E.164 phone number using SMS_HASH_SECRET.
  */
 function hashPhoneNumber(phone) {
   const clean = (phone || '').replace(/[\s-]/g, '').trim();
-  return crypto.createHash('sha256').update(clean).digest('hex');
+  const secret = process.env.SMS_HASH_SECRET || process.env.OTP_HMAC_SECRET || 'aarohan-default-sms-hash-secret';
+  return crypto.createHmac('sha256', secret).update(clean).digest('hex');
 }
 
 /**

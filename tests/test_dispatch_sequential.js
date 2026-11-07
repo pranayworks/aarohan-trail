@@ -1,6 +1,7 @@
 const assert = require('assert');
 const prisma = require('../lib/prisma');
 const dispatchService = require('../services/dispatch');
+const { setupTestIsolation, teardownTestIsolation } = require('./test_helper');
 const { server } = require('../server');
 
 async function runSequentialDispatchTests() {
@@ -49,6 +50,8 @@ async function runSequentialDispatchTests() {
     { phone: '+265997700002', name: 'Seq Driver 2 (Middle)', lat: baseLat + 0.005, lng: baseLng },
     { phone: '+265997700003', name: 'Seq Driver 3 (Furthest)', lat: baseLat + 0.015, lng: baseLng }
   ];
+
+  await setupTestIsolation(prisma, { phones: driverDefs.map(d => d.phone).concat(['+265991234567']) });
 
   const drivers = [];
   for (const def of driverDefs) {
@@ -228,7 +231,7 @@ async function runSequentialDispatchTests() {
   // Extend offer window so network delay doesn't trigger timeout during test restart
   await prisma.tripOffer.updateMany({
     where: { tripId: trip.id, status: 'PENDING' },
-    data: { expiresAt: new Date(Date.now() + 60000) }
+    data: { expiresAt: new Date(Date.now() + 300000) }
   });
 
   // 4b. Invoke resumePendingOffers()
@@ -240,11 +243,14 @@ async function runSequentialDispatchTests() {
     `Timer successfully restored for Trip ${trip.id}`
   );
 
+  // Clear timer for trip.id so slow remote DB roundtrips don't trigger premature timeout before Phase 5
+  dispatchService.clearOfferTimer(trip.id);
+
   // 4c. Simulate downtime expiration recovery
   // Keep active offer fresh so network latency does not expire it before Phase 5
   await prisma.tripOffer.update({
     where: { id: activeOfferAfterTimeout.id },
-    data: { expiresAt: new Date(Date.now() + 60000) }
+    data: { expiresAt: new Date(Date.now() + 300000) }
   });
 
   // Create an expired offer for another unassigned trip using riderUser2
@@ -325,6 +331,8 @@ async function runSequentialDispatchTests() {
   console.log('\n=============================================================');
   console.log(`SEQUENTIAL DISPATCH RESULT: ${passed}/${total} TESTS PASSED (${Math.round((passed / total) * 100)}%)`);
   console.log('=============================================================\n');
+
+  await teardownTestIsolation(prisma, { phones: driverDefs.map(d => d.phone).concat(['+265991234567']) });
 
   return { passed, total, success: passed === total };
 }
