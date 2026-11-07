@@ -192,6 +192,7 @@ async function runBrowserE2E() {
     await pageDriver.waitForSelector('#aarohan-auth-modal', { state: 'visible', timeout: 15000 });
 
     await pageDriver.locator('#auth-phone-input').fill('995541122');
+    await pageDriver.locator('#auth-consent').check(); // explicit consent is required to log in
     await pageDriver.locator('#auth-phone-submit').click();
 
     await pageDriver.waitForSelector('#auth-step-otp:not(.hidden)', { timeout: 15000 });
@@ -217,6 +218,7 @@ async function runBrowserE2E() {
     await pageRider.waitForSelector('#aarohan-auth-modal', { state: 'visible', timeout: 15000 });
 
     await pageRider.locator('#auth-phone-input').fill('991234567');
+    await pageRider.locator('#auth-consent').check(); // explicit consent is required to log in
     await pageRider.locator('#auth-phone-submit').click();
 
     await pageRider.waitForSelector('#auth-step-otp:not(.hidden)', { timeout: 15000 });

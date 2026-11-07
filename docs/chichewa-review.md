@@ -64,3 +64,7 @@
 - [ ] Technical concepts (GPS, HTTPS, Account, Activity) use natural terms rather than cumbersome loan-word constructs.
 - [ ] Legal warnings are clear, binding, and easily understood by both urban and peri-urban users.
 
+## Consent wording (added with the explicit consent checkbox) — NEEDS NATIVE REVIEW + LAWYER
+Keys in `shared/i18n.js`: `consentLead`, `consentTerms`, `consentAnd`, `consentPrivacy`, `consentRequired`,
+`driverAgreementText`, `driverAgreementRequired`. The Chichewa text is a first draft and must be checked by a
+Chichewa speaker and by the lawyer, because it is the wording people agree to.

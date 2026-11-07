@@ -25,6 +25,7 @@ function report(name, ok, detail = '') {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ROOT = path.join(__dirname, '..');
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 // ----------------------------------------------------------------------------
 // Fake data layer injected BEFORE any module requires lib/prisma
@@ -263,6 +264,34 @@ const count = (log, ev) => log.filter((e) => e.ev === ev).length;
   io.close(); httpServer.close();
 
   // --------------------------------------------------------------------------
+  console.log('\n--- 4b. SOS over HTTP (backup when the live connection is down) ---');
+  const { handleSosRequest } = require('../services/sos');
+  const opsEvents = [];
+  const fakeIo = { to: (room) => ({ emit: (ev, payload) => opsEvents.push({ room, ev, payload }) }) };
+  const callHttp = async (user, body) => {
+    const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
+    await handleSosRequest({ user, body, app: { get: () => fakeIo } }, res);
+    return res;
+  };
+  const alertsBefore = db.sosAlerts.length;
+  const http1 = await callHttp({ id: 'U-OTHER', role: 'RIDER', driverId: null }, { lat: -13.95, lng: 33.77, emergencyPhone: '+265000000001', riderPhone: '+265000000002', note: 'no signal' });
+  await sleep(100);
+  report('HTTP SOS is accepted and stored', http1.statusCode === 201 && http1.body.success === true && !!http1.body.alert.id);
+  report('HTTP SOS identity and contacts come from the DATABASE, not the request',
+    http1.body.alert.riderPhone === '+265993333333' && http1.body.alert.passenger === 'Olu Other' && http1.body.alert.emergencyPhone === null);
+  report('HTTP SOS alerts operations staff only', opsEvents.length === 1 && opsEvents[0].room === 'ops' && opsEvents[0].ev === 'sos:alert');
+  report('HTTP SOS triggers the SMS escalation', db.sosAlerts.length === alertsBefore + 1);
+  const http2 = await callHttp({ id: 'U-OTHER', role: 'RIDER', driverId: null }, { lat: -13.95, lng: 33.77 });
+  report('A repeated HTTP press returns the same incident without a second alert',
+    http2.statusCode === 200 && http2.body.duplicate === true && opsEvents.length === 1 && db.sosAlerts.length === alertsBefore + 1);
+  const http3 = await callHttp({ id: 'U-DRIVER', role: 'DRIVER', driverId: 'D1' }, { lat: 'not-a-number' });
+  report('Invalid HTTP SOS input is rejected', http3.statusCode === 400 && http3.body.success === false);
+  report('The HTTP SOS route requires a login and is mounted',
+    /router\.post\('\/sos', requireAuth, handleSosRequest\)/.test(read('routes/sos.js')) && read('server.js').includes("app.use('/api', sosRouter)"));
+  report('The phone apps fall back to the HTTP route when the socket is down or unconfirmed',
+    read('shared/state.js').includes("'/api/sos'") && /viaHttp\(payload\)\.then\(finish\)/.test(read('shared/state.js')));
+
+  // --------------------------------------------------------------------------
   console.log('\n--- 5. Commission settlement rules (single-use, balanced, atomic) ---');
   const codeOf = async (p) => { try { await p; return 'OK'; } catch (e) { return e.code || e.message; } };
   const badAmounts = await Promise.all([0, -5, 12.5, 'abc'].map((a) => codeOf(settlementService.submit({ driverId: 'D1', amountMWK: a, method: 'AIRTEL_MONEY', reference: 'REF-12345' }))));
@@ -295,7 +324,6 @@ const count = (log, ev) => log.filter((e) => e.ev === ev).length;
 
   // --------------------------------------------------------------------------
   console.log('\n--- 6. Source guards (prevent these bugs from coming back) ---');
-  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
   const listJs = (dir) => fs.readdirSync(path.join(ROOT, dir)).filter((f) => f.endsWith('.js')).map((f) => `${dir}/${f}`);
   const serverFiles = [...listJs('sockets'), ...listJs('routes'), ...listJs('services'), 'server.js'].filter((f) => f !== 'sockets/emitters.js');
   const ALLOWED_BROADCASTS = ['pricing:rates_updated', 'pricing:version_activated', 'pricing:global_updated', 'surge:updated'];
@@ -344,7 +372,7 @@ const count = (log, ev) => log.filter((e) => e.ev === ev).length;
   report('Docker image includes the landing page and the Prisma CLI for migrate deploy', docker.includes('/app/landing.html') && docker.includes('node_modules/prisma'));
 
   // --- The consent request the rider app sends must be accepted by the server ---
-  const consentType = (read('rider/index.html').match(/type:\s*'(TERMS_AND_PRIVACY)'/) || [])[1];
+  const consentType = (read('shared/auth.js').match(/type:\s*'(TERMS_AND_PRIVACY)'/) || [])[1];
   report('Rider app consent request matches what the server accepts',
     !!consentType && read('routes/legal.js').includes(`type === '${consentType}'`));
   report('Consent IP is stored as a keyed hash, not a plain hash', /createHmac\('sha256'/.test(read('routes/legal.js')) && !/createHash\('sha256'\)\.update\(ip\)/.test(read('routes/legal.js')));
@@ -364,6 +392,40 @@ const count = (log, ev) => log.filter((e) => e.ev === ev).length;
     th.includes('REQUIRE_OFFER_TO_ACCEPT') && th.includes('This ride was not offered to you'));
   report('Cancelling a ride withdraws the open offer and tells the offered driver',
     th.includes("emitToDriver(io, o.driverId, 'trip:cancelled'") && th.includes('dispatchService.clearOfferTimer(trip.id)'));
+
+  // --- Explicit consent (not silent) ---
+  const authJs = read('shared/auth.js');
+  report('Riders and drivers must tick the Terms and Privacy box before a login code is sent',
+    authJs.includes('id="auth-consent"') && authJs.includes("if (consentBox && !consentBox.checked)") && authJs.includes("role !== 'ADMIN'"));
+  report('Consent is recorded only after an explicit tick, and retried if the network failed',
+    authJs.includes('if (role !== \'ADMIN\' && consentGiven)') && authJs.includes("'/api/consent'") && authJs.includes('retryPendingConsent'));
+  report('The old silent consent call is gone from the rider screen', !read('rider/index.html').includes("fetch('/api/consent'"));
+  report('Drivers must accept the Driver Agreement during onboarding',
+    authJs.includes('id="onboard-agreement"') && authJs.includes("recordConsent('DRIVER_AGREEMENT')") && authJs.includes('driverAgreementRequired'));
+  report('Consent wording exists in English and Chichewa (Chichewa flagged for native review)',
+    (read('shared/i18n.js').match(/consentLead:/g) || []).length === 2 && read('shared/i18n.js').includes('NEEDS NATIVE REVIEW (consent wording'));
+  report('The browser test ticks the consent box on every rider and driver login',
+    (read('tests/test_playwright_booking.js').match(/#auth-consent'\)\.check\(\)/g) || []).length >= 2);
+
+  // --- Map library is self-hosted ---
+  const leafletPages = ['rider/index.html', 'admin/index.html'];
+  report('Pages load the map library from our own server, not a third-party CDN',
+    leafletPages.every((f) => read(f).includes('/vendor/leaflet/leaflet.js') && read(f).includes('/vendor/leaflet/leaflet.css')) &&
+    !pages.some((f) => /unpkg\.com/.test(read(f))) && !serverSrc.includes('unpkg.com'));
+  report('Leaflet is pinned in package.json and served at /vendor/leaflet',
+    JSON.parse(read('package.json')).dependencies.leaflet === '1.9.4' && serverSrc.includes("app.use('/vendor/leaflet'"));
+  const leafletFiles = ['leaflet.js', 'leaflet.css'].map((f) => path.join(ROOT, 'node_modules', 'leaflet', 'dist', f));
+  report('Leaflet is installed locally (if this fails, run: npm install)',
+    process.env.OFFLINE_SKIP_LEAFLET === '1' || leafletFiles.every((f) => fs.existsSync(f)), leafletFiles.filter((f) => !fs.existsSync(f)).length ? 'node_modules/leaflet is missing' : '');
+
+  // --- Railway deployment config ---
+  const railwayCfg = JSON.parse(read('railway.json'));
+  report('Railway runs migrations before start and checks /api/health',
+    railwayCfg.build.builder === 'DOCKERFILE' && railwayCfg.deploy.healthcheckPath === '/api/health' &&
+    railwayCfg.deploy.preDeployCommand.some((c) => c.includes('prisma/build/index.js migrate deploy')));
+  report('Container health check follows the PORT that Railway assigns', /localhost:\$\{PORT:-3000\}\/api\/health/.test(read('Dockerfile')));
+  report('The deploy walkthrough exists and never says to run the seed in production',
+    fs.existsSync(path.join(ROOT, 'docs/railway-deploy-walkthrough.md')) && /seed script must never be run against production/i.test(read('docs/railway-deploy-walkthrough.md')));
 
   // --- Public landing page ---
   report('The root URL serves the public landing page', /sendFile\(path\.join\(__dirname, 'landing\.html'\)\)/.test(serverSrc) && fs.existsSync(path.join(ROOT, 'landing.html')));

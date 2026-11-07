@@ -17,6 +17,9 @@
   const ACCESS_TOKEN_KEY = 'aarohan_access_token';
   const REFRESH_TOKEN_KEY = 'aarohan_refresh_token';
   const USER_KEY = 'aarohan_user';
+  // Must match the version shown on /legal/terms and /legal/privacy.
+  const LEGAL_VERSION = 'v0.1';
+  const CONSENT_RETRY_PREFIX = 'aarohan_consent_retry:';
 
   class AArohanAuth {
     constructor() {
@@ -347,6 +350,13 @@
             </div>
             ` : ''}
 
+            ${role !== 'ADMIN' ? `
+            <label class="flex items-start gap-3 text-xs text-on-surface-variant cursor-pointer select-none">
+              <input type="checkbox" id="auth-consent" class="mt-0.5 w-5 h-5 shrink-0 accent-[#FF6A00]" />
+              <span id="auth-consent-text">${i18n.t('consentLead')} <a href="/legal/terms" target="_blank" rel="noopener" class="text-primary font-bold underline">${i18n.t('consentTerms')}</a> ${i18n.t('consentAnd')} <a href="/legal/privacy" target="_blank" rel="noopener" class="text-primary font-bold underline">${i18n.t('consentPrivacy')}</a>.</span>
+            </label>
+            ` : ''}
+
             <button 
               type="submit" 
               id="auth-phone-submit" 
@@ -470,6 +480,11 @@
               <input type="file" id="onboard-doc-photo" accept="image/jpeg,image/png,image/jpg" class="w-full text-xs text-on-surface file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[11px] file:font-bold file:bg-surface-container-high file:text-on-surface" required />
             </div>
 
+            <label class="flex items-start gap-3 text-[11px] text-on-surface-variant cursor-pointer select-none pt-1">
+              <input type="checkbox" id="onboard-agreement" class="mt-0.5 w-5 h-5 shrink-0 accent-[#FF6A00]" />
+              <span id="onboard-agreement-text">${i18n.t('driverAgreementText')} (<a href="/legal/terms" target="_blank" rel="noopener" class="text-primary font-bold underline">${i18n.t('consentTerms')}</a>)</span>
+            </label>
+
             <button type="submit" id="onboard-submit-btn" class="w-full h-12 mt-2 bg-[#FF6A00] hover:bg-[#FFA247] text-[#0B0B0B] font-black text-xs rounded-2xl shadow-lg shadow-[#FF6A00]/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
               <span id="onboard-submit-btn-text">Submit Application & Upload Documents</span>
               <span class="material-symbols-outlined text-base">cloud_upload</span>
@@ -521,6 +536,7 @@
       const checkStatusBtn = document.getElementById('auth-check-status-btn');
 
       let currentPhoneE164 = '';
+      let consentGiven = false; // set only when the person ticked the box on this login
 
       function showAlert(msg, isError = true) {
         alertBox.className = isError
@@ -584,6 +600,14 @@
           document.getElementById('label-otp').innerText = i18n.t('otpLabel');
           document.getElementById('auth-btn-otp-text').innerText = role === 'ADMIN' ? i18n.t('adminLoginBtn') : i18n.t('verifyOtpBtn');
           document.getElementById('auth-change-phone-btn').innerText = i18n.t('changePhoneBtn');
+          const consentText = document.getElementById('auth-consent-text');
+          if (consentText) {
+            consentText.innerHTML = `${i18n.t('consentLead')} <a href="/legal/terms" target="_blank" rel="noopener" class="text-primary font-bold underline">${i18n.t('consentTerms')}</a> ${i18n.t('consentAnd')} <a href="/legal/privacy" target="_blank" rel="noopener" class="text-primary font-bold underline">${i18n.t('consentPrivacy')}</a>.`;
+          }
+          const agreementText = document.getElementById('onboard-agreement-text');
+          if (agreementText) {
+            agreementText.innerHTML = `${i18n.t('driverAgreementText')} (<a href="/legal/terms" target="_blank" rel="noopener" class="text-primary font-bold underline">${i18n.t('consentTerms')}</a>)`;
+          }
         }
       });
 
@@ -597,6 +621,17 @@
           rawPhone = '+265' + rawPhone.slice(1);
         } else if (!rawPhone.startsWith('+265')) {
           rawPhone = '+265' + rawPhone;
+        }
+
+        // Explicit consent: riders and drivers must tick the box before a code is sent.
+        if (role !== 'ADMIN') {
+          const consentBox = document.getElementById('auth-consent');
+          if (consentBox && !consentBox.checked) {
+            showAlert(i18n.t('consentRequired'));
+            consentBox.focus();
+            return;
+          }
+          consentGiven = true;
         }
 
         currentPhoneE164 = rawPhone;
@@ -693,6 +728,11 @@
             console.warn('[Auth] Post-login profile fetch error:', e);
           }
 
+          // Record the explicit consent given on this login (retried on the next load if it fails).
+          if (role !== 'ADMIN' && consentGiven) {
+            this.recordConsent('TERMS_AND_PRIVACY');
+          }
+
           // For driver portal: verify driverProfile & approvalStatus
           if (role === 'DRIVER') {
             if (!fullUser.driverProfile) {
@@ -751,6 +791,13 @@
           return;
         }
 
+        const agreementBox = document.getElementById('onboard-agreement');
+        if (agreementBox && !agreementBox.checked) {
+          showAlert(i18n.t('driverAgreementRequired'));
+          agreementBox.focus();
+          return;
+        }
+
         const maxBytes = 5 * 1024 * 1024;
         const allowedDocMimes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
         const allowedPhotoMimes = ['image/jpeg', 'image/png', 'image/jpg'];
@@ -801,6 +848,7 @@
 
           const regData = await regRes.json();
           if (!regRes.ok) throw new Error(regData.error || 'Failed to register driver profile');
+          this.recordConsent('DRIVER_AGREEMENT');
 
           // 2. Upload documents
           const docs = [
@@ -853,8 +901,41 @@
     }
 
     // Ensure user is authenticated before page loads; pops modal if unauthenticated
+    // Records consent on the server. If it fails (e.g. no network), it is retried on the next load.
+    async recordConsent(kind = 'TERMS_AND_PRIVACY') {
+      const retryKey = CONSENT_RETRY_PREFIX + kind;
+      try {
+        const body = kind === 'DRIVER_AGREEMENT'
+          ? { documentType: 'DRIVER_AGREEMENT', version: LEGAL_VERSION }
+          : { type: 'TERMS_AND_PRIVACY', version: LEGAL_VERSION };
+        const res = await this.fetchWithAuth('/api/consent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (res && res.ok) {
+          localStorage.removeItem(retryKey);
+          return true;
+        }
+        localStorage.setItem(retryKey, '1');
+        return false;
+      } catch (e) {
+        try { localStorage.setItem(retryKey, '1'); } catch (_) {}
+        return false;
+      }
+    }
+
+    retryPendingConsent() {
+      try {
+        for (const kind of ['TERMS_AND_PRIVACY', 'DRIVER_AGREEMENT']) {
+          if (localStorage.getItem(CONSENT_RETRY_PREFIX + kind) === '1') this.recordConsent(kind);
+        }
+      } catch (_) {}
+    }
+
     async ensureAuth({ role = 'RIDER', onAuthenticated }) {
       if (this.isAuthenticated()) {
+        this.retryPendingConsent();
         try {
           const res = await this.fetchWithAuth('/api/auth/me');
           if (res && res.ok) {

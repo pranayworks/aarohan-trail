@@ -32,6 +32,7 @@ const notificationsRouter = require('./routes/notifications');
 const devRouter = require('./routes/dev');
 const ticketsRouter = require('./routes/tickets');
 const legalRouter = require('./routes/legal');
+const sosRouter = require('./routes/sos');
 
 // Modular Socket Handlers
 const setupSockets = require('./sockets');
@@ -180,12 +181,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://api.mapbox.com', 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://api.mapbox.com', 'https://cdn.jsdelivr.net'],
       // The app screens use inline onclick="..." handlers. Helmet's default `script-src-attr 'none'`
       // silently disables EVERY one of them, so it must be allowed explicitly.
       scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com', 'https://fonts.googleapis.com', 'https://unpkg.com'],
-      imgSrc: ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'https://api.maptiler.com', 'https://unpkg.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com', 'https://fonts.googleapis.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'https://api.maptiler.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
       connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://api.maptiler.com', 'https://nominatim.openstreetmap.org', '*.sentry.io'],
       workerSrc: ["'self'", 'blob:'],
@@ -316,6 +317,12 @@ app.use('/driver', express.static(path.join(__dirname, 'driver'), noCacheStatic)
 app.use('/admin', express.static(path.join(__dirname, 'admin'), noCacheStatic));
 app.use('/shared', express.static(path.join(__dirname, 'shared'), noCacheStatic));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
+// Map library served by us (faster on slow networks, no third-party script). Installed by `npm install` (leaflet@1.9.4).
+const LEAFLET_DIR = path.join(__dirname, 'node_modules', 'leaflet', 'dist');
+if (!require('fs').existsSync(path.join(LEAFLET_DIR, 'leaflet.js'))) {
+  console.warn('[Maps] node_modules/leaflet is missing: run `npm install`. Maps will not load until it is installed.');
+}
+app.use('/vendor/leaflet', express.static(LEAFLET_DIR, { maxAge: '30d', immutable: true }));
 
 // Prototypes (strictly blocked in production)
 app.use('/prototypes', (req, res, next) => {
@@ -402,6 +409,7 @@ app.use('/api', ridesRouter);
 app.use('/api', driversRouter);
 app.use('/api', adminRouter);
 app.use('/api', paymentsRouter);
+app.use('/api', sosRouter);
 app.use('/api', notificationsRouter);
 app.use('/api', devRouter);
 app.use('/api', ticketsRouter);

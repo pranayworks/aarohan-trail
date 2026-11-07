@@ -1,5 +1,5 @@
 // AArohan Rider App Service Worker • Lilongwe, Malawi
-const CACHE_NAME = 'aarohan-rider-v4';
+const CACHE_NAME = 'aarohan-rider-v5';
 const CORE_ASSETS = [
   './',
   './index.html',

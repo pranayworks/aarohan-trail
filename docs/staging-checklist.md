@@ -123,3 +123,5 @@ node node_modules/prisma/build/index.js migrate deploy
 
 Never run `migrate dev` or the seed in production. To create the first admin, open a shell in the deployed service and run
 `node scripts/create-admin.js` (see `docs/first-admin.md`). Also set `CONTACT_EMAIL` so the landing page shows a contact address.
+
+> Step-by-step instructions for Railway are in `docs/railway-deploy-walkthrough.md`.

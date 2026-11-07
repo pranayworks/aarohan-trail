@@ -866,30 +866,53 @@
     }
 
     // Sends an SOS to the Aarohan safety team with the active trip and the best GPS fix.
-    // Resolves with { delivered, alert?, error? }: callers MUST tell the user the truth
-    // (never claim help is coming unless the server confirmed it).
+    // Path 1: the live socket. Path 2 (backup): HTTP POST /api/sos, used when the socket is down
+    // or does not confirm in time. Resolves with { delivered, alert?, error? }: callers MUST tell
+    // the user the truth (never claim help is coming unless the server confirmed it).
     triggerSOS(source, note = 'Emergency assistance requested') {
       const state = this.getState();
       const tripId = state && state.activeTrip && state.activeTrip.id ? state.activeTrip.id : undefined;
+
+      const viaHttp = async (payload) => {
+        try {
+          const auth = window.aarohanAuth;
+          const call = auth && auth.fetchWithAuth ? auth.fetchWithAuth.bind(auth) : fetch;
+          const res = await call('/api/sos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const body = await res.json().catch(() => ({}));
+          if (res.ok && body.success) return { delivered: true, alert: body.alert, duplicate: !!body.duplicate, via: 'http' };
+          return { delivered: false, error: body.error || `HTTP ${res.status}` };
+        } catch (e) {
+          return { delivered: false, error: e.message || 'Network error' };
+        }
+      };
 
       return new Promise((resolve) => {
         let settled = false;
         const finish = (result) => { if (!settled) { settled = true; resolve(result); } };
 
         const send = (coords) => {
-          if (!this.socket || !this.isRealtimeConnected) {
-            return finish({ delivered: false, error: 'No connection to Aarohan' });
-          }
           const payload = { source, note, tripId };
           if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
             payload.lat = coords.latitude;
             payload.lng = coords.longitude;
           }
+
+          if (!this.socket || !this.isRealtimeConnected) {
+            viaHttp(payload).then(finish);
+            return;
+          }
           this.socket.timeout(8000).emit('sos:trigger', payload, (err, res) => {
             if (err || !res || !res.success) {
-              return finish({ delivered: false, error: (res && res.error) || 'No response from Aarohan' });
+              // No confirmation from the socket: try the HTTP backup. The server de-duplicates,
+              // so a request that actually arrived the first time is not raised twice.
+              viaHttp(payload).then(finish);
+              return;
             }
-            finish({ delivered: true, alert: res.alert, duplicate: !!res.duplicate });
+            finish({ delivered: true, alert: res.alert, duplicate: !!res.duplicate, via: 'socket' });
           });
         };
 

@@ -20,8 +20,8 @@
     rel="stylesheet" />
 
   <!-- Leaflet.js Mapping Library -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <script src="/vendor/leaflet/leaflet.js"></script>
 
   <!-- Built Tailwind CSS -->
   <link rel="stylesheet" href="/shared/tailwind.built.css" />
@@ -3183,18 +3183,7 @@
               ratingEl.innerText = `⭐ ${Number(user.riderRating).toFixed(1)} (${user.ratingCount || 0} rides)`;
             }
 
-            // Record initial consent record for draft v0.1 legal policies
-            try {
-              const token = localStorage.getItem('aarohan_access_token');
-              fetch('/api/consent', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({ type: 'TERMS_AND_PRIVACY', version: '0.1' })
-              }).catch(() => {});
-            } catch (_) {}
+            // Consent is recorded by shared/auth.js after the person ticks the Terms/Privacy box at login.
 
             const balance = (user.walletBalanceMWK != null)
               ? user.walletBalanceMWK

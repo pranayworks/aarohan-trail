@@ -3,6 +3,7 @@ const prisma = require('../lib/prisma');
 const dbLedger = require('../services/dbLedger');
 const notificationService = require('../services/notifications');
 const { emitToOps, emitToUser } = require('./emitters');
+const { sosPayloadSchema, triggerSos } = require('../services/sos');
 
 const socketChatSendSchema = z.object({
   tripId: z.string().min(1, 'tripId is required'),
@@ -10,16 +11,7 @@ const socketChatSendSchema = z.object({
   sender: z.string().optional()
 });
 
-const socketSosTriggerSchema = z.object({
-  tripId: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
-  note: z.string().optional(),
-  location: z.string().optional(),
-  source: z.string().optional(),
-  riderPhone: z.string().optional(),
-  emergencyPhone: z.string().optional()
-});
+const socketSosTriggerSchema = sosPayloadSchema;
 
 const socketWalletTopupSchema = z.object({
   amount: z.number().int().positive('Top-up amount must be positive'),
@@ -84,120 +76,24 @@ function registerChatHandlers(io, socket, operationalState) {
     }
   });
 
-  // 2. SOS Emergency Alert Trigger
+  // 2. SOS Emergency Alert Trigger (the same service also backs the HTTP route /api/sos)
   socket.on('sos:trigger', async (data = {}, callback) => {
     try {
       const parsed = socketSosTriggerSchema.safeParse(data);
       if (!parsed.success) throw new Error('Invalid SOS payload');
 
-      // Identity and contacts come from the database, NEVER from the client.
-      const me = await prisma.user.findUnique({
-        where: { id: socket.userId },
-        select: { id: true, name: true, phone: true, emergencyContactName: true, emergencyContactPhone: true }
+      const result = await triggerSos({
+        userId: socket.userId,
+        role: socket.userRole,
+        driverId: socket.driverId,
+        data: parsed.data,
+        io
       });
-      if (!me) throw new Error('Account not found');
-
-      const nowLabel = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      // One incident per person per minute: a repeated press returns the same incident.
-      const recent = await prisma.sosEvent.findFirst({
-        where: { userId: me.id, status: 'ACTIVE', createdAt: { gte: new Date(Date.now() - 60 * 1000) } },
-        orderBy: { createdAt: 'desc' }
-      });
-      if (recent) {
-        if (typeof callback === 'function') {
-          callback({
-            success: true,
-            duplicate: true,
-            alert: {
-              id: recent.id,
-              source: socket.userRole || 'RIDER',
-              lat: recent.lat,
-              lng: recent.lng,
-              time: nowLabel(),
-              status: 'ACTIVE_DISPATCH_ALERT',
-              note: recent.notes
-            }
-          });
-        }
-        return;
+      if (typeof callback === 'function') {
+        callback(result.duplicate
+          ? { success: true, duplicate: true, alert: result.alert }
+          : { success: true, alert: result.alert });
       }
-
-      // Only link a trip the caller really belongs to.
-      let trip = null;
-      if (parsed.data.tripId) {
-        const ownership = [{ riderId: me.id }];
-        if (socket.driverId) ownership.push({ driverId: socket.driverId });
-        trip = await prisma.trip.findFirst({
-          where: { id: parsed.data.tripId, OR: ownership },
-          select: {
-            id: true,
-            pickupLat: true,
-            pickupLng: true,
-            driver: { select: { user: { select: { name: true, phone: true } } } },
-            rider: { select: { name: true, phone: true } }
-          }
-        });
-      }
-
-      const validCoord = (v, limit) => Number.isFinite(v) && Math.abs(v) <= limit;
-      let lat = parsed.data.lat;
-      let lng = parsed.data.lng;
-      let locationKnown = validCoord(lat, 90) && validCoord(lng, 180);
-      let approximate = false;
-      if (!locationKnown && trip) {
-        lat = trip.pickupLat;
-        lng = trip.pickupLng;
-        locationKnown = true;
-        approximate = true;
-      }
-      if (!locationKnown) {
-        lat = -13.9626; // Lilongwe centre, flagged below as unknown
-        lng = 33.7873;
-      }
-
-      let note = String(parsed.data.note || 'Emergency assistance requested').slice(0, 300);
-      if (approximate) note += ' [APPROXIMATE: trip pickup location]';
-      if (!locationKnown) note += ' [LOCATION UNKNOWN: no GPS received]';
-
-      const sosEvent = await prisma.sosEvent.create({
-        data: { tripId: trip ? trip.id : null, userId: me.id, lat, lng, notes: note, status: 'ACTIVE' }
-      });
-
-      await prisma.auditLog.create({
-        data: {
-          userId: me.id,
-          action: 'SOS_TRIGGERED',
-          entityType: 'SOS',
-          entityId: sosEvent.id,
-          details: { tripId: trip ? trip.id : null, locationKnown, approximate }
-        }
-      }).catch((e) => console.warn('[SosTrigger] Audit log failed:', e.message));
-
-      const alertItem = {
-        id: sosEvent.id,
-        source: socket.userRole || 'RIDER',
-        passenger: me.name || null,
-        driver: trip?.driver?.user?.name || null,
-        location: parsed.data.location ? String(parsed.data.location).slice(0, 200) : null,
-        lat,
-        lng,
-        locationKnown,
-        locationApproximate: approximate,
-        riderPhone: me.phone,
-        emergencyContactName: me.emergencyContactName || null,
-        emergencyPhone: me.emergencyContactPhone || null,
-        time: nowLabel(),
-        status: 'ACTIVE_DISPATCH_ALERT',
-        note
-      };
-
-      // Operations staff only: SOS details are never sent to other riders or drivers.
-      emitToOps(io, 'sos:alert', alertItem);
-      notificationService.sendEmergencySosAlert(alertItem).catch((err) => {
-        console.warn('[NotificationService] SOS broadcast exception:', err.message);
-      });
-      if (typeof callback === 'function') callback({ success: true, alert: alertItem });
     } catch (err) {
       console.error('[SosTrigger] Error:', err.message);
       if (typeof callback === 'function') callback({ success: false, error: err.message });
