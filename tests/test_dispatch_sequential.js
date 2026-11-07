@@ -225,7 +225,7 @@ async function runSequentialDispatchTests() {
   // -------------------------------------------------------------------------
   console.log('\n--- Phase 4: Server Restart Simulation & Offer Resumption ---');
   // 4a. Clear all in-memory timers to simulate server crash / restart
-  dispatchService.offerTimers.clear();
+  dispatchService.clearAllOfferTimers();
   assert.strictEqual(dispatchService.offerTimers.size, 0, 'In-memory timers must be completely empty');
 
   // Extend offer window so network delay doesn't trigger timeout during test restart
@@ -286,6 +286,10 @@ async function runSequentialDispatchTests() {
   });
 
   await dispatchService.resumePendingOffers();
+
+  // Clear resumed timers so background events don't race Phase 5 acceptance
+  dispatchService.clearOfferTimer(trip.id);
+  dispatchService.clearOfferTimer(tripDowntime.id);
 
   const refreshedStaleOffer = await prisma.tripOffer.findUnique({ where: { id: staleOffer.id } });
   report(

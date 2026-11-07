@@ -17,10 +17,14 @@ When `DATABASE_URL_TEST` is present:
 - The shared test helper (`tests/test_helper.js`) validates the target connection URL and ensures tests never execute against any database containing keywords like `prod`, `production`, `live`, or `real`.
 - Before and after test runs, `setupTestIsolation` and `teardownTestIsolation` automatically clean up test fixtures, cancel orphaned in-flight trips, and reset driver commission debts for all test fixtures.
 
-### Production Safety Guard
-Tests strictly refuse to execute if:
-1. `NODE_ENV=production` (unless explicitly overridden for local staging tests with `ALLOW_TESTS_IN_PRODUCTION=1`).
-2. The active database connection string matches production database naming patterns (`prod`, `production`, `live`, `real`).
+### Test Database Allowlist Guard
+Tests enforce strict allowlist protection to guarantee test execution never touches production:
+Tests will **only run** if:
+1. `DATABASE_URL_TEST` is explicitly provided, pointing to a dedicated test database, OR
+2. The active database host or Supabase project reference matches `TEST_DB_PROJECT_REF` (e.g. `phdklphyjnulgfylkcgp`).
+
+If neither condition is met, tests immediately abort with a clear message:
+`TEST DB GUARD ABORT: Tests may only run if DATABASE_URL_TEST is set, or if the active database host or project ref matches TEST_DB_PROJECT_REF.`
 
 ### Running Tests
 ```bash

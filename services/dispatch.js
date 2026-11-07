@@ -38,6 +38,13 @@ class DispatchService {
     }
   }
 
+  clearAllOfferTimers() {
+    for (const timer of this.offerTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.offerTimers.clear();
+  }
+
   // ---------------------------------------------------------------------------
   // 1. Spatial Driver Discovery from PostgreSQL
   // ---------------------------------------------------------------------------

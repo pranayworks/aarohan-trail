@@ -78,6 +78,14 @@ function getAllowedOrigins() {
 }
 
 const app = express();
+
+// Trust proxy configuration driven by TRUST_PROXY (default 1 in production)
+const trustProxyEnv = process.env.TRUST_PROXY;
+const trustProxyVal = trustProxyEnv !== undefined
+  ? (!isNaN(Number(trustProxyEnv)) ? Number(trustProxyEnv) : (trustProxyEnv === 'true' ? true : (trustProxyEnv === 'false' ? false : trustProxyEnv)))
+  : (process.env.NODE_ENV === 'production' ? 1 : false);
+app.set('trust proxy', trustProxyVal);
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {

@@ -57,7 +57,7 @@ function getOtpDailyCapPerPhone() {
 
 function getOtpDailyCapPerIp() {
   const cap = parseInt(process.env.OTP_DAILY_CAP_PER_IP, 10);
-  return Number.isFinite(cap) && cap > 0 ? cap : 15;
+  return Number.isFinite(cap) && cap > 0 ? cap : 40;
 }
 
 function getSmsDailyCapTotal() {

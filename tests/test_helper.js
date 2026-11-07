@@ -6,27 +6,52 @@
 const crypto = require('crypto');
 
 /**
- * Asserts that tests are not running against a database named like production.
- * Supports DATABASE_URL_TEST if provided.
+ * Asserts that tests are only allowed to run against an authorized database:
+ * Allowlist check:
+ * 1. DATABASE_URL_TEST is set (explicit dedicated test DB), OR
+ * 2. Active database host or project reference matches TEST_DB_PROJECT_REF.
+ * Otherwise aborts immediately with a clear message.
  */
 function assertSafeTestDatabase() {
   if (process.env.DATABASE_URL_TEST) {
     process.env.DATABASE_URL = process.env.DATABASE_URL_TEST;
+    return;
   }
 
   const activeUrl = process.env.DATABASE_URL || '';
-  const lowerUrl = activeUrl.toLowerCase();
-
-  const dangerousKeywords = ['prod', 'production', 'live', 'real'];
-  for (const kw of dangerousKeywords) {
-    // Check if the host, database name, or connection string contains production keywords
-    if (lowerUrl.includes(`/${kw}`) || lowerUrl.includes(`-${kw}`) || lowerUrl.includes(`_${kw}`) || lowerUrl.includes(`${kw}.`)) {
-      throw new Error(`SAFETY VIOLATION: Refusing to run tests! Target database name contains "${kw}" (URL: ${activeUrl.replace(/:[^:@]+@/, ':***@')})`);
-    }
+  if (!activeUrl) {
+    throw new Error('TEST DB GUARD ABORT: No DATABASE_URL or DATABASE_URL_TEST configured in environment.');
   }
 
-  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_TESTS_IN_PRODUCTION) {
-    throw new Error('SAFETY VIOLATION: Refusing to run tests when NODE_ENV=production!');
+  let parsed;
+  try {
+    parsed = new URL(activeUrl);
+  } catch {
+    throw new Error('TEST DB GUARD ABORT: Unable to parse active DATABASE_URL.');
+  }
+
+  const expectedRef = (process.env.TEST_DB_PROJECT_REF || '').trim().toLowerCase();
+  if (!expectedRef) {
+    throw new Error(
+      'TEST DB GUARD ABORT: Tests may only run if DATABASE_URL_TEST is set, or if the active database ' +
+      'host or project ref matches TEST_DB_PROJECT_REF. Neither is currently configured. ' +
+      'Please set DATABASE_URL_TEST or TEST_DB_PROJECT_REF to allow running tests.'
+    );
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const username = parsed.username.toLowerCase();
+  const userProjectRef = username.includes('.') ? username.split('.')[1] : '';
+
+  const matchesHost = host.includes(expectedRef);
+  const matchesProjectRef = Boolean(userProjectRef && userProjectRef === expectedRef);
+
+  if (!matchesHost && !matchesProjectRef) {
+    throw new Error(
+      `TEST DB GUARD ABORT: Active database (host: "${host}", ref: "${userProjectRef || 'none'}") ` +
+      `does not match allowed TEST_DB_PROJECT_REF ("${expectedRef}"). ` +
+      'Execution aborted to prevent running tests against an unauthorized or production database.'
+    );
   }
 }
 

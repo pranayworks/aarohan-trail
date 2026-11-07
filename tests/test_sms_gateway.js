@@ -107,7 +107,7 @@ async function runSmsGatewaySuite() {
   report('Default platform total daily cap is 50', authService.getSmsDailyCapTotal() === 50);
 
   delete process.env.OTP_DAILY_CAP_PER_IP;
-  report('Default per-IP daily cap is 15', authService.getOtpDailyCapPerIp() === 15);
+  report('Default per-IP daily cap is 40', authService.getOtpDailyCapPerIp() === 40);
 
   // Test per-IP daily cap blocks requests from single IP
   authService.resetRateLimitsForTesting();
@@ -124,6 +124,33 @@ async function runSmsGatewaySuite() {
     ipDailyBlocked = e.message.includes('Daily SMS verification quota exceeded for this IP address');
   }
   report('Per-IP daily cap blocks requests from a single IP to protect platform total cap', ipDailyBlocked);
+
+  // Verify per-IP limiter uses real client IP with X-Forwarded-For under trust proxy
+  const express = require('express');
+  const proxyTestApp = express();
+  proxyTestApp.set('trust proxy', 1);
+
+  const mockReq = Object.create(express.request);
+  mockReq.app = proxyTestApp;
+  mockReq.headers = { 'x-forwarded-for': '197.220.100.5' };
+  mockReq.connection = { remoteAddress: '10.0.0.1' };
+  mockReq.socket = mockReq.connection;
+
+  report('Express trust proxy resolves real client IP from X-Forwarded-For header', mockReq.ip === '197.220.100.5');
+
+  // Verify that auth rate limiting consumes the forwarded client IP
+  authService.resetRateLimitsForTesting();
+  process.env.OTP_DAILY_CAP_PER_IP = '1';
+  await authService.requestOtp('+265991000010', mockReq.ip);
+  let forwardedIpBlocked = false;
+  try {
+    authService.resetCooldownForTesting('+265991000011');
+    await authService.requestOtp('+265991000011', mockReq.ip);
+  } catch (e) {
+    forwardedIpBlocked = e.message.includes('Daily SMS verification quota exceeded for this IP address');
+  }
+  report('Per-IP limiter blocks repeated requests from real client IP resolved via proxy', forwardedIpBlocked);
+
   delete process.env.OTP_DAILY_CAP_PER_IP;
   authService.resetRateLimitsForTesting();
 
