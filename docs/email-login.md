@@ -39,3 +39,11 @@ the unique-email index is skipped with a warning; fix the duplicates and create 
 
 ## Before the real pilot
 Switch back to `AUTH_MODE=phone` with real SMS, so phone numbers are verified (SOS and driver-rider calls depend on real numbers).
+
+## Limits of email mode (read before any demo with real people)
+- **SOS sends no text messages.** With no SMS provider, a press of the SOS button appears on the admin dashboard banner only.
+  The security desk, the emergency contact and the rider are NOT texted. Keep the admin page open and watched during demos,
+  and do not run email mode with real riders and drivers until SMS is set up.
+- **Phone numbers are not verified.** Drivers cannot rely on them to reach riders.
+- **Gmail/Yahoo/Outlook senders** are rewritten by Brevo and may land in spam. Tell people to check their spam folder.
+- **Cash only.** Payments stay off.

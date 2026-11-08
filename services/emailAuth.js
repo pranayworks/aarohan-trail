@@ -118,6 +118,7 @@ async function requestEmailOtp(email, ip = null) {
   try {
     await emailService.sendOtpEmail({ to: clean, code });
   } catch (err) {
+    console.warn(`[EmailAuth] Could not send a login code to ${emailService.maskEmail(clean)}: ${err.message}`);
     prisma.auditLog.create({
       data: { action: 'OTP_FAILED', entityType: 'EMAIL_OTP', details: { emailMasked: emailService.maskEmail(clean), error: err.message }, ipAddress: ip }
     }).catch(() => {});

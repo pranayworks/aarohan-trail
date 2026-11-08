@@ -78,7 +78,7 @@ See `docs/first-admin.md`. The seed script must never be run against production.
 3. Driver phone: register, upload documents, then approve the driver from `/admin/`.
 4. Book a **cash** ride, accept it on the driver phone, enter the PIN, complete it. Check the trip appears in the admin Trips page with the 70/30 split.
 5. Submit a commission payment from the driver, approve it in the admin queue, and confirm the debt goes down.
-6. Press SOS from the rider phone: the admin page shows the alert, and the security desk phone gets the SMS.
+6. Press SOS from the rider phone: the admin page shows the alert banner. In `AUTH_MODE=phone` with a real SMS provider the security desk phone also gets an SMS; in `AUTH_MODE=email` no SMS is sent, so staff must watch the admin page.
 7. Turn off the phone's data and press SOS: it should report honestly that it could not reach Aarohan and offer 997.
 
 ## 8. Rollback and safety

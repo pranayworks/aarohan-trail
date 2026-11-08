@@ -28,8 +28,18 @@ async function postJson(url, headers, body, timeoutMs = 10000) {
       body: JSON.stringify(body),
       signal: controller.signal
     });
-    // Never include the provider's response body in errors (it can echo recipient addresses).
-    if (!res.ok) throw new Error(`Email provider responded with status ${res.status}`);
+    if (!res.ok) {
+      // Keep only a short error code/message so a failure can be diagnosed. Email addresses are masked
+      // and the raw response body is never included.
+      let detail = '';
+      try {
+        const body = JSON.parse(await res.text());
+        const code = typeof body.code === 'string' && /^[\w.-]{1,40}$/.test(body.code) ? body.code : '';
+        const msg = typeof body.message === 'string' ? body.message.replace(/[^\s@]+@[^\s@]+/g, '<email>').slice(0, 140) : '';
+        detail = [code, msg].filter(Boolean).join(': ');
+      } catch (_) { /* not JSON: status only */ }
+      throw new Error(`Email provider responded with status ${res.status}${detail ? ` (${detail})` : ''}`);
+    }
     return true;
   } finally {
     clearTimeout(timer);

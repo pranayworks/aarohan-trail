@@ -220,6 +220,10 @@ const errOf = async (p) => { try { await p; return null; } catch (e) { return e;
   global.fetch = async () => ({ ok: false, status: 401, text: async () => 'leaked@example.com' });
   const pErr = await errOf(emailService.sendEmail({ to: 'x@example.com', subject: 'S', text: 'T', html: 'h' }));
   report('Provider errors never echo addresses back', !!pErr && /status 401/.test(pErr.message) && !pErr.message.includes('leaked@example.com'));
+  global.fetch = async () => ({ ok: false, status: 401, text: async () => JSON.stringify({ code: 'unauthorized', message: 'unrecognised IP address 1.2.3.4 for leaked@example.com' }) });
+  const dErr = await errOf(emailService.sendEmail({ to: 'x@example.com', subject: 'S', text: 'T', html: 'h' }));
+  report('A provider refusal explains itself (code and reason) with addresses masked',
+    !!dErr && /unauthorized/.test(dErr.message) && /unrecognised IP address/.test(dErr.message) && !dErr.message.includes('leaked@example.com'));
   process.env.EMAIL_PROVIDER = 'simulator';
   const simErr = await errOf(emailService.sendEmail({ to: 'x@example.com', subject: 'S', text: 'T', html: 'h' }));
   report('The simulator refuses to "send" in production', !!simErr && /production/i.test(simErr.message));
