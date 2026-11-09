@@ -402,7 +402,7 @@
                 id="auth-email-input"
                 class="w-full h-12 px-4 bg-surface-container rounded-2xl border border-outline-variant/40 focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm font-bold text-on-surface outline-none transition-all placeholder:text-outline/60"
                 placeholder="you@example.com"
-                autocomplete="email"
+                autocomplete="${role === 'ADMIN' ? 'username' : 'email'}" name="${role === 'ADMIN' ? 'username' : 'email'}"
                 autocapitalize="none"
                 spellcheck="false"
                 required
@@ -436,6 +436,7 @@
               <input 
                 type="password" 
                 id="auth-admin-password" 
+                name="password" autocomplete="current-password" 
                 class="w-full h-12 px-4 bg-surface-container rounded-2xl border border-outline-variant/40 focus:border-primary focus:ring-2 focus:ring-primary/20 text-sm font-bold text-on-surface outline-none transition-all" 
                 placeholder="••••••••••••" 
                 required
