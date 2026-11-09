@@ -208,16 +208,18 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    const origins = getAllowedOrigins();
-    if (origins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-      return callback(null, true);
-    }
-    return callback(new Error(`CORS blocked for origin: ${origin}`));
-  },
-  credentials: true
+app.use(cors((req, callback) => {
+  const origin = req.headers.origin;
+  const base = { credentials: true };
+  if (!origin) return callback(null, { ...base, origin: true });
+  // The app's own address is always allowed (its pages call its own API).
+  let sameSite = false;
+  try { sameSite = new URL(origin).host === String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim(); } catch (_) { /* bad origin header */ }
+  const origins = getAllowedOrigins();
+  if (sameSite || origins.includes(origin) || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+    return callback(null, { ...base, origin: true });
+  }
+  return callback(new Error(`CORS blocked for origin: ${origin}`));
 }));
 
 // Global API rate limiter (300 requests / 15 mins)
