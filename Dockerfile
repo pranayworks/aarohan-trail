@@ -4,7 +4,7 @@
 # ============================================================================
 
 # Stage 1: Dependencies & Build
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -26,7 +26,7 @@ RUN node scripts/fetch-face-models.js || echo "Face files not downloaded; the ap
 RUN npx tailwindcss -i shared/input.css -o shared/tailwind.built.css --minify || true
 
 # Stage 2: Production Runtime
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 

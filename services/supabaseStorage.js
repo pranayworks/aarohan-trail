@@ -32,12 +32,17 @@ function getSupabaseClient() {
 
   if (supabaseUrl && serviceKey) {
     try {
-      supabaseClient = createClient(supabaseUrl, serviceKey, {
+      const options = {
         auth: {
           persistSession: false,
           autoRefreshToken: false
         }
-      });
+      };
+      // Older Node versions have no built-in WebSocket, which the Supabase library insists on. Use the "ws" package then.
+      if (typeof WebSocket === 'undefined') {
+        try { options.realtime = { transport: require('ws') }; } catch (_) { /* ws not installed */ }
+      }
+      supabaseClient = createClient(supabaseUrl, serviceKey, options);
       return supabaseClient;
     } catch (err) {
       console.warn('[SupabaseStorage] Initialization warning:', err.message);
