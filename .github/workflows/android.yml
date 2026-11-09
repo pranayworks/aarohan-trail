@@ -55,7 +55,14 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDriverDebug assembleRiderDebug -PVERSION_CODE=${{ github.run_number }} -PVERSION_NAME=1.0.${{ github.run_number }}
+          set -o pipefail
+          ./gradlew assembleDriverDebug assembleRiderDebug -PVERSION_CODE=${{ github.run_number }} -PVERSION_NAME=1.0.${{ github.run_number }} 2>&1 | tee ../gradle-build.log
+
+      - name: Show why the build failed
+        if: failure()
+        run: |
+          grep -n -m1 -A14 'What went wrong' gradle-build.log | head -20 | while IFS= read -r l; do echo "::error title=Gradle::$l"; done
+          tail -n 25 gradle-build.log | while IFS= read -r l; do echo "::warning title=GradleTail::$l"; done
 
       - name: Save the APK files
         uses: actions/upload-artifact@v4
