@@ -272,7 +272,7 @@
       async function check() {
         try {
           await AR.D.reloadApp(); var a = AR.D.app; if (!a) return;
-          if (a.approvalStatus === 'APPROVED') { AR.D.approved(); }
+          if (a.approvalStatus === 'APPROVED') { clearInterval(timer); AR.D.approved(); }
           else if (!a.submitted || a.approvalStatus === 'REJECTED') { AR.toast('Your application needs changes.', 'gold'); AR.session.start(); }
           else paint();
         } catch (_) {}
@@ -284,6 +284,8 @@
 
   // Shown once, the moment an application is approved (instantly if the app is open, or on the next open).
   AR.D.approved = async function () {
+    if (AR.D.approvedShown) return; // the welcome screen is shown once per app start, never again
+    AR.D.approvedShown = true;
     var cur = AR.nav.current && AR.nav.current(); if (cur && cur.name === 'approved') return;
     try { await AR.D.reloadApp(); } catch (_) {}
     AR.haptic([30, 40, 30]); AR.nav.stack.forEach(function (e) { try { e.el.remove(); } catch (_) {} }); AR.nav.stack = [];
