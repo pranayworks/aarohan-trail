@@ -92,6 +92,7 @@ const trustProxyVal = trustProxyEnv !== undefined
   ? (!isNaN(Number(trustProxyEnv)) ? Number(trustProxyEnv) : (trustProxyEnv === 'true' ? true : (trustProxyEnv === 'false' ? false : trustProxyEnv)))
   : (process.env.NODE_ENV === 'production' ? 1 : false);
 app.set('trust proxy', trustProxyVal);
+app.use(require('./middleware/gzipText')); // compress pages, scripts and JSON: the apps open much faster on mobile data
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -296,13 +297,14 @@ app.get('/api/ready', async (req, res) => {
 });
 
 // Serve static apps
+// Always checks with the server, but answers "unchanged" (304) in a few bytes when the file has not changed,
+// so the apps reopen fast and still pick up every update straight away.
 const noCacheStatic = {
-  etag: false,
+  etag: true,
+  lastModified: true,
   maxAge: 0,
   setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
   }
 };
 

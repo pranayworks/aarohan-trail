@@ -1450,7 +1450,12 @@
     async function authFetch(url, options = {}) {
       const res = window.aarohanAuth ? await window.aarohanAuth.fetchWithAuth(url, options) : await fetch(url, options);
       // Not signed in (or the session ended): say so clearly instead of crashing the page.
-      if (!res) throw new Error('You are not signed in as an admin. Refresh this page and sign in with your admin email.');
+      // The session ended (for example after a password change). Send the person to the sign-in screen once.
+      const sessionEnded = !res || res.status === 401;
+      if (sessionEnded) {
+        try { const last = +sessionStorage.getItem('aarohan_admin_relogin') || 0; if (Date.now() - last > 15000) { sessionStorage.setItem('aarohan_admin_relogin', String(Date.now())); setTimeout(() => location.reload(), 700); } } catch (_) {}
+      }
+      if (!res) throw new Error('Your admin session ended. Signing you in again...');
       if (res.status === 403) {
         let msg = 'This account is not allowed to do that. Sign in with an admin account.';
         try { const d = await res.clone().json(); if (d && d.error) msg = d.error; } catch (_) {}
