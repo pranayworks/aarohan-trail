@@ -756,18 +756,20 @@
 
     cancelTrip(reason = 'Cancelled by user', callback) {
       const state = this.getState();
-      const id = state.activeTrip?.id;
-      state.activeTrip.status = 'IDLE';
+      const id = state.activeTrip && state.activeTrip.id;
+      if (state.activeTrip) state.activeTrip.status = 'IDLE'; else state.activeTrip = { status: 'IDLE' };
       this.saveState(state);
       this.broadcast('TRIP_CANCELLED', { reason });
       this.notifyListeners(state, 'TRIP_CANCELLED', { reason });
 
+      // The callback always runs exactly once, even if the server is slow or does not answer.
+      let finished = false;
+      const finish = (res) => { if (finished) return; finished = true; if (typeof callback === 'function') callback(res || { success: true }); };
       if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('trip:cancel', { tripId: id, reason }, (res) => {
-          if (typeof callback === 'function') callback(res);
-        });
-      } else if (typeof callback === 'function') {
-        callback({ success: true });
+        const guard = setTimeout(() => finish({ success: true, pending: true }), 4000);
+        this.socket.emit('trip:cancel', { tripId: id, reason }, (res) => { clearTimeout(guard); finish(res); });
+      } else {
+        finish({ success: true });
       }
     }
 

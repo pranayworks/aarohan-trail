@@ -124,6 +124,8 @@
   AR.D.dayStart = function () { var n = new Date(Date.now() + 2 * 3600000); n.setUTCHours(0, 0, 0, 0); return new Date(n.getTime() - 2 * 3600000); };
 
   // ------------------------------------------------------- incoming offers
+  // Browsers only allow sound after a tap, so the first tap anywhere switches the sound on.
+  document.addEventListener('pointerdown', function () { try { window.mwendoSound && window.mwendoSound.getContext(); } catch (_) {} }, { passive: true });
   var current = null;
   AR.D.showOffer = function (payload) {
     var t = payload && payload.trip, o = payload && payload.offer; if (!t || !o) return;
@@ -136,12 +138,13 @@
       (t.pickupNote ? '<div class="suggest mt12" style="padding:10px 12px">' + AR.icon('pin', 18) + '<span>' + AR.esc(t.pickupNote) + '</span></div>' : '') +
       '<div class="hstack gap12 mt16"><button class="btn btn-line" id="no" style="flex:1">Decline</button><button class="btn btn-gold" id="yes" style="flex:2">Accept</button></div></div>');
     AR.$('#app').appendChild(box); current = box; AR.haptic([40, 60, 40, 60, 40]);
+    var ring1 = setInterval(function () { try { window.mwendoSound && window.mwendoSound.playDispatchAlert(); } catch (_) {} }, 1300); try { window.mwendoSound && window.mwendoSound.playDispatchAlert(); } catch (_) {}
     var ring = AR.$('#ring', box), sec = AR.$('#sec', box);
-    function close() { clearInterval(tick); box.remove(); if (current === box) current = null; }
+    function close() { clearInterval(tick); clearInterval(ring1); box.remove(); if (current === box) current = null; }
     var tick = setInterval(function () { var left = expires - Date.now(); if (left <= 0) { close(); return AR.toast('That offer expired.'); } sec.textContent = Math.ceil(left / 1000); ring.style.strokeDashoffset = String(144.5 * (1 - left / total)); }, 250);
     AR.$('#no', box).addEventListener('click', function () { AR.store().declineTrip(t.id); close(); });
     AR.$('#yes', box).addEventListener('click', function () {
-      var b = this; b.classList.add('is-loading');
+      var b = this; if (b.classList.contains('is-loading')) return; b.classList.add('is-loading'); clearInterval(ring1); try { window.mwendoSound && window.mwendoSound.playAcceptChime(); } catch (_) {}
       AR.store().acceptTrip(t.id, function (res) {
         b.classList.remove('is-loading');
         if (res && res.success) { close(); AR.D.trip = Object.assign({}, t, res.trip || {}); AR.haptic(30); AR.nav.go('drive', {}, { anim: 'fade' }); }

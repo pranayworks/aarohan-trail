@@ -358,17 +358,16 @@ function registerTripHandlers(io, socket) {
 
       // In production (or REQUIRE_OFFER_TO_ACCEPT=true) a driver can only accept a ride that was
       // offered to them and whose 15-second window is still open.
-      if (featureFlags.isProduction() || process.env.REQUIRE_OFFER_TO_ACCEPT === 'true') {
-        const openOffer = await prisma.tripOffer.findFirst({
-          where: { tripId, driverId: socket.driverId, status: 'PENDING', expiresAt: { gt: new Date() } }
-        });
-        if (!openOffer) throw new Error('This ride was not offered to you, or the offer has expired');
-      }
-
-      {
-        const expiredNow = await require('../services/driverApplication').expiredDocuments(socket.driverId);
-        if (expiredNow.length) throw new Error(`Your ${expiredNow[0]} has expired. Renew it before accepting trips.`);
-      }
+      // Both checks run at the same time, and the 15-second window allows 3 extra seconds for a slow mobile network.
+      const mustHaveOffer = featureFlags.isProduction() || process.env.REQUIRE_OFFER_TO_ACCEPT === 'true';
+      const [openOffer, expiredNow] = await Promise.all([
+        mustHaveOffer
+          ? prisma.tripOffer.findFirst({ where: { tripId, driverId: socket.driverId, status: 'PENDING', expiresAt: { gt: new Date(Date.now() - 3000) } } })
+          : Promise.resolve(true),
+        require('../services/driverApplication').expiredDocuments(socket.driverId)
+      ]);
+      if (!openOffer) throw new Error('This ride was not offered to you, or the offer has expired');
+      if (expiredNow.length) throw new Error(`Your ${expiredNow[0]} has expired. Renew it before accepting trips.`);
       const updatedTrip = await prisma.$transaction(async (tx) => {
         const driverRecord = await tx.driver.findFirst({
           where: {
@@ -935,6 +934,8 @@ function registerTripHandlers(io, socket) {
           }
         }
         if (typeof callback === 'function') callback({ success: true, trip: updated });
+      } else if (typeof callback === 'function') {
+        callback({ success: true, alreadyEnded: true }); // nothing left to cancel
       }
     } catch (err) {
       console.warn('[TripCancel] Error:', err.message);
