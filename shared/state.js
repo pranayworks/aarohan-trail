@@ -189,7 +189,7 @@
           try {
             const origin = (window.location.protocol.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
             this.socket = window.io(origin, {
-              transports: ['websocket'],
+              transports: ['websocket', 'polling'],
               auth: { token },
               reconnectionAttempts: 15,
               reconnectionDelay: 1000,
@@ -544,27 +544,45 @@
         durationMins: durationMins || 8
       };
 
-      if (this.socket && this.isRealtimeConnected) {
+      const sendTripRequest = () => {
         this.socket.emit('trip:request', requestPayload, (res) => {
-          if (res && res.success && res.trip) {
-            const curState = this.getState();
-            curState.activeTrip = Object.assign({}, curState.activeTrip, res.trip);
-            this.saveState(curState);
-            this.broadcast('TRIP_REQUESTED', curState.activeTrip);
-            this.notifyListeners(curState, 'TRIP_REQUESTED', curState.activeTrip);
-            if (typeof callback === 'function') callback({ success: true, trip: res.trip });
-          } else {
-            const errorMsg = (res && res.error) ? res.error : 'Trip request failed';
-            console.error('[MwendoStateStore] trip:request failed:', errorMsg);
-            if (typeof callback === 'function') callback({ success: false, error: errorMsg });
-            if (typeof window.showToast === 'function') window.showToast('⚠️ ' + errorMsg);
-          }
-        });
-      } else {
+            if (res && res.success && res.trip) {
+              const curState = this.getState();
+              curState.activeTrip = Object.assign({}, curState.activeTrip, res.trip);
+              this.saveState(curState);
+              this.broadcast('TRIP_REQUESTED', curState.activeTrip);
+              this.notifyListeners(curState, 'TRIP_REQUESTED', curState.activeTrip);
+              if (typeof callback === 'function') callback({ success: true, trip: res.trip });
+            } else {
+              const errorMsg = (res && res.error) ? res.error : 'Trip request failed';
+              console.error('[MwendoStateStore] trip:request failed:', errorMsg);
+              if (typeof callback === 'function') callback({ success: false, error: errorMsg });
+              if (typeof window.showToast === 'function') window.showToast('⚠️ ' + errorMsg);
+            }
+          });
+      };
+      const failNotConnected = () => {
         const errorMsg = 'Not connected to real-time server. Please log in or check connection.';
         console.warn('[MwendoStateStore]', errorMsg);
         if (typeof callback === 'function') callback({ success: false, error: errorMsg });
         if (typeof window.showToast === 'function') window.showToast('⚠️ ' + errorMsg);
+      };
+      if (this.socket && this.isRealtimeConnected) {
+        sendTripRequest();
+      } else {
+        // Not connected yet (slow mobile network or just signed in): reconnect and wait a few seconds before giving up.
+        try {
+          if (!this.socket) this.initSocketIo();
+          const tok = (window.aarohanAuth && window.aarohanAuth.getAccessToken) ? window.aarohanAuth.getAccessToken() : null;
+          if (this.socket && tok) { this.socket.auth = { token: tok }; if (!this.socket.connected) this.socket.connect(); }
+        } catch (_) {}
+        let waited = 0;
+        const timer = setInterval(() => {
+          waited += 250;
+          if (this.socket && this.isRealtimeConnected) { clearInterval(timer); sendTripRequest(); }
+          else if (waited >= 10000) { clearInterval(timer); failNotConnected(); }
+        }, 250);
+        if (typeof window.showToast === 'function') window.showToast('Connecting...');
       }
 
       if (window.mwendoSound) window.mwendoSound.playDispatchAlert();
