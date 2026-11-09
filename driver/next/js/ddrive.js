@@ -83,7 +83,7 @@
       function complete() {
         var t = D.trip, p = parcelOf(t), recv = parcel && p && p.payer === 'RECEIVER_AT_DELIVERY', unknownPayer = parcel && !p, code = '', cash = !parcel || recv || unknownPayer, ack = !cash;
         AR.sheet.open({
-          html: '<h2>Complete this ' + (parcel ? 'delivery' : 'trip') + '?</h2>' + (parcel ? '<p class="dim small">Ask the receiver for the 4-digit delivery code.</p><input class="input otp mt12" id="dc" inputmode="numeric" maxlength="4" placeholder="0000"/>' : '') +
+          html: '<h2>Complete this ' + (parcel ? 'delivery' : 'trip') + '?</h2>' + (parcel ? '<p class="dim small">Ask the receiver for the 4-digit delivery code.</p><input class="input otp mt12" id="dc" inputmode="numeric" maxlength="4" placeholder="0000"/><p class="small dim mt8">Only hand over the parcel after the receiver tells you this code. No code, no delivery.</p><button class="btn btn-ghost mt8" style="width:100%" id="nocode">The receiver cannot give the code</button>' : '') +
             (cash ? '<div class="card mt16 center"><div class="small dim">' + (unknownPayer ? 'Collect in cash unless the sender already paid you' : 'Collect in cash') + '</div><div class="big-rating" style="font-size:40px">' + AR.fmt.money(t.fareMWK) + '</div></div><button class="consent mt16" id="ack" style="text-align:left"><span class="check">' + AR.icon('check', 16) + '</span><span>I have collected the cash.</span></button>' : '<p class="dim mt12">The sender already paid you at pickup.</p>') +
             '<div class="hint err hide mt12" id="e"></div><div class="stack gap12 mt16"><button class="btn btn-gold" id="ok" disabled>Complete</button><button class="btn btn-ghost" style="width:100%" id="back">Not yet</button></div>',
           onOpen: function (c) {
@@ -92,12 +92,36 @@
             if (dc) dc.addEventListener('input', function () { dc.value = dc.value.replace(/\D/g, '').slice(0, 4); ready(); });
             if (a) a.addEventListener('click', function () { ack = !ack; AR.$('.check', a).classList.toggle('on', ack); ready(); });
             AR.$('#back', c.el).addEventListener('click', function () { c.close(); }); ready();
+            var nc = AR.$('#nocode', c.el); if (nc) nc.addEventListener('click', function () { c.close(); setTimeout(function () { noCodeHelp(t, p); }, 320); });
             ok.addEventListener('click', function () {
               ok.classList.add('is-loading');
               AR.store().completeTrip({ tripId: t.id, paymentMethod: 'CASH', recipientPin: dc ? dc.value : undefined }, function (res) {
                 if (res && res.success) { c.close(); D.done = Object.assign({}, D.trip, res.trip || {}, { status: 'COMPLETED' }); AR.haptic([30, 40, 30]); AR.nav.replace('trip-done'); }
                 else { ok.classList.remove('is-loading'); var e = AR.$('#e', c.el); e.textContent = (res && res.error) || 'Could not complete the trip.'; e.classList.remove('hide'); }
               });
+            });
+          }
+        });
+      }
+
+      // Parcel delivery without a code: call the receiver, then the sender, then contact Aarohan support.
+      function noCodeHelp(t, p) {
+        var recvPhone = p && p.recipientPhone, sendPhone = riderOf(t).phone;
+        AR.sheet.open({
+          html: '<h2>Receiver cannot give the code</h2><p class="dim small">The delivery can only be completed with the code. Follow these steps in order. Do not leave the parcel with anyone without it.</p>' +
+            '<div class="stack gap12 mt16">' +
+            '<div class="card"><div style="font-weight:700">1. Call the receiver</div>' + (recvPhone ? '<a class="btn btn-line mt8" style="width:100%" href="tel:' + AR.esc(recvPhone) + '">Call ' + AR.esc((p && p.recipientName) || 'receiver') + '</a>' : '<div class="small dim mt8">No receiver number is available.</div>') + '</div>' +
+            '<div class="card"><div style="font-weight:700">2. Call the customer who booked</div>' + (sendPhone ? '<a class="btn btn-line mt8" style="width:100%" href="tel:' + AR.esc(sendPhone) + '">Call the customer</a>' : '<div class="small dim mt8">Use the chat to reach the customer.</div>') + '</div>' +
+            '<div class="card"><div style="font-weight:700">3. Nobody answers? Contact Aarohan support</div><div class="small dim mt8">We will see your trip, the parcel and your location, and tell you what to do.</div><button class="btn btn-gold mt8" style="width:100%" id="nc-support">Contact support about this parcel</button><div class="hint err hide mt8" id="nc-err"></div></div>' +
+            '</div><button class="btn btn-ghost mt16" style="width:100%" id="nc-back">Back to the code</button>',
+          onOpen: function (c) {
+            AR.$('#nc-back', c.el).addEventListener('click', function () { c.close(); setTimeout(complete, 320); });
+            AR.$('#nc-support', c.el).addEventListener('click', async function () {
+              var b = this, e = AR.$('#nc-err', c.el); b.classList.add('is-loading'); e.classList.add('hide');
+              try {
+                await AR.api('/tickets', { method: 'POST', body: { tripId: t.id, category: 'PARCEL_ISSUE', priority: 'HIGH', subject: 'Parcel delivery: receiver cannot give the delivery code', description: 'The captain reached the drop-off. The receiver could not give the delivery code and the captain could not reach them by phone. Please contact the captain and the customer. Trip ' + t.id + '.' } });
+                c.close(); setTimeout(function () { AR.sheet.open({ html: '<h2>Aarohan support has been told</h2><p class="dim">Wait near the drop-off. A support agent will contact you and the customer. Keep the parcel with you until you are told what to do.</p><button class="btn btn-gold mt24" id="ok">OK</button>', onOpen: function (d) { AR.$('#ok', d.el).addEventListener('click', function () { d.close(); }); } }); }, 320);
+              } catch (err) { b.classList.remove('is-loading'); e.textContent = (err && err.message) || 'Could not reach support. Call the customer or try again.'; e.classList.remove('hide'); }
             });
           }
         });

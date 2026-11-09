@@ -341,6 +341,10 @@ class DispatchService {
 
     if (this.io) {
       const driverSafeTrip = await this.attachParcelForDriver(this.getDriverSafeTrip(trip));
+      // Until the driver accepts, they see the rider's first name only. The phone number is shared after accepting.
+      if (driverSafeTrip && driverSafeTrip.rider) {
+        driverSafeTrip.rider = { ...driverSafeTrip.rider, phone: undefined, name: String(driverSafeTrip.rider.name || 'Rider').split(' ')[0] };
+      }
       this.io.to(`driver:${targetDriver.driverId}`).emit('trip:offer', { offer, trip: driverSafeTrip });
       // Only the rider learns that an offer was made (never the other drivers).
       this.io.to(`user:${trip.riderId}`).emit('trip:offered', {
