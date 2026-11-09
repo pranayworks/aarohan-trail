@@ -489,6 +489,7 @@ module.exports = {
 // Start Server
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
+    require('./services/adminRecovery').run().catch((e) => console.warn('[AdminRecovery] failed:', e.message));
     try { require('./services/driverReminders').start(); } catch (e) { console.warn('[Reminders] not started:', e.message); }
     const localUrl = `http://localhost:${PORT}`;
     const networkRiderUrl = `http://${LOCAL_IP}:${PORT}/rider/`;
