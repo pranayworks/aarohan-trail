@@ -9,8 +9,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // The cloud build (and the Play Store) raise these numbers on every release: -PVERSION_CODE=12 -PVERSION_NAME=1.0.12
-        versionCode (project.findProperty('VERSION_CODE') ?: '1').toInteger()
-        versionName (project.findProperty('VERSION_NAME') ?: '1.0')
+        versionCode = Integer.parseInt((project.findProperty('VERSION_CODE') ?: '1').toString())
+        versionName = (project.findProperty('VERSION_NAME') ?: '1.0').toString()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
