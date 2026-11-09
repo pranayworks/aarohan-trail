@@ -27,7 +27,12 @@ async function store({ buffer, ext, mime }) {
     if (error) throw new Error('Could not save the file: ' + error.message);
     return { path: name, url: client.storage.from(BUCKET).getPublicUrl(name).data.publicUrl };
   }
-  if (process.env.NODE_ENV === 'production') throw new Error('Media storage is not set up. Create the public bucket "ad-media" in Supabase and set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  if (process.env.NODE_ENV === 'production') {
+    const missing = [];
+    if (!process.env.SUPABASE_URL) missing.push('SUPABASE_URL');
+    if (!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY)) missing.push('SUPABASE_SECRET_KEY');
+    throw new Error('Media storage is not set up' + (missing.length ? ': these settings are missing on the server: ' + missing.join(', ') : ': the Supabase connection could not start, check that SUPABASE_URL looks like https://PROJECTID.supabase.co') + '. Also create the public bucket "ad-media" in Supabase.');
+  }
   fs.mkdirSync(LOCAL_DIR, { recursive: true });
   fs.writeFileSync(path.join(LOCAL_DIR, name), buffer);
   return { path: name, url: '/media/ads/' + name };

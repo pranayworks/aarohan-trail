@@ -157,26 +157,10 @@ async function expireStaleTrips() {
 
 const staleTripInterval = setInterval(expireStaleTrips, 30000);
 
-// In-memory operational desk cache for dynamic surge & support desk
+// In-memory operational desk cache (starts empty: real surge zones and tickets come from the admin and the database)
 const operationalState = {
-  surgeMultipliers: {
-    'Gateway Mall': 1.4,
-    'Area 3 Commercial': 1.3,
-    'Old Town Market': 1.2,
-    'Area 47 Sector 3': 1.0,
-    'Bingu Stadium': 1.1
-  },
-  supportTickets: [
-    {
-      id: 'MW-8821',
-      user: 'Chisomo Banda',
-      issue: 'Payment Dispute (Duplicate Airtel Money Entry)',
-      amount: 3200,
-      status: 'Under Review',
-      assigned: 'Lilongwe Finance Team',
-      updated: '1 hour ago'
-    }
-  ]
+  surgeMultipliers: {},
+  supportTickets: []
 };
 
 // =========================================================================

@@ -161,7 +161,7 @@
           <span id="badge-drivers" class="hidden ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error text-[10px] font-black flex items-center justify-center"></span>
         </button>
 
-        <button onclick="switchAdminTab('surge')" id="tab-btn-surge" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+        <button onclick="switchAdminTab('surge')" id="tab-btn-surge" hidden style="display:none" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
           <span class="material-symbols-outlined text-[20px]">tune</span>
           <span>Surge &amp; Corridor Multipliers</span>
         </button>
@@ -1225,15 +1225,15 @@
 
         // Rates
         const delEl = document.getElementById('sms-stat-delivery-rate');
-        if (delEl) delEl.innerText = `${stats.deliveryRate}%`;
+        if (delEl) delEl.innerText = (stats.networks.airtel.total + stats.networks.tnm.total === 0) ? '-' : `${stats.deliveryRate}%`;
 
         const airtelRateEl = document.getElementById('sms-stat-airtel-rate');
-        if (airtelRateEl) airtelRateEl.innerText = `${stats.networks.airtel.deliveryRate}%`;
+        if (airtelRateEl) airtelRateEl.innerText = stats.networks.airtel.total ? `${stats.networks.airtel.deliveryRate}%` : '-';
         const airtelCounts = document.getElementById('sms-stat-airtel-counts');
         if (airtelCounts) airtelCounts.innerText = `${stats.networks.airtel.total} sent • ${stats.networks.airtel.failed} failed`;
 
         const tnmRateEl = document.getElementById('sms-stat-tnm-rate');
-        if (tnmRateEl) tnmRateEl.innerText = `${stats.networks.tnm.deliveryRate}%`;
+        if (tnmRateEl) tnmRateEl.innerText = stats.networks.tnm.total ? `${stats.networks.tnm.deliveryRate}%` : '-';
         const tnmCounts = document.getElementById('sms-stat-tnm-counts');
         if (tnmCounts) tnmCounts.innerText = `${stats.networks.tnm.total} sent • ${stats.networks.tnm.failed} failed`;
 
@@ -1589,7 +1589,7 @@
             <td class="p-3 font-medium">${v.versionName || '-'}</td>
             <td class="p-3">MK ${(v.stopFeeMWK ?? 500).toLocaleString()}</td>
             <td class="p-3 font-mono text-[11px]">${v.parcelSmallMult ?? 1.0}x / ${v.parcelMediumMult ?? 1.35}x / ${v.parcelLargeMult ?? 1.8}x</td>
-            <td class="p-3">${v.commissionRate ? Math.round(v.commissionRate * 100) + '%' : '15%'}</td>
+            <td class="p-3">${v.commissionRate ? Math.round(v.commissionRate * 100) + '%' : '-'}</td>
             <td class="p-3">
               ${v.isActive 
                 ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-primary/20 text-primary uppercase">Active</span>'
