@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aarohan | Rides and parcel delivery in Lilongwe</title>
+  <meta name="description" content="Aarohan connects riders in Lilongwe, Malawi with approved drivers for rides and parcel delivery. Pay cash, track your trip, and use the safety PIN and SOS button." />
+  <meta name="theme-color" content="#FF6A00" />
+  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml" />
+  <style>
+    :root { --primary:#FF6A00; --secondary:#FFA247; --bg:#0B0B0B; --card:#171717; --border:#292929; --muted:#A3A3A3; --white:#FFFFFF; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin:0; background:var(--bg); color:var(--white); font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; line-height:1.55; }
+    a { color: var(--secondary); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+    header { padding: 22px 0; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    header img { height: 40px; width:auto; display:block; }
+    .hero { padding: 36px 0 28px; }
+    h1 { font-size: clamp(30px, 6vw, 46px); line-height:1.12; margin:0 0 12px; }
+    h1 span { color: var(--primary); }
+    .lead { color: var(--muted); font-size: 18px; max-width: 640px; margin: 0 0 22px; }
+    .btns { display:flex; flex-wrap:wrap; gap:12px; }
+    .btn { display:inline-block; padding: 14px 22px; border-radius: 14px; font-weight:700; text-decoration:none; min-height:48px; }
+    .btn-primary { background: var(--primary); color: #0B0B0B; }
+    .btn-outline { border:2px solid var(--border); color: var(--white); }
+    .grid { display:grid; gap:14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin: 12px 0 8px; }
+    .card { background: var(--card); border:1px solid var(--border); border-radius: 20px; padding: 20px; }
+    .card h3 { margin:0 0 6px; font-size: 18px; }
+    .card p { margin:0; color: var(--muted); }
+    h2 { font-size: 26px; margin: 40px 0 6px; }
+    .step { color: var(--primary); font-weight:800; font-size: 14px; letter-spacing:.06em; }
+    .note { background: var(--card); border:1px dashed var(--border); border-radius:16px; padding:14px 16px; color: var(--muted); font-size:14px; }
+    footer { margin-top: 48px; padding: 26px 0 40px; border-top:1px solid var(--border); color: var(--muted); font-size: 14px; }
+    footer .links { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="/assets/brand/logo-full-color.svg" alt="Aarohan" />
+      <a class="btn btn-outline" href="/driver/">Drive with Aarohan</a>
+    </header>
+
+    <section class="hero">
+      <h1>Safe rides and parcel delivery in <span>Lilongwe</span></h1>
+      <p class="lead">Aarohan connects riders with approved drivers. See your fare before you book, track your trip, and travel with a safety PIN and an SOS button.</p>
+      <div class="btns">
+        <a class="btn btn-primary" href="/rider/">Book a ride</a>
+        <a class="btn btn-outline" href="#how">How it works</a>
+      </div>
+    </section>
+
+    <h2 id="how">How it works</h2>
+    <div class="grid">
+      <div class="card"><div class="step">STEP 1</div><h3>Choose where to go</h3><p>Pick up and drop off in Lilongwe. Add up to two stops. The fare is shown before you book.</p></div>
+      <div class="card"><div class="step">STEP 2</div><h3>Meet your driver</h3><p>A nearby approved driver accepts. You see their name, vehicle and plate. Share your 4-digit PIN only after you board.</p></div>
+      <div class="card"><div class="step">STEP 3</div><h3>Ride and pay</h3><p>Follow your trip live, then pay your driver in cash. Rate your driver when you arrive.</p></div>
+    </div>
+
+    <h2>Built for safety</h2>
+    <div class="grid">
+      <div class="card"><h3>Approved drivers</h3><p>Drivers register with their documents and are reviewed before they can take trips.</p></div>
+      <div class="card"><h3>Safety PIN</h3><p>A trip only starts when the driver enters the PIN shown on your phone.</p></div>
+      <div class="card"><h3>SOS button</h3><p>One tap alerts the Aarohan safety team with your location. In immediate danger, always call 997.</p></div>
+      <div class="card"><h3>Parcel delivery</h3><p>Send a parcel across Lilongwe. The recipient confirms delivery with a code.</p></div>
+    </div>
+
+    <h2>Drive with Aarohan</h2>
+    <p class="lead">Register in the driver app, upload your licence, ID and vehicle documents, and start taking trips once you are approved.</p>
+    <div class="btns"><a class="btn btn-primary" href="/driver/">Open the driver app</a></div>
+
+    <h2>Payment</h2>
+    <div class="note">During the pilot, trips are paid in <strong>cash to the driver</strong>. Mobile money payments are planned for a later release.</div>
+
+    <footer>
+      <div class="links">
+        <a href="/legal/terms">Terms of Service (draft)</a>
+        <a href="/legal/privacy">Privacy Policy (draft)</a>
+        <a href="/rider/">Rider app</a>
+        <a href="/driver/">Driver app</a>
+      </div>
+      <div id="contact">Contact: details will be added here.</div>
+      <div style="margin-top:8px">Aarohan &bull; Lilongwe, Malawi &bull; Pilot service &bull; Rise &bull; Build &bull; Grow</div>
+    </footer>
+  </div>
+
+  <script>
+    // Shows the contact email only when the operator has configured one (CONTACT_EMAIL).
+    fetch('/api/app-config').then(function (r) { return r.json(); }).then(function (cfg) {
+      if (cfg && cfg.contactEmail) {
+        var el = document.getElementById('contact');
+        var a = document.createElement('a');
+        a.href = 'mailto:' + cfg.contactEmail;
+        a.textContent = cfg.contactEmail;
+        el.textContent = 'Contact: ';
+        el.appendChild(a);
+      }
+    }).catch(function () {});
+  </script>
+</body>
+</html>
