@@ -172,8 +172,9 @@
       AR.$('#skip', el).addEventListener('click', finish);
       submit.addEventListener('click', function () {
         submit.classList.add('is-loading'); var s = AR.store().socket;
-        if (!s || !t.id) { AR.toast('Could not save the rating.', 'gold'); return finish(); }
-        s.timeout(8000).emit('trip:rate', { tripId: t.id, rating: stars, tags: tags }, function (err, res) { AR.toast(!err && res && res.success !== false ? 'Thank you.' : 'Could not save the rating.', !err && res && res.success !== false ? '' : 'gold'); finish(); });
+        var tid = t.id || (D.trip && D.trip.id);
+        if (!s || !tid) { AR.toast('Could not save the rating: not connected.', 'gold'); return finish(); }
+        s.timeout(20000).emit('trip:rate', { tripId: tid, rating: stars, tags: tags }, function (err, res) { var ok = !err && res && res.success !== false; AR.toast(ok ? 'Thank you.' : 'Could not save the rating' + (err ? ': no answer, try again.' : (res && res.error ? ': ' + res.error : '.')), ok ? '' : 'gold'); finish(); });
       });
     }
   });

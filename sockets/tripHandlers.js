@@ -854,6 +854,7 @@ function registerTripHandlers(io, socket) {
       if (typeof callback === 'function') callback({ success: true, direction, rating: savedRating });
     } catch (err) {
       console.warn('[TripRate] Error:', err.message);
+      if (/already rated/i.test(err.message)) { if (typeof callback === 'function') callback({ success: true, alreadyRated: true }); return; }
       if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });

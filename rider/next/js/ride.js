@@ -380,9 +380,10 @@
       submit.addEventListener('click', function () {
         submit.classList.add('is-loading');
         var s = AR.store().socket;
-        var done = function (ok) { submit.classList.remove('is-loading'); AR.toast(ok ? 'Thank you for rating.' : 'Could not save your rating.', ok ? '' : 'gold'); if (ok) finish(); };
-        if (!s || !t.id) return done(false);
-        s.timeout(8000).emit('trip:rate', { tripId: t.id, rating: stars, tags: tags, comment: (AR.$('#comment', el).value || '').trim() || undefined }, function (err, res) { done(!err && !!res && res.success !== false); });
+        var done = function (ok, why) { submit.classList.remove('is-loading'); AR.toast(ok ? 'Thank you for rating.' : 'Could not save your rating' + (why ? ': ' + why : '.'), ok ? '' : 'gold'); if (ok) finish(); };
+        var tid = t.id || (R.cur && R.cur.id) || ((AR.store().getState() || {}).activeTrip || {}).id;
+        if (!s || !tid) return done(false, 'not connected');
+        s.timeout(20000).emit('trip:rate', { tripId: tid, rating: stars, tags: tags, comment: (AR.$('#comment', el).value || '').trim() || undefined }, function (err, res) { done(!err && !!res && res.success !== false, err ? 'no answer, try again' : (res && res.error) || ''); });
       });
     }
   });
