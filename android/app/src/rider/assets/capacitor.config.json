@@ -1,0 +1,26 @@
+{
+  "appId": "com.aarohan.rider",
+  "appName": "Aarohan",
+  "webDir": "driver",
+  "server": {
+    "url": "http://10.0.2.2:3000/rider/next/",
+    "cleartext": true,
+    "androidScheme": "https",
+    "allowNavigation": [
+      "aarohan.app",
+      "*.aarohan.app",
+      "10.0.2.2:*",
+      "localhost:*",
+      "127.0.0.1:*"
+    ]
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
+  }
+}

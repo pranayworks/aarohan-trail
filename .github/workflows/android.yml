@@ -1,0 +1,83 @@
+# Builds BOTH Android apps in the cloud (no Android Studio needed):
+#   Aarohan          (riders)   com.aarohan.rider
+#   Aarohan Captain  (drivers)  com.aarohan.driver
+# Run it: GitHub -> your repository -> Actions -> "Build Android apps" -> Run workflow.
+# Then open the finished run and download "aarohan-apks" (phone-installable test files) and, if signing is set up, "aarohan-play-store-bundles".
+#
+# One-time setup (GitHub -> Settings -> Secrets and variables -> Actions):
+#   Variable  DEPLOYED_SERVER_URL      your live https address, for example https://aarohan.up.railway.app   (required)
+#   Secret    FIREBASE_GOOGLE_SERVICES_DRIVER / FIREBASE_GOOGLE_SERVICES_RIDER   the google-services.json text for each app   (optional, for push)
+#   Secrets   KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD         your Play Store signing key   (optional, for Play Store files)
+name: Build Android apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Point both apps at the live server
+        env:
+          DEPLOYED_SERVER_URL: ${{ vars.DEPLOYED_SERVER_URL }}
+        run: node scripts/cap-switch-env.js prod
+
+      - name: Copy the web files into the Android project
+        run: npx cap sync android
+
+      - name: Add the Firebase files (push notifications), if provided
+        env:
+          GS_DRIVER: ${{ secrets.FIREBASE_GOOGLE_SERVICES_DRIVER }}
+          GS_RIDER: ${{ secrets.FIREBASE_GOOGLE_SERVICES_RIDER }}
+        run: |
+          if [ -n "$GS_DRIVER" ]; then printf '%s' "$GS_DRIVER" > android/app/src/driver/google-services.json; fi
+          if [ -n "$GS_RIDER" ]; then printf '%s' "$GS_RIDER" > android/app/src/rider/google-services.json; fi
+
+      - name: Build the phone-installable test apps (APK)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDriverDebug assembleRiderDebug -PVERSION_CODE=${{ github.run_number }} -PVERSION_NAME=1.0.${{ github.run_number }}
+
+      - name: Save the APK files
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarohan-apks
+          path: |
+            android/app/build/outputs/apk/driver/debug/*.apk
+            android/app/build/outputs/apk/rider/debug/*.apk
+
+      - name: Build the Play Store files (AAB), if a signing key is set up
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "No signing key set up, so the Play Store files are skipped."; exit 0; fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          cd android
+          KEYSTORE_FILE="$RUNNER_TEMP/release.keystore" KEYSTORE_PASSWORD='${{ secrets.KEYSTORE_PASSWORD }}' KEY_ALIAS='${{ secrets.KEY_ALIAS }}' KEY_PASSWORD='${{ secrets.KEY_PASSWORD }}' \
+            ./gradlew bundleDriverRelease bundleRiderRelease -PVERSION_CODE=${{ github.run_number }} -PVERSION_NAME=1.0.${{ github.run_number }}
+
+      - name: Save the Play Store files
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarohan-play-store-bundles
+          path: android/app/build/outputs/bundle/**/*.aab
+          if-no-files-found: ignore

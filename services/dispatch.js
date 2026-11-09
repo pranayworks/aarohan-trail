@@ -67,12 +67,12 @@ class DispatchService {
     const freshWindowMs = freshSeconds * 1000;
     const freshCutoff = new Date(Date.now() - freshWindowMs);
 
-    const maxDebtLimit = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
+    const maxDebtLimit = require('./commissionLimit').limitMWK();
     const where = {
       approvalStatus: 'APPROVED',
       availability: 'ONLINE',
       commissionDebtMWK: {
-        lte: maxDebtLimit
+        lt: maxDebtLimit // a driver who owes the limit or more gets no orders
       },
       currentLat: {
         gte: pLat - latDelta,
@@ -210,6 +210,23 @@ class DispatchService {
     };
   }
 
+  // Development only: say exactly why nobody could be matched, stage by stage.
+  async diagnoseNoDrivers(trip) {
+    if (process.env.NODE_ENV === 'production') return null;
+    const all = await prisma.driver.findMany({ include: { vehicle: true }, take: 200 });
+    const tier = String(trip.tier || '').toUpperCase();
+    const lines = [`Requested vehicle: ${tier || 'any'}`, `Drivers in the system: ${all.length}`];
+    const approved = all.filter((d) => d.approvalStatus === 'APPROVED'); lines.push(`Approved: ${approved.length}`);
+    const online = approved.filter((d) => d.availability === 'ONLINE'); lines.push(`Online: ${online.length}${online.length === 0 ? ' (the driver must tap Go online and stay on that screen)' : ''}`);
+    const located = online.filter((d) => d.currentLat != null && d.currentLng != null); lines.push(`Online and sending a location: ${located.length}`);
+    const types = [...new Set(located.map((d) => d.vehicle && d.vehicle.type).filter(Boolean))];
+    const matching = located.filter((d) => !tier || (d.vehicle && d.vehicle.type === tier));
+    lines.push(`With a ${tier || 'any'} vehicle: ${matching.length}${located.length && !matching.length ? ` (online vehicle types: ${types.join(', ')}. The rider must book that type)` : ''}`);
+    const near = matching.map((d) => haversineDistanceKm(trip.pickupLat, trip.pickupLng, d.currentLat, d.currentLng)).sort((a, b) => a - b);
+    if (near.length) lines.push(`Nearest matching driver is ${near[0].toFixed(1)} km from the pickup (the limit is 15 km${near[0] > 15 ? ', so the driver or the rider is in the wrong place. Use Test location on both' : ''})`);
+    return lines;
+  }
+
   async setDriverStatus(driverId, status) {
     if (!driverId) return null;
     const updated = await prisma.driver.update({
@@ -288,8 +305,10 @@ class DispatchService {
         }
       });
 
+      let debug = null;
+      try { debug = await this.diagnoseNoDrivers(trip); if (debug) console.log('[Dispatch] No match for trip ' + tripId + ' -> ' + debug.join(' | ')); } catch (_) { /* diagnostics are optional */ }
       if (this.io) {
-        this.io.to(`trip:${tripId}`).to(`user:${trip.riderId}`).emit('trip:no_drivers', { tripId });
+        this.io.to(`trip:${tripId}`).to(`user:${trip.riderId}`).emit('trip:no_drivers', { tripId, debug });
       }
       return null;
     }
@@ -321,7 +340,7 @@ class DispatchService {
     console.log(`[Dispatch] Trip ${tripId} offered to driver ${targetDriver.driverId} (15s window).`);
 
     if (this.io) {
-      const driverSafeTrip = this.getDriverSafeTrip(trip);
+      const driverSafeTrip = await this.attachParcelForDriver(this.getDriverSafeTrip(trip));
       this.io.to(`driver:${targetDriver.driverId}`).emit('trip:offer', { offer, trip: driverSafeTrip });
       // Only the rider learns that an offer was made (never the other drivers).
       this.io.to(`user:${trip.riderId}`).emit('trip:offered', {
@@ -334,7 +353,7 @@ class DispatchService {
     // Trigger FCM Background Push Notification to the targeted driver's native device
     if (targetDriver.userId) {
       const isParcel = trip.serviceType === 'PARCEL';
-      const offerTitle = isParcel ? 'New Parcel Delivery Offer 📦' : 'New Ride Offer 🚖';
+      const offerTitle = isParcel ? 'New parcel delivery offer' : 'New ride offer';
       const offerBody = `Pickup: ${trip.pickupAddress || 'Lilongwe'} • MWK ${(trip.driverShareMWK || trip.fareMWK || 0).toLocaleString()}`;
       pushNotificationService.sendPushToUser(targetDriver.userId, {
         title: offerTitle,
@@ -709,6 +728,17 @@ class DispatchService {
     });
 
     return updated;
+  }
+
+  // What a driver may know about a parcel: the item, the receiver and who pays. Never the delivery code.
+  safeParcel(p) {
+    if (!p) return null;
+    return { category: p.category, size: p.size, fragile: p.fragile, notes: p.notes, weightKg: p.weightKg, payer: p.payer, recipientName: p.recipientName, recipientPhone: p.recipientPhone };
+  }
+  async attachParcelForDriver(trip) {
+    if (!trip || trip.serviceType !== 'PARCEL') return trip;
+    const detail = trip.parcelDetail || await prisma.parcelDetail.findUnique({ where: { tripId: trip.id } });
+    return { ...trip, parcelDetail: this.safeParcel(detail) };
   }
 
   // Security: Never expose Trip.pin in driver-facing responses

@@ -50,3 +50,9 @@ ADMIN_PHONE="+265999970000" ADMIN_PASSWORD="<YourSuperSecret10CharPassword>" nod
 3. Authenticate with dual-factor verification (Admin password + 6-digit SMS OTP).
 4. Verify access to Operations Metrics, Driver Verification Queue, and Pricing Tariffs.
 
+
+## Forgot the admin password?
+On the admin sign-in screen tap **Forgot password?**, enter your admin email, type the 6-digit code that arrives (valid 10 minutes, check spam), then choose a new password (at least 10 characters, letters and a number, not containing your email name). You are signed out everywhere for safety and an email confirms the change.
+- Only **admin** accounts have passwords. Riders and drivers sign in with an emailed code, so they have nothing to reset.
+- If the email itself no longer works, run `node scripts/create-admin.js` again with the same phone and email on your own computer. It sets a new password for that account (it needs your database access, so only you can do it).
+- 5 wrong passwords lock admin sign-in for 15 minutes. A successful password reset clears that lock.

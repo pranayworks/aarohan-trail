@@ -492,9 +492,10 @@ class NotificationService {
       console.error('[SOS] AAROHAN_SECURITY_DESK_PHONE is not configured: the security desk was NOT messaged. Staff must watch the admin dashboard.');
     }
 
-    if (alert.emergencyPhone) {
+    const contactPhones = new Set([alert.emergencyPhone, ...((alert.emergencyContacts || []).map((c) => c.phone))].filter(Boolean));
+    for (const contactPhone of contactPhones) {
       tasks.push(this.sendSms({
-        to: alert.emergencyPhone,
+        to: contactPhone,
         message:
           `Aarohan Safety: ${reporter} pressed the SOS button.\n` +
           `Last location${approx}: ${mapsLink}\n` +

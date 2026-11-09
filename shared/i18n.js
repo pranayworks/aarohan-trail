@@ -285,7 +285,7 @@
       // Update Header language pill
       const langBadge = document.getElementById('lang-toggle-text');
       if (langBadge) {
-        langBadge.innerText = this.currentLang === 'en' ? '🇲🇼 NY' : '🇬🇧 EN';
+        langBadge.innerText = this.currentLang === 'en' ? 'NY' : 'EN';
       }
     }
   }

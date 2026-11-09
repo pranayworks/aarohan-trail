@@ -24,7 +24,9 @@ const parcelInputSchema = z.object({
   notes: z.string().optional().nullable(),
   recipientName: z.string().min(1, 'Recipient name is required'),
   recipientPhone: z.string().regex(/^\+265[0-9]{9}$/, 'Recipient phone must be valid Malawi +265 format'),
-  prohibitedAccepted: z.boolean().optional()
+  prohibitedAccepted: z.boolean().optional(),
+  weightKg: z.number().min(0.1).max(150).optional(),
+  payer: z.enum(['SENDER_AT_PICKUP', 'RECEIVER_AT_DELIVERY']).default('SENDER_AT_PICKUP')
 });
 
 const socketTripRequestSchema = z.object({
@@ -41,6 +43,8 @@ const socketTripRequestSchema = z.object({
   })).max(2).optional(),
   parcelDetail: parcelInputSchema.optional(),
   parcel: parcelInputSchema.optional(),
+  pickupNote: z.string().max(160).optional(),
+  callOnArrival: z.boolean().optional(),
   pickup: z.union([
     z.string(),
     z.object({
@@ -190,6 +194,16 @@ function registerTripHandlers(io, socket) {
       }
 
       const serviceType = (consumed && consumed.serviceType) ? consumed.serviceType : (reqData.serviceType || 'RIDE');
+
+      // A parcel must fit the chosen vehicle: Moto up to 20 kg, Auto up to 80 kg, Cab up to 150 kg.
+      if (serviceType === 'PARCEL') {
+        const parcelWeight = Number((reqData.parcelDetail || reqData.parcel || {}).weightKg);
+        const vehicleKey = String((consumed && consumed.tier && consumed.tier.categoryId) || reqData.tierId || 'moto').toLowerCase();
+        const weightLimit = { moto: 20, auto: 80, cab: 150 }[vehicleKey] || 20;
+        if (Number.isFinite(parcelWeight) && parcelWeight > weightLimit) {
+          throw new Error(`This parcel (${parcelWeight} kg) is too heavy for a ${vehicleKey}. The limit is ${weightLimit} kg.`);
+        }
+      }
       const stopCount = effectiveStops.length;
       const stopFeeMWK = (consumed && consumed.stopFeeMWK !== undefined) ? consumed.stopFeeMWK : (stopCount * 500);
 
@@ -231,6 +245,8 @@ function registerTripHandlers(io, socket) {
             serviceType,
             stopCount,
             stopFeeMWK,
+            pickupNote: reqData.pickupNote ? reqData.pickupNote.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 160) || null : null,
+            callOnArrival: Boolean(reqData.callOnArrival),
             pickupAddress: (typeof reqData.pickup === 'string') ? reqData.pickup : (reqData.pickup?.name || reqData.pickup?.address || 'Pickup Point'),
             dropoffAddress: (typeof reqData.destination === 'string') ? reqData.destination : (reqData.destination?.name || reqData.destination?.address || 'Destination'),
             pickupLat,
@@ -282,7 +298,9 @@ function registerTripHandlers(io, socket) {
               recipientName: p.recipientName || 'Recipient',
               recipientPhone: p.recipientPhone || '+265991234567',
               deliveryCodeHash,
-              deliveryAttempts: 0
+              deliveryAttempts: 0,
+              weightKg: Number.isFinite(Number(p.weightKg)) ? Number(p.weightKg) : null,
+              payer: p.payer || 'SENDER_AT_PICKUP'
             }
           });
         }
@@ -347,6 +365,10 @@ function registerTripHandlers(io, socket) {
         if (!openOffer) throw new Error('This ride was not offered to you, or the offer has expired');
       }
 
+      {
+        const expiredNow = await require('../services/driverApplication').expiredDocuments(socket.driverId);
+        if (expiredNow.length) throw new Error(`Your ${expiredNow[0]} has expired. Renew it before accepting trips.`);
+      }
       const updatedTrip = await prisma.$transaction(async (tx) => {
         const driverRecord = await tx.driver.findFirst({
           where: {
@@ -423,8 +445,9 @@ function registerTripHandlers(io, socket) {
       dispatchService.clearOfferTimer(tripId);
       socket.join(`trip:${updatedTrip.id}`);
       emitTripEvent(io, 'trip:accepted', updatedTrip, (t) => ({ trip: t, driver: t.driver }));
+      try { require('../services/pushNotification').sendPushToUser(updatedTrip.riderId, { title: 'Your captain is on the way', body: 'Open Aarohan to follow your ride and see your safety PIN.', data: { type: 'TRIP_ACCEPTED', tripId: updatedTrip.id } }).catch(() => {}); } catch (_) { /* push is optional */ }
       // The driver's own acknowledgement never contains the rider's safety PIN.
-      if (typeof callback === 'function') callback({ success: true, trip: stripSecrets(updatedTrip) });
+      if (typeof callback === 'function') callback({ success: true, trip: await dispatchService.attachParcelForDriver(stripSecrets(updatedTrip)) });
     } catch (err) {
       console.warn('[TripAccept] Error:', err.message);
       const isDuplicateDriver = err.code === 'P2002' || err.message.includes('already accepted');
@@ -457,9 +480,13 @@ function registerTripHandlers(io, socket) {
         throw new Error('Driver profile is not active and approved');
       }
 
-      const MAX_COMMISSION_DEBT_MWK = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
-      if (parsed.data.status === 'ONLINE' && driver.commissionDebtMWK > MAX_COMMISSION_DEBT_MWK) {
-        throw new Error(`Driver cannot go online: Outstanding commission debt (MK ${driver.commissionDebtMWK.toLocaleString()}) exceeds the limit of MK ${MAX_COMMISSION_DEBT_MWK.toLocaleString()}. Please settle your commission.`);
+      if (parsed.data.status === 'ONLINE') {
+        const expired = await require('../services/driverApplication').expiredDocuments(socket.driverId);
+        if (expired.length) throw new Error(`Your ${expired[0]} has expired. Renew it and contact Aarohan support so you can go online.`);
+      }
+      const MAX_COMMISSION_DEBT_MWK = require('../services/commissionLimit').limitMWK();
+      if (parsed.data.status === 'ONLINE' && driver.commissionDebtMWK >= MAX_COMMISSION_DEBT_MWK) {
+        throw new Error(`You owe Aarohan MK ${driver.commissionDebtMWK.toLocaleString()} in commission, which has reached the limit of MK ${MAX_COMMISSION_DEBT_MWK.toLocaleString()}. Pay your commission to get orders again. Please settle your commission.`);
       }
 
       const updated = await prisma.driver.update({
@@ -481,6 +508,11 @@ function registerTripHandlers(io, socket) {
       if (!socket.driverId) return;
       const parsed = socketDriverMovedSchema.safeParse(coords);
       if (!parsed.success) return;
+      // Production works in Malawi only: a location anywhere else is refused and never stored.
+      if (process.env.NODE_ENV === 'production' && !locationService.isInsideMalawi(parsed.data.lat, parsed.data.lng)) {
+        socket.emit('driver:location_rejected', { reason: 'outside_malawi' });
+        return;
+      }
 
       await prisma.driver.updateMany({
         where: { id: socket.driverId, approvalStatus: 'APPROVED' },
@@ -580,6 +612,7 @@ function registerTripHandlers(io, socket) {
       }, { maxWait: 10000, timeout: 30000 });
 
       emitTripEvent(io, 'trip:arrived', updated);
+      try { require('../services/pushNotification').sendPushToUser(updated.riderId, { title: 'Your captain has arrived', body: 'Share your safety PIN with your captain to start the ride.', data: { type: 'TRIP_ARRIVED', tripId: updated.id } }).catch(() => {}); } catch (_) { /* push is optional */ }
       if (typeof callback === 'function') callback({ success: true, trip: stripSecrets(updated) });
     } catch (err) {
       socket.emit('trip:error', { error: err.message });
@@ -738,6 +771,17 @@ function registerTripHandlers(io, socket) {
             tripsCompleted: { increment: 1 }
           }
         }).catch(e => console.warn('[TripComplete] Error resetting driver availability:', e.message));
+
+        // Cash trips add Aarohan's share to what the driver owes. If it has now reached the limit, switch
+        // the driver off right away and tell them, so no more orders are sent until they pay.
+        try {
+          const lim = require('../services/commissionLimit');
+          const dd = await prisma.driver.findUnique({ where: { id: trip.driverId }, select: { commissionDebtMWK: true } });
+          if (dd && lim.reached(dd.commissionDebtMWK)) {
+            await prisma.driver.update({ where: { id: trip.driverId }, data: { availability: 'OFFLINE' } });
+            io.to(`driver:${trip.driverId}`).emit('driver:commission_limit', { debtMWK: dd.commissionDebtMWK, limitMWK: lim.limitMWK() });
+          }
+        } catch (limErr) { console.warn('[TripComplete] Commission limit check failed:', limErr.message); }
       }
 
       emitTripEvent(

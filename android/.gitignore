@@ -99,3 +99,11 @@ app/src/main/assets/public
 app/src/main/assets/capacitor.config.json
 app/src/main/assets/capacitor.plugins.json
 app/src/main/res/xml/config.xml
+
+# Never commit signing keys or Firebase files
+*.keystore
+*.jks
+keystore.properties
+google-services.json
+app/src/*/google-services.json
+*.single-app.bak

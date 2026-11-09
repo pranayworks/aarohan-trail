@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#E9EBEE" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/assets/brand/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Aarohan</title>
+  <script>try{localStorage.removeItem("aarohan_theme");if(localStorage.getItem("aarohan_lowdata")==="1"){document.documentElement.setAttribute("data-lowdata","");}}catch(e){}</script>
+  <link rel="icon" href="/rider/next/mark.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="/shared/chat.css?v=1" />
+  <link rel="stylesheet" href="./css/tokens.css?v=1" />
+  <link rel="stylesheet" href="./css/app.css?v=1" />
+</head>
+<body>
+  <div id="splash"><div class="mark" id="splash-mark"></div><div class="word">Aarohan</div><div class="bar"></div></div>
+  <div id="app" aria-live="polite"></div>
+  <div id="sheet-root"></div>
+  <div id="toast-root"></div>
+
+  <!-- Trip chat (logic: /shared/chat-ui.js) -->
+  <div id="chat-modal" class="chat-overlay hidden" onclick="if (event.target === this) closeChatDrawer()">
+    <div class="chat-sheet" role="dialog" aria-label="Trip chat">
+      <div class="chat-head">
+        <div class="chat-who">
+          <div class="chat-avatar" id="chat-avatar">C</div>
+          <div style="min-width:0"><div class="chat-title" id="chat-title">Your captain</div><div class="chat-sub">Chat for this trip</div></div>
+        </div>
+        <button type="button" class="chat-close" id="chat-close-btn" onclick="closeChatDrawer()" aria-label="Close chat"></button>
+      </div>
+      <div id="chat-messages-container" class="chat-list" aria-live="polite"></div>
+      <div id="chat-quick" class="chat-quick"></div>
+      <form class="chat-composer" onsubmit="event.preventDefault(); sendCustomChat();">
+        <input id="chat-custom-input" type="text" maxlength="500" placeholder="Write a message" autocomplete="off" enterkeyhint="send" aria-label="Message" />
+        <button type="submit" class="chat-send" id="chat-send-btn" aria-label="Send message"></button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/shared/auth.js"></script>
+  <script src="/shared/state.js"></script>
+  <script src="/shared/chat-ui.js?v=1"></script>
+  <script src="./js/core.js?v=1"></script>
+  <script src="./js/map.js?v=1"></script>
+  <script src="./js/ads.js?v=1"></script>
+  <script src="./js/native.js?v=1"></script>
+  <script src="./js/i18n.js?v=1"></script>
+  <script src="./js/onboard.js?v=1"></script>
+  <script src="./js/home.js?v=1"></script>
+  <script src="./js/ride.js?v=1"></script>
+  <script src="./js/parcel.js?v=1"></script>
+  <script src="./js/activity.js?v=1"></script>
+  <script src="./js/account.js?v=1"></script>
+  <script src="./js/account2.js?v=1"></script>
+  <script src="./js/app.js?v=1"></script>
+</body>
+</html>

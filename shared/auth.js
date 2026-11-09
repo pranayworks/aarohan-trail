@@ -14,6 +14,81 @@
 (function (window) {
   'use strict';
 
+  // ==========================================================================
+  // FORGOT PASSWORD (admin accounts). Step 1: email. Step 2: the emailed code and a new password.
+  // Riders and drivers have no password (they sign in with an emailed code), so this is only for admins.
+  // ==========================================================================
+  function openAdminForgotPassword(prefillEmail) {
+    const old = document.getElementById('aarohan-forgot-modal'); if (old) old.remove();
+    const box = document.createElement('div');
+    box.id = 'aarohan-forgot-modal';
+    box.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(20,24,30,.6);display:flex;align-items:center;justify-content:center;padding:18px;font-family:inherit';
+    const input = 'width:100%;height:46px;padding:0 14px;border:1px solid #CBD0D6;border-radius:14px;font-size:15px;background:#fff;color:#1E2228;box-sizing:border-box';
+    const label = 'display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#5E6672;margin:14px 0 6px';
+    const btn = 'width:100%;height:46px;border:0;border-radius:14px;background:#2F343C;color:#fff;font-weight:800;font-size:15px;cursor:pointer;margin-top:18px';
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    let email = (prefillEmail || '').trim().toLowerCase(), cooldown = 0, timer = null;
+    box.addEventListener('click', (e) => { if (e.target === box) close(); });
+    function close() { clearInterval(timer); box.remove(); }
+    function say(msg, ok) { const m = box.querySelector('#fp-msg'); if (!m) return; m.style.color = ok ? '#2F5D3A' : '#8A2B2B'; m.textContent = msg || ''; }
+    const post = async (url, body) => {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let d = {}; try { d = await r.json(); } catch (_) {}
+      if (!r.ok) throw new Error(d.error || (d.errors && d.errors[0] && d.errors[0].message) || 'Something went wrong. Please try again.');
+      return d;
+    };
+    function step1() {
+      box.innerHTML = '<div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.35)"><h2 style="margin:0;font-size:22px;font-weight:800;color:#1E2228">Forgot your password?</h2><p style="margin:8px 0 0;color:#5E6672;font-size:14px;line-height:1.5">Enter your admin email. We will send you a code to set a new password. This is only for admin accounts.</p>' +
+        '<label style="' + label + '">Admin email</label><input id="fp-email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" style="' + input + '" value="' + esc(email) + '" placeholder="you@example.com"/>' +
+        '<div id="fp-msg" style="margin-top:12px;font-size:13px;font-weight:600"></div><button id="fp-send" style="' + btn + '">Send reset code</button><button id="fp-cancel" type="button" style="width:100%;height:42px;border:0;background:transparent;color:#5E6672;font-weight:700;cursor:pointer;margin-top:6px">Back to sign in</button></div>';
+      const em = box.querySelector('#fp-email'), send = box.querySelector('#fp-send');
+      box.querySelector('#fp-cancel').onclick = close;
+      em.addEventListener('keydown', (e) => { if (e.key === 'Enter') send.click(); });
+      send.onclick = async () => {
+        email = em.value.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return say('Enter a valid email address.', false);
+        send.disabled = true; send.style.opacity = '.6'; say('');
+        try { await post('/api/auth/admin/forgot-password', { email }); step2(true); }
+        catch (e) { say(e.message, false); send.disabled = false; send.style.opacity = '1'; }
+      };
+      setTimeout(() => em.focus(), 100);
+    }
+    function step2(fresh) {
+      cooldown = 60;
+      box.innerHTML = '<div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.35);max-height:92vh;overflow:auto"><h2 style="margin:0;font-size:22px;font-weight:800;color:#1E2228">Set a new password</h2><p style="margin:8px 0 0;color:#5E6672;font-size:14px;line-height:1.5">If <b>' + esc(email) + '</b> is an admin account, a 6-digit code is on its way (check spam). It is valid for 10 minutes.</p>' +
+        '<label style="' + label + '">6-digit code</label><input id="fp-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="' + input + ';letter-spacing:6px;font-size:20px;text-align:center" placeholder="000000"/>' +
+        '<label style="' + label + '">New password</label><div style="position:relative"><input id="fp-pw" type="password" autocomplete="new-password" style="' + input + ';padding-right:64px" placeholder="At least 10 characters"/><button type="button" id="fp-eye" style="position:absolute;right:8px;top:8px;height:30px;padding:0 10px;border:0;background:#F1F3F5;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;color:#2F343C">Show</button></div>' +
+        '<label style="' + label + '">Type it again</label><input id="fp-pw2" type="password" autocomplete="new-password" style="' + input + '" placeholder="Repeat the new password"/>' +
+        '<ul id="fp-rules" style="list-style:none;padding:0;margin:12px 0 0;font-size:12.5px;color:#5E6672;line-height:1.7"></ul><div id="fp-msg" style="margin-top:10px;font-size:13px;font-weight:600"></div>' +
+        '<button id="fp-save" style="' + btn + '">Change password</button><button id="fp-resend" type="button" style="width:100%;height:42px;border:0;background:transparent;color:#5E6672;font-weight:700;cursor:pointer;margin-top:6px"></button></div>';
+      const code = box.querySelector('#fp-code'), pw = box.querySelector('#fp-pw'), pw2 = box.querySelector('#fp-pw2'), save = box.querySelector('#fp-save'), resend = box.querySelector('#fp-resend'), rules = box.querySelector('#fp-rules');
+      box.querySelector('#fp-eye').onclick = function () { const show = pw.type === 'password'; pw.type = show ? 'text' : 'password'; pw2.type = pw.type; this.textContent = show ? 'Hide' : 'Show'; };
+      const checks = () => {
+        const v = pw.value, local = email.split('@')[0];
+        return [['At least 10 characters', v.length >= 10], ['Letters and at least one number', /[a-z]/i.test(v) && /[0-9]/.test(v)], ['Does not contain your email name', !(local.length >= 4 && v.toLowerCase().includes(local))], ['Both boxes match', v.length > 0 && v === pw2.value]];
+      };
+      const paint = () => { rules.innerHTML = checks().map((c) => '<li style="color:' + (c[1] ? '#2F5D3A' : '#5E6672') + '">' + (c[1] ? '&#10003; ' : '&#9675; ') + c[0] + '</li>').join(''); };
+      pw.addEventListener('input', paint); pw2.addEventListener('input', paint); paint();
+      clearInterval(timer);
+      const tick = () => { resend.disabled = cooldown > 0; resend.style.opacity = cooldown > 0 ? '.6' : '1'; resend.textContent = cooldown > 0 ? 'Send a new code in ' + cooldown + 's' : 'Send a new code'; if (cooldown > 0) cooldown--; };
+      tick(); timer = setInterval(tick, 1000);
+      resend.onclick = async () => { if (cooldown > 0) return; try { await post('/api/auth/admin/forgot-password', { email }); cooldown = 60; say('A new code was requested.', true); } catch (e) { say(e.message, false); } };
+      save.onclick = async () => {
+        if (!/^\d{6}$/.test(code.value.trim())) return say('Enter the 6-digit code from the email.', false);
+        if (!checks().every((c) => c[1])) return say('Please meet all the password rules below.', false);
+        save.disabled = true; save.style.opacity = '.6'; say('');
+        try {
+          await post('/api/auth/admin/reset-password', { email, otp: code.value.trim(), newPassword: pw.value });
+          box.innerHTML = '<div style="background:#fff;border-radius:20px;max-width:420px;width:100%;padding:28px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.35)"><div style="width:64px;height:64px;border-radius:50%;background:#E4EFE7;color:#2F5D3A;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 14px">&#10003;</div><h2 style="margin:0;font-size:22px;font-weight:800;color:#1E2228">Password changed</h2><p style="color:#5E6672;font-size:14px;line-height:1.5">You were signed out everywhere for safety. Sign in with your new password.</p><button id="fp-done" style="' + btn + '">Back to sign in</button></div>';
+          box.querySelector('#fp-done').onclick = () => { close(); const f = document.getElementById('auth-email-input'); if (f) { f.value = email; } };
+        } catch (e) { say(e.message, false); save.disabled = false; save.style.opacity = '1'; }
+      };
+      setTimeout(() => code.focus(), 100);
+    }
+    document.body.appendChild(box);
+    step1();
+  }
+
   const ACCESS_TOKEN_KEY = 'aarohan_access_token';
   const REFRESH_TOKEN_KEY = 'aarohan_refresh_token';
   const USER_KEY = 'aarohan_user';
@@ -289,7 +364,6 @@
           <!-- Top Right Language Switcher -->
           <div class="absolute top-5 right-5">
             <button id="auth-lang-btn" type="button" class="px-2.5 py-1 rounded-full bg-[#202020] border border-[#292929] text-[11px] font-extrabold text-[#A3A3A3] hover:text-white transition-all flex items-center gap-1 active:scale-95">
-              <span>🇲🇼</span>
               <span id="auth-lang-label">NY</span>
             </button>
           </div>
@@ -340,7 +414,7 @@
                 ${i18n.t('phoneLabel')}
               </label>
               <div class="relative">
-                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-primary">🇲🇼 +265</span>
+                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-primary">+265</span>
                 <input 
                   type="tel" 
                   id="auth-phone-input" 
@@ -366,6 +440,7 @@
                 placeholder="••••••••••••" 
                 required
               />
+            ${emailMode ? '<div class="mt-2 text-right"><button type="button" id="auth-forgot-btn" class="text-[12px] font-extrabold text-primary hover:underline">Forgot password?</button></div>' : ''}
             </div>
             ` : ''}
 
@@ -546,7 +621,7 @@
 
           <!-- Mobile-first Footer Notice -->
           <p class="text-[10px] text-center text-outline mt-5 font-semibold">
-            Lilongwe Smart Urban Mobility • Protected by AArohan Escrow
+            Safe, simple rides in Lilongwe
           </p>
 
         </div>
@@ -563,6 +638,8 @@
       const phoneInput = document.getElementById(emailMode ? 'auth-email-input' : 'auth-phone-input');
       const otpInput = document.getElementById('auth-otp-input');
       const adminPassInput = document.getElementById('auth-admin-password');
+      const forgotBtn = document.getElementById('auth-forgot-btn');
+      if (forgotBtn) forgotBtn.addEventListener('click', () => openAdminForgotPassword(phoneInput ? phoneInput.value : ''));
       const changePhoneBtn = document.getElementById('auth-change-phone-btn');
       const langBtn = document.getElementById('auth-lang-btn');
       const langLabel = document.getElementById('auth-lang-label');

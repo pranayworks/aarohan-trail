@@ -9,6 +9,7 @@ const dispatchService = require('../services/dispatch');
 const supabaseStorage = require('../services/supabaseStorage');
 const { requireRole, validateBody } = require('../middleware/auth');
 const { getFullTripRecord, logAdminTripAccess } = require('../services/tripRecord');
+const driverApplication = require('../services/driverApplication');
 
 const router = express.Router();
 
@@ -318,7 +319,7 @@ router.get('/admin/drivers/:driverId/documents', requireRole('ADMIN', 'SUPPORT')
 });
 
 // 3. Approve Driver (ADMIN & SUPPORT)
-router.post('/admin/drivers/:driverId/approve', requireRole('ADMIN', 'SUPPORT'), async (req, res) => {
+router.post('/admin/drivers/:driverId/approve', requireRole('ADMIN'), async (req, res) => { // only an admin approves; support can review
   try {
     const { driverId } = req.params;
     const driver = await prisma.driver.findUnique({
@@ -328,6 +329,12 @@ router.post('/admin/drivers/:driverId/approve', requireRole('ADMIN', 'SUPPORT'),
 
     if (!driver) {
       return res.status(404).json({ error: 'Driver not found' });
+    }
+
+    // In production nobody is approved without a complete application and a fully ticked review checklist.
+    if (driverApplication.strictApproval()) {
+      const gate = await driverApplication.approvalGate(driverId, req.user.id);
+      if (!gate.ok) return res.status(409).json({ error: gate.reason, missing: gate.missing });
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -373,9 +380,12 @@ router.post('/admin/drivers/:driverId/approve', requireRole('ADMIN', 'SUPPORT'),
 
     const io = req.app.get('io');
     if (io) {
-      io.to('ops').to(`driver:${driverId}`).emit('driver:status_changed', { driverId, approvalStatus: 'APPROVED' });
+      io.to('ops').to(`driver:${driverId}`).to(`user:${driver.userId}`).emit('driver:status_changed', { driverId, approvalStatus: 'APPROVED' });
     }
 
+    try { require('../services/supportMail').onDriverApproved({ user: driver.user }); } catch (_) { /* email is best effort */ }
+    try { require('../services/pushNotification').sendPushToUser(driver.userId, { title: 'You are approved', body: 'Your documents were verified. Open Aarohan Captain and go online.', data: { type: 'DRIVER_APPROVED' } }).catch(() => {}); } catch (_) { /* push is optional */ }
+    await prisma.driverLiveness.updateMany({ where: { driverId, status: { in: ['PENDING_REVIEW', 'ALTERNATIVE_REQUESTED'] } }, data: { status: 'APPROVED', reviewedBy: req.user.id, reviewedAt: new Date() } }).catch(() => {});
     res.json({ success: true, message: 'Driver approved successfully', driver: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -443,6 +453,8 @@ router.post('/admin/drivers/:driverId/reject', requireRole('ADMIN', 'SUPPORT'), 
       io.to('ops').to(`driver:${driverId}`).emit('driver:status_changed', { driverId, approvalStatus: 'REJECTED', reason });
     }
 
+    await prisma.driverLiveness.updateMany({ where: { driverId, status: { in: ['PENDING_REVIEW', 'ALTERNATIVE_REQUESTED'] } }, data: { status: 'REJECTED', reviewedBy: req.user.id, reviewedAt: new Date(), rejectionReason: 'Rejected with the application' } }).catch(() => {});
+    try { require('../services/pushNotification').sendPushToUser(driver.userId, { title: 'Your application needs changes', body: 'Open Aarohan Captain to see what to fix.', data: { type: 'DRIVER_REJECTED' } }).catch(() => {}); } catch (_) { /* push is optional */ }
     res.json({ success: true, message: 'Driver rejected', driver: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });

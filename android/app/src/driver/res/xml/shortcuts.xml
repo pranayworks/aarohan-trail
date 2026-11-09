@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="aarohan_a" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_a_short" android:shortcutLongLabel="@string/shortcut_a_long">
+        <intent android:action="android.intent.action.MAIN" android:targetPackage="com.aarohan.driver" android:targetClass="com.aarohan.driver.MainActivity">
+            <extra android:name="aarohan_go" android:value="online" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="aarohan_b" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_b_short" android:shortcutLongLabel="@string/shortcut_b_long">
+        <intent android:action="android.intent.action.MAIN" android:targetPackage="com.aarohan.driver" android:targetClass="com.aarohan.driver.MainActivity">
+            <extra android:name="aarohan_go" android:value="earnings" />
+        </intent>
+    </shortcut>
+</shortcuts>

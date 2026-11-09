@@ -1,7 +1,4 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">AArohan Driver</string>
-    <string name="title_activity_main">AArohan Driver</string>
-    <string name="package_name">com.aarohan.driver</string>
-    <string name="custom_url_scheme">com.aarohan.driver</string>
+    <!-- The app names and widget texts live in app/src/driver/res and app/src/rider/res (one set for each app). -->
 </resources>

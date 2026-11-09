@@ -233,6 +233,26 @@ const count = (log, ev) => log.filter((e) => e.ev === ev).length;
   report('Chat is refused before a driver is assigned', noDriverChat.success === false);
   const longChat = await ack(rider, 'chat:send', { tripId: 'T1', text: 'x'.repeat(1500) });
   report('Very long messages are cut to 1000 characters', longChat.success === true && longChat.message.text.length === 1000);
+  const idMsg = await ack(rider, 'chat:send', { tripId: 'T1', text: 'with id', clientId: 'c-test-1' });
+  report('A chat message is echoed back with the sender\'s clientId, so apps can confirm it without showing it twice',
+    idMsg.success === true && idMsg.message.clientId === 'c-test-1' && !!idMsg.message.createdAt);
+  let tooFast = null;
+  for (let i = 0; i < 25 && !tooFast; i++) {
+    const r = await ack(driver, 'chat:send', { tripId: 'T1', text: 'burst ' + i });
+    if (!r.success) tooFast = r;
+  }
+  report('Sending chat messages in a rapid burst is slowed down', !!tooFast && /too fast/i.test(tooFast.error));
+  const chatSrc = fs.readFileSync(path.join(ROOT, 'routes/rides.js'), 'utf8');
+  report('Only the rider and the assigned driver can read a trip\'s chat history',
+    /router\.get\('\/trips\/:id\/chat', requireAuth/.test(chatSrc) && chatSrc.includes('Forbidden: you are not part of this trip'));
+  const chatUi = fs.readFileSync(path.join(ROOT, 'shared/chat-ui.js'), 'utf8');
+  report('Chat text is escaped before it is shown (no HTML injection)',
+    chatUi.includes('&lt;') && /esc\(m\.text\)/.test(chatUi) && !/innerHTML\s*=\s*[^;]*\bm\.text\b(?!\))/.test(chatUi.replace(/esc\(m\.text\)/g, '')));
+  report('Both apps use the real chat (no alert() stub and no fake driver message)',
+    !fs.readFileSync(path.join(ROOT, 'driver/index.html'), 'utf8').includes("Passenger message drawer opened") &&
+    !fs.readFileSync(path.join(ROOT, 'rider/app.js'), 'utf8').includes('Moni! I am on my way') &&
+    fs.readFileSync(path.join(ROOT, 'driver/index.html'), 'utf8').includes('shared/chat-ui.js') &&
+    fs.readFileSync(path.join(ROOT, 'rider/index.html'), 'utf8').includes('shared/chat-ui.js'));
 
   // Call signalling
   rider.emit('call:signal', { tripId: 'T1', data: { sdp: 'offer' } });
@@ -426,6 +446,11 @@ const count = (log, ev) => log.filter((e) => e.ev === ev).length;
   report('Container health check follows the PORT that Railway assigns', /localhost:\$\{PORT:-3000\}\/api\/health/.test(read('Dockerfile')));
   report('The deploy walkthrough exists and never says to run the seed in production',
     fs.existsSync(path.join(ROOT, 'docs/railway-deploy-walkthrough.md')) && /seed script must never be run against production/i.test(read('docs/railway-deploy-walkthrough.md')));
+
+  // --- Dev sign-in helper can never leak into production or Git ---
+  const devSession = read('scripts/dev-session.js');
+  report('The dev sign-in helper refuses to run outside development and its output is git-ignored',
+    /NODE_ENV[^\n]*development/.test(devSession) && devSession.includes('process.exit(1)') && /^\.dev-sessions\.json$/m.test(read('.gitignore')));
 
   // --- Public landing page ---
   report('The root URL serves the public landing page', /sendFile\(path\.join\(__dirname, 'landing\.html'\)\)/.test(serverSrc) && fs.existsSync(path.join(ROOT, 'landing.html')));

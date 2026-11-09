@@ -333,14 +333,7 @@
               this.notifyListeners(state, 'TRIP_CANCELLED', payload);
             });
 
-            this.socket.on('chat:message', (msg) => {
-              const state = this.getState();
-              state.chatMessages = state.chatMessages || [];
-              state.chatMessages.push(msg);
-              this.saveState(state);
-              this.notifyListeners(state, 'CHAT_MESSAGE', msg);
-              if (window.mwendoSound) window.mwendoSound.playTone(880, 'sine', 0.1);
-            });
+            this.socket.on('chat:message', (msg) => this._chatIncoming(msg));
 
             this.socket.on('sos:alert', (alertItem) => {
               const state = this.getState();
@@ -532,6 +525,8 @@
         fare: fare ? Math.round(fare) : undefined,
         paymentMethod: paymentMethod || 'CASH',
         stops: params.stops || undefined,
+        pickupNote: params.pickupNote || undefined,
+        callOnArrival: params.callOnArrival || undefined,
         serviceType: params.serviceType || undefined,
         parcel: params.parcel || params.parcelDetail || undefined,
         parcelDetail: params.parcel || params.parcelDetail || undefined,
@@ -758,23 +753,123 @@
       }
     }
 
-    sendChatMessage(sender, text) {
+    // ------------------------------------------------------------------
+    // Trip chat: real messages between the rider and the assigned driver
+    // ------------------------------------------------------------------
+    // Chat exists only while a driver is assigned to the active trip.
+    chatTripId() {
+      const t = (this.getState() || {}).activeTrip || {};
+      return t.id && ['DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].includes(t.status) ? t.id : null;
+    }
+
+    chatMyRole() {
+      let role = null;
+      try { const u = window.aarohanAuth && window.aarohanAuth.getUser(); role = u && u.role; } catch (_) {}
+      return role === 'DRIVER' ? 'driver' : 'rider';
+    }
+
+    // The current thread. It resets itself when the trip changes.
+    chatState() {
+      if (!this._chat) this._chat = { tripId: null, messages: [], unread: 0, open: false, loaded: false };
+      const c = this._chat;
+      const id = this.chatTripId();
+      if (c.tripId !== id) { c.tripId = id; c.messages = []; c.unread = 0; c.loaded = false; }
+      return c;
+    }
+
+    async chatLoad() {
+      const c = this.chatState();
+      if (!c.tripId || c.loaded) return c;
+      const wanted = c.tripId;
+      try {
+        const auth = window.aarohanAuth;
+        const call = auth && auth.fetchWithAuth ? auth.fetchWithAuth.bind(auth) : fetch;
+        const res = await call(`/api/trips/${encodeURIComponent(wanted)}/chat`);
+        if (res && res.ok) {
+          const data = await res.json();
+          if (c.tripId === wanted) {
+            const unsent = c.messages.filter((m) => m.status === 'sending' || m.status === 'failed');
+            c.messages = (data.messages || []).map((m) => ({ ...m, status: 'sent' })).concat(unsent);
+            c.loaded = true;
+          }
+        }
+      } catch (_) { /* the thread simply stays empty until the next try */ }
+      this.notifyListeners(this.getState(), 'CHAT_THREAD', null);
+      return c;
+    }
+
+    chatSetOpen(open) {
+      const c = this.chatState();
+      c.open = !!open;
+      if (open) { c.unread = 0; this.chatLoad(); }
+      this.notifyListeners(this.getState(), 'CHAT_THREAD', null);
+    }
+
+    // Sends a message. The screen shows it straight away as "sending", then "sent" or "not sent".
+    chatSend(text, done) {
+      const c = this.chatState();
+      const clean = String(text || '').trim().slice(0, 1000);
+      const finish = (res) => { if (typeof done === 'function') done(res); };
+      if (!clean) { finish({ success: false, error: 'Type a message first.' }); return; }
+      if (!c.tripId) { finish({ success: false, error: 'Chat opens once a captain is on the way.' }); return; }
+
       const msg = {
-        sender: sender,
-        text: text,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        clientId: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        sender: this.chatMyRole(),
+        text: clean,
+        createdAt: new Date().toISOString(),
+        status: 'sending'
       };
+      c.messages.push(msg);
+      this._chatTransmit(c, msg, finish);
+    }
 
-      const state = this.getState();
-      state.chatMessages = state.chatMessages || [];
-      state.chatMessages.push(msg);
-      this.saveState(state);
-      this.broadcast('CHAT_MESSAGE', msg);
-      this.notifyListeners(state, 'CHAT_MESSAGE', msg);
+    chatRetry(clientId) {
+      const c = this.chatState();
+      const msg = c.messages.find((m) => m.clientId === clientId);
+      if (msg && msg.status === 'failed') { msg.status = 'sending'; msg.error = null; this._chatTransmit(c, msg); }
+    }
 
-      if (this.socket && this.isRealtimeConnected) {
-        this.socket.emit('chat:send', msg);
+    _chatTransmit(c, msg, finish) {
+      const fail = (reason) => {
+        msg.status = 'failed';
+        msg.error = reason;
+        this.notifyListeners(this.getState(), 'CHAT_MESSAGE', msg);
+        if (finish) finish({ success: false, error: reason });
+      };
+      this.notifyListeners(this.getState(), 'CHAT_MESSAGE', msg);
+      if (!this.socket || !this.isRealtimeConnected) { fail('No connection. Check your internet, then tap to retry.'); return; }
+      this.socket.timeout(8000).emit('chat:send', { tripId: c.tripId, text: msg.text, clientId: msg.clientId }, (err, res) => {
+        if (err || !res || !res.success) { fail((res && res.error) || 'Not delivered. Tap to retry.'); return; }
+        msg.status = 'sent';
+        if (res.message && res.message.id) msg.id = res.message.id;
+        this.notifyListeners(this.getState(), 'CHAT_MESSAGE', msg);
+        if (finish) finish({ success: true });
+      });
+    }
+
+    _chatIncoming(raw) {
+      const c = this.chatState();
+      if (!raw || !c.tripId || (raw.tripId && raw.tripId !== c.tripId)) return;
+      const entry = () => ({ id: raw.id, sender: raw.sender, text: raw.text, createdAt: raw.createdAt || new Date().toISOString(), status: 'sent' });
+      if (raw.sender === this.chatMyRole()) {
+        // The server's copy of a message we sent: confirm it instead of showing it twice.
+        const local = raw.clientId ? c.messages.find((m) => m.clientId === raw.clientId) : null;
+        if (local) { local.status = 'sent'; local.id = raw.id || local.id; }
+        else if (!raw.id || !c.messages.some((m) => m.id === raw.id)) c.messages.push(entry());
+      } else {
+        if (raw.id && c.messages.some((m) => m.id === raw.id)) return;
+        c.messages.push(entry());
+        if (!c.open) c.unread += 1;
+        const snd = window.aarohanSound || window.mwendoSound;
+        if (snd && snd.playTone) snd.playTone(880, 'sine', 0.1);
       }
+      this.notifyListeners(this.getState(), 'CHAT_MESSAGE', raw);
+    }
+
+    // Older callers (the offline queue) still use this name.
+    sendChatMessage(sender, text) {
+      this.chatSend(text);
     }
 
     submitRating({ rating, tip, compliments }) {

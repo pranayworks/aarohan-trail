@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Aarohan</string>
+    <string name="title_activity_main">Aarohan</string>
+    <string name="package_name">com.aarohan.rider</string>
+    <string name="custom_url_scheme">com.aarohan.rider</string>
+
+    <!-- Home screen widget -->
+    <string name="widget_title">Aarohan</string>
+    <string name="widget_description">Book a ride or send a parcel in Lilongwe</string>
+    <string name="widget_label_a">Book a ride</string>
+    <string name="widget_label_b">Send a parcel</string>
+    <string name="widget_go_a">ride</string>
+    <string name="widget_go_b">parcel</string>
+
+    <!-- Long-press shortcuts on the app icon -->
+    <string name="shortcut_a_short">Book a ride</string>
+    <string name="shortcut_a_long">Book a ride with Aarohan</string>
+    <string name="shortcut_b_short">Send a parcel</string>
+    <string name="shortcut_b_long">Send a parcel with Aarohan</string>
+</resources>

@@ -90,10 +90,10 @@ router.post('/tickets/:ticketId/messages', requireAuth, async (req, res) => {
 // GET /api/admin/tickets — list all tickets
 router.get('/admin/tickets', requireAuth, requireRole('ADMIN', 'SUPPORT', 'FINANCE'), async (req, res) => {
   try {
-    const { status, priority, category, page, limit } = req.query;
+    const { status, priority, category, role, page, limit } = req.query;
     const data = await ticketService.adminListTickets({
       adminId: req.user.id,
-      status, priority, category,
+      status, priority, category, role,
       page:  parseInt(page  || '1',  10),
       limit: parseInt(limit || '50', 10)
     });

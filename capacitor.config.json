@@ -1,9 +1,9 @@
 {
   "appId": "com.aarohan.driver",
-  "appName": "AArohan Driver",
+  "appName": "Aarohan Captain",
   "webDir": "driver",
   "server": {
-    "url": "https://aarohan.app",
+    "url": "http://10.0.2.2:3000/driver/next/",
     "cleartext": true,
     "androidScheme": "https",
     "allowNavigation": [
@@ -24,4 +24,3 @@
     }
   }
 }
-

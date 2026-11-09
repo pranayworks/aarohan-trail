@@ -16,6 +16,13 @@ const prisma = require('../lib/prisma');
 /**
  * requireAuth: Authenticates Bearer JWT and verifies user status in database
  */
+// Checking the user in the database on every request is the slowest part of every page when the
+// database is far away. We remember an ACTIVE user for a few seconds. Suspensions and deletions
+// still take effect within AUTH_CACHE_SECONDS (default 15), and logout/delete clear it at once.
+const authCache = new Map();
+const cacheMs = () => Math.max(0, Number(process.env.AUTH_CACHE_SECONDS === undefined ? 15 : process.env.AUTH_CACHE_SECONDS)) * 1000;
+function clearAuthCache(userId) { if (userId) authCache.delete(userId); else authCache.clear(); }
+
 async function requireAuth(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -39,10 +46,17 @@ async function requireAuth(req, res, next) {
     }
 
     // Verify User in database to check status (ACTIVE vs SUSPENDED / BANNED)
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      include: { driverProfile: true }
-    });
+    let user;
+    const hit = authCache.get(payload.userId);
+    if (hit && Date.now() - hit.at < cacheMs()) user = hit.user;
+    else {
+      user = await prisma.user.findUnique({
+        where: { id: payload.userId },
+        include: { driverProfile: true }
+      });
+      if (user && user.status === 'ACTIVE' && cacheMs() > 0) authCache.set(payload.userId, { at: Date.now(), user });
+      else authCache.delete(payload.userId);
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Authentication invalid: User account does not exist' });
@@ -162,6 +176,7 @@ function validateQuery(schema) {
 }
 
 module.exports = {
+  clearAuthCache,
   requireAuth,
   requireRole,
   requireDriverApproval,

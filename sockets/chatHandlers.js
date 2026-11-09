@@ -8,7 +8,8 @@ const { sosPayloadSchema, triggerSos } = require('../services/sos');
 const socketChatSendSchema = z.object({
   tripId: z.string().min(1, 'tripId is required'),
   text: z.string().min(1, 'message text required').max(2000, 'message too long'),
-  sender: z.string().optional()
+  sender: z.string().optional(),
+  clientId: z.string().max(64).optional()
 });
 
 const socketSosTriggerSchema = sosPayloadSchema;
@@ -27,9 +28,17 @@ const socketWalletTransferSchema = z.object({
 });
 
 function registerChatHandlers(io, socket, operationalState) {
+  // Simple spam limit per connection: at most 20 chat messages in any 10 seconds.
+  const chatSentAt = [];
+
   // 1. Real-Time Chat: only the rider and the assigned driver of an ACTIVE trip
   socket.on('chat:send', async (msg = {}, callback) => {
     try {
+      const nowMs = Date.now();
+      while (chatSentAt.length && nowMs - chatSentAt[0] > 10000) chatSentAt.shift();
+      if (chatSentAt.length >= 20) throw new Error('You are sending messages too fast. Please wait a moment.');
+      chatSentAt.push(nowMs);
+
       const parsed = socketChatSendSchema.safeParse(msg);
       if (!parsed.success) throw new Error('tripId and text required');
       const text = parsed.data.text.trim().slice(0, 1000);
@@ -50,7 +59,7 @@ function registerChatHandlers(io, socket, operationalState) {
         throw new Error('Chat is only available while a driver is assigned to an active trip');
       }
 
-      await prisma.chatMessage.create({
+      const saved = await prisma.chatMessage.create({
         data: {
           tripId: trip.id,
           senderId: socket.userId,
@@ -60,6 +69,9 @@ function registerChatHandlers(io, socket, operationalState) {
       });
 
       const messageObj = {
+        id: saved && saved.id ? saved.id : null,
+        clientId: parsed.data.clientId || null,
+        createdAt: (saved && saved.createdAt) || new Date(),
         tripId: trip.id,
         sender: isRider ? 'rider' : 'driver',
         text,

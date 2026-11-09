@@ -75,12 +75,17 @@ const restSavedPlaceSchema = z.object({
   address: z.string().optional()
 });
 
-// In-memory saved places store
-let savedPlacesList = [
+// Saved places are PER USER (in memory for now) and never shared between riders.
+const savedPlacesByUser = new Map();
+const defaultSavedPlaces = () => [
   { id: 'PLC-home', label: 'Home', name: 'Area 47 Sector 3', address: 'Area 47 Sector 3, Kaunda Road', lat: -13.9632, lng: 33.7741 },
   { id: 'PLC-work', label: 'Work', name: 'Capital City Centre', address: 'Capital City Centre, Robert Mugabe Cres', lat: -13.9512, lng: 33.7891 },
   { id: 'PLC-eptl', label: 'Work', name: 'Entire Printers & Traders Limited (EPTL)', address: 'Area 4 Industrial Corridor, Lilongwe', lat: -13.9933, lng: 33.6777 }
 ];
+function savedPlacesFor(userId) {
+  if (!savedPlacesByUser.has(userId)) savedPlacesByUser.set(userId, defaultSavedPlaces());
+  return savedPlacesByUser.get(userId);
+}
 
 // 1. Authoritative Route & Dynamic Pricing Quote (with Service Area & Stops)
 router.post('/rides/quote', validateBody(restQuoteSchema), async (req, res) => {
@@ -137,7 +142,9 @@ router.post('/rides/quote', validateBody(restQuoteSchema), async (req, res) => {
       distanceKm: route.distanceKm,
       durationMins: route.durationMins,
       routeGeometry: route.polyline,
-      surgeMultiplier: surgeMultiplier || 1.0,
+      // Fair-price promise: the price never rises with demand unless SURGE_ENABLED=true is set on the server.
+      // Whatever a client sends is ignored otherwise.
+      surgeMultiplier: (process.env.SURGE_ENABLED === 'true' && surgeMultiplier) ? surgeMultiplier : 1.0,
       serviceType,
       parcelSize
     });
@@ -227,6 +234,9 @@ router.get('/trips/active', requireAuth, async (req, res) => {
         driver: { include: { user: { select: { id: true, name: true, phone: true } }, vehicle: true } }
       }
     });
+    if (activeTrip && req.user.role === 'DRIVER' && activeTrip.parcelDetail) {
+      activeTrip.parcelDetail = dispatchService.safeParcel(activeTrip.parcelDetail); // never send the delivery code hash to a driver
+    }
     res.json({ activeTrip: activeTrip || null });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -264,12 +274,38 @@ router.get('/trips/history', requireAuth, async (req, res) => {
   }
 });
 
-// 6. User Saved Places
-router.get('/user/saved-places', (req, res) => {
-  res.json(savedPlacesList);
+// Chat history for one trip. Only the rider and the assigned driver can read it.
+router.get('/trips/:id/chat', requireAuth, async (req, res) => {
+  try {
+    const trip = await prisma.trip.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, riderId: true, driver: { select: { userId: true } } }
+    });
+    if (!trip) return res.status(404).json({ error: 'Trip not found' });
+    const isMember = req.user.id === trip.riderId || (trip.driver && trip.driver.userId === req.user.id);
+    if (!isMember) return res.status(403).json({ error: 'Forbidden: you are not part of this trip' });
+
+    const rows = await prisma.chatMessage.findMany({
+      where: { tripId: trip.id },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      select: { id: true, senderRole: true, text: true, createdAt: true }
+    });
+    res.json({
+      success: true,
+      messages: rows.map(r => ({ id: r.id, sender: r.senderRole === 'DRIVER' ? 'driver' : 'rider', text: r.text, createdAt: r.createdAt }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.post('/user/saved-places', validateBody(restSavedPlaceSchema), (req, res) => {
+// 6. User Saved Places (per user)
+router.get('/user/saved-places', requireAuth, (req, res) => {
+  res.json(savedPlacesFor(req.user.id));
+});
+
+router.post('/user/saved-places', requireAuth, validateBody(restSavedPlaceSchema), (req, res) => {
   const { label, name, address, lat, lng } = req.body;
   const newPlace = {
     id: 'PLC-' + Date.now().toString(36),
@@ -281,24 +317,28 @@ router.post('/user/saved-places', validateBody(restSavedPlaceSchema), (req, res)
     createdAt: Date.now()
   };
 
+  let list = savedPlacesFor(req.user.id);
   if (label && ['Home', 'Work'].includes(label)) {
-    savedPlacesList = savedPlacesList.filter(p => p.label !== label);
+    list = list.filter(p => p.label !== label);
   }
-  savedPlacesList.push(newPlace);
-  res.json({ success: true, savedPlace: newPlace, savedPlaces: savedPlacesList });
+  list.push(newPlace);
+  savedPlacesByUser.set(req.user.id, list);
+  res.json({ success: true, savedPlace: newPlace, savedPlaces: list });
 });
 
-router.delete('/user/saved-places/:id', (req, res) => {
-  savedPlacesList = savedPlacesList.filter(p => p.id !== req.params.id);
-  res.json({ success: true, savedPlaces: savedPlacesList });
+router.delete('/user/saved-places/:id', requireAuth, (req, res) => {
+  const list = savedPlacesFor(req.user.id).filter(p => p.id !== req.params.id);
+  savedPlacesByUser.set(req.user.id, list);
+  res.json({ success: true, savedPlaces: list });
 });
 
-// 7. Frequent Destinations (calculated from trip history)
-router.get('/user/frequent-places', async (req, res) => {
+// 7. Frequent places: only THIS rider's own completed trips (never other riders' destinations)
+router.get('/user/frequent-places', requireAuth, async (req, res) => {
   try {
     const completedTrips = await prisma.trip.findMany({
-      where: { status: 'COMPLETED' },
+      where: { riderId: req.user.id, status: 'COMPLETED' },
       select: { dropoffAddress: true },
+      orderBy: { createdAt: 'desc' },
       take: 20
     });
 

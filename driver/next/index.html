@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#E9EBEE" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/assets/brand/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Aarohan Captain</title>
+  <link rel="icon" href="/rider/next/mark.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="/shared/chat.css?v=1" />
+  <link rel="stylesheet" href="/rider/next/css/tokens.css?v=1" />
+  <link rel="stylesheet" href="/rider/next/css/app.css?v=1" />
+  <link rel="stylesheet" href="./css/driver.css?v=1" />
+  <script>try{if(localStorage.getItem("aarohan_lowdata")==="1"){document.documentElement.setAttribute("data-lowdata","");}}catch(e){}</script>
+</head>
+<body>
+  <div id="splash"><div class="mark" id="splash-mark"></div><div class="word">Aarohan Captain</div><div class="bar"></div></div>
+  <div id="app" aria-live="polite"></div>
+  <div id="sheet-root"></div>
+  <div id="toast-root"></div>
+
+  <div id="chat-modal" class="chat-overlay hidden" onclick="if (event.target === this) closeChatDrawer()">
+    <div class="chat-sheet" role="dialog" aria-label="Trip chat">
+      <div class="chat-head">
+        <div class="chat-who">
+          <div class="chat-avatar" id="chat-avatar">R</div>
+          <div style="min-width:0"><div class="chat-title" id="chat-title">Your rider</div><div class="chat-sub">Chat for this trip</div></div>
+        </div>
+        <button type="button" class="chat-close" id="chat-close-btn" onclick="closeChatDrawer()" aria-label="Close chat"></button>
+      </div>
+      <div id="chat-messages-container" class="chat-list" aria-live="polite"></div>
+      <div id="chat-quick" class="chat-quick"></div>
+      <form class="chat-composer" onsubmit="event.preventDefault(); sendCustomChat();">
+        <input id="chat-custom-input" type="text" maxlength="500" placeholder="Write a message" autocomplete="off" enterkeyhint="send" aria-label="Message" />
+        <button type="submit" class="chat-send" id="chat-send-btn" aria-label="Send message"></button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/shared/auth.js"></script>
+  <script src="/shared/state.js"></script>
+  <script src="/shared/chat-ui.js?v=1"></script>
+  <script src="/rider/next/js/core.js?v=1"></script>
+  <script src="/rider/next/js/map.js?v=1"></script>
+  <script src="/rider/next/js/ads.js?v=1"></script>
+  <script src="/rider/next/js/native.js?v=1"></script>
+  <script src="/rider/next/js/i18n.js?v=1"></script>
+  <script src="/rider/next/js/onboard.js?v=1"></script>
+  <script src="/rider/next/js/account.js?v=1"></script>
+  <script src="/rider/next/js/account2.js?v=1"></script>
+  <script src="/driver/capacitor-bridge.js"></script>
+  <script src="./js/dapp.js?v=1"></script>
+  <script src="./js/dapply.js?v=1"></script>
+  <script src="./js/dcamera.js?v=1"></script>
+  <script src="./js/dhome.js?v=1"></script>
+  <script src="./js/ddrive.js?v=1"></script>
+  <script src="./js/dmoney.js?v=1"></script>
+  <script src="./js/dmore.js?v=1"></script>
+  <script src="./js/daccount.js?v=1"></script>
+  <script src="./js/dboot.js?v=1"></script>
+</body>
+</html>

@@ -35,3 +35,15 @@ uploads/
 # Local test diagnostics
 docs/playwright-diagnostics.txt
 docs/screenshots/playwright-failure-*.png
+
+# Local testing sessions (never commit)
+.dev-sessions.json
+
+.tmp_admin/
+
+# Signing keys and Firebase files must never be committed (the cloud build gets them from GitHub secrets)
+*.keystore
+*.jks
+keystore.properties
+**/google-services.json
+*.single-app.bak

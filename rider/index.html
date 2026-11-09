@@ -27,6 +27,12 @@
   <link rel="stylesheet" href="/shared/tailwind.built.css" />
   <link rel="stylesheet" href="/shared/theme.css" />
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./ui-polish.css?v=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/human.css?v=1" />
+  <link rel="stylesheet" href="/shared/chat.css?v=1" />
   <style>
     body {
       min-height: max(884px, 100dvh);
@@ -56,47 +62,37 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../shared/sentry.js?v=3.0"></script>
   <script src="../shared/sound.js?v=3.0"></script>
+  <script src="../shared/brand-text.js?v=1"></script>
   <script src="../shared/auth.js?v=3.0"></script>
   <script src="../shared/state.js?v=3.0"></script>
   <script src="../shared/i18n.js?v=3.0"></script>
+  <script src="../shared/chat-ui.js?v=1"></script>
 
-  <!-- Sticky Top Header (AArohan Branded) -->
-  <header
-    class="fixed top-0 w-full z-50 pt-safe bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)]">
-    <div class="h-16 px-4 flex items-center justify-between gap-2 max-w-md mx-auto">
-
-      <!-- Brand & Location Subtitle -->
-      <div class="flex items-center gap-3">
-        <button id="header-back-btn" onclick="goBack()"
-          class="hidden w-9 h-9 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors">
-          <span class="material-symbols-outlined text-[22px]">arrow_back</span>
+  <!-- Top app bar -->
+  <header class="app-bar">
+    <div class="app-bar-inner">
+      <div class="app-bar-left">
+        <button id="header-back-btn" onclick="goBack()" class="icon-btn hidden" aria-label="Back">
+          <span class="material-symbols-outlined">arrow_back</span>
         </button>
-        <div class="flex items-center gap-2">
-          <img src="/assets/brand/logo-full-color.svg" alt="Aarohan" class="h-8 w-auto" />
-        </div>
+        <a class="brand" href="/rider/" aria-label="Aarohan home">
+          <img class="brand-mark" src="/assets/brand/icon-192.svg" alt="" />
+          <span class="brand-word">Aarohan</span>
+        </a>
       </div>
 
-      <!-- Quick Actions (Language Switcher, Wallet & Safety Hub) -->
-      <div class="flex items-center gap-2">
-        <!-- Language Switcher Pill (Bilingual EN / NY) -->
-        <button id="lang-toggle-btn" onclick="toggleAppLanguage()" title="Switch Language / Sinthani Chiyankhulo"
-          class="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/90 rounded-full text-emerald-900 transition-all text-xs font-bold shadow-xs active:scale-95">
-          <span class="text-xs">🇲🇼</span>
+      <div class="app-bar-actions">
+        <button id="lang-toggle-btn" onclick="toggleAppLanguage()" class="pill" title="Switch Language / Sinthani Chiyankhulo">
           <span id="lang-toggle-text">NY</span>
         </button>
-
-        <button onclick="switchView('profile')"
-          class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/60 rounded-full text-slate-800 transition-colors text-xs font-bold shadow-xs">
-          <span class="material-symbols-outlined text-amber-500 text-[16px]">account_balance_wallet</span>
-          <span id="header-wallet-bal">MK 45,000</span>
+        <button id="header-wallet-btn" onclick="switchView('profile')" class="pill" aria-label="Wallet">
+          <span class="material-symbols-outlined">account_balance_wallet</span>
+          <span id="header-wallet-bal">MK 0</span>
         </button>
-
-        <button onclick="openSosModal()" title="Safety Hub"
-          class="w-9 h-9 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-700 transition-colors">
-          <span class="material-symbols-outlined text-[20px]">shield</span>
+        <button onclick="openSosModal()" class="icon-btn sos" title="Safety Hub" aria-label="Safety Hub">
+          <span class="material-symbols-outlined">shield</span>
         </button>
       </div>
-
     </div>
   </header>
 
@@ -554,9 +550,9 @@
         <span id="dispatch-countdown-timer" class="font-mono text-sm font-black text-emerald-700">00:45</span>
       </div>
 
-      <h2 class="text-xl font-black text-slate-900" id="dispatch-status-title">Broadcasting to Lilongwe Captains...</h2>
+      <h2 class="text-xl font-black text-slate-900" id="dispatch-status-title">Finding your captain...</h2>
       <p class="text-xs text-slate-500 max-w-xs mt-1.5 leading-relaxed" id="dispatch-status-sub">
-        Scanning verified captains around Gateway Mall, Area 47 & Kaunda Road corridor.
+        Contacting the nearest verified captain.
       </p>
 
       <!-- Search Progress Bar -->
@@ -730,7 +726,7 @@
               class="py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-800 transition-colors relative">
               <span class="material-symbols-outlined text-[18px] text-slate-700">chat</span>
               <span class="text-[10px] font-bold mt-0.5">Chat</span>
-              <span class="absolute top-1.5 right-4 w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span id="chat-unread-dot" class="chat-dot hidden"></span>
             </button>
             <button onclick="shareTripDetails()"
               class="py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 flex flex-col items-center justify-center text-slate-800 transition-colors">
@@ -1882,44 +1878,30 @@
   </div>
 
   <!-- ============================================== -->
-  <!-- MODAL: IN-APP CHAT                             -->
+  <!-- MODAL: TRIP CHAT (logic: shared/chat-ui.js)    -->
   <!-- ============================================== -->
-  <div id="chat-modal"
-    class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4">
-    <div
-      class="bg-white w-full max-w-sm mx-auto rounded-t-3xl sm:rounded-3xl p-4 shadow-2xl flex flex-col gap-3 h-[500px]">
-      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
-        <div class="flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-          <h4 class="font-extrabold text-xs text-slate-900">Captain Blessings Phiri</h4>
+  <div id="chat-modal" class="chat-overlay hidden" onclick="if (event.target === this) closeChatDrawer()">
+    <div class="chat-sheet" role="dialog" aria-label="Trip chat">
+      <div class="chat-head">
+        <div class="chat-who">
+          <div class="chat-avatar" id="chat-avatar">C</div>
+          <div style="min-width:0">
+            <div class="chat-title" id="chat-title">Your captain</div>
+            <div class="chat-sub">Chat for this trip</div>
+          </div>
         </div>
-        <button onclick="closeChatDrawer()"
-          class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-          <span class="material-symbols-outlined text-[16px]">close</span>
+        <button type="button" class="chat-close" onclick="closeChatDrawer()" aria-label="Close chat">
+          <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-
-      <div id="chat-messages-container" class="flex-1 overflow-y-auto flex flex-col gap-2 p-1"></div>
-
-      <div class="flex gap-1.5 overflow-x-auto no-scrollbar py-1 border-t border-slate-100">
-        <button onclick="sendCannedChat('📍 I am at Gateway Mall main entrance')"
-          class="whitespace-nowrap px-2.5 py-1 bg-slate-100 rounded-full text-[11px] font-semibold">📍 At main
-          entrance</button>
-        <button onclick="sendCannedChat('🧥 Wearing blue jacket')"
-          class="whitespace-nowrap px-2.5 py-1 bg-slate-100 rounded-full text-[11px] font-semibold">🧥 Blue
-          jacket</button>
-        <button onclick="sendCannedChat('⏳ Coming out in 1 min')"
-          class="whitespace-nowrap px-2.5 py-1 bg-slate-100 rounded-full text-[11px] font-semibold">⏳ 1 min</button>
-      </div>
-
-      <div class="flex items-center gap-1.5">
-        <input id="chat-custom-input" type="text" placeholder="Type note to Captain Blessings..."
-          class="flex-1 h-10 bg-slate-50 rounded-xl px-3 text-xs border border-slate-200 outline-none" />
-        <button onclick="sendCustomChat()"
-          class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-          <span class="material-symbols-outlined text-[18px]">send</span>
+      <div id="chat-messages-container" class="chat-list" aria-live="polite"></div>
+      <div id="chat-quick" class="chat-quick"></div>
+      <form class="chat-composer" onsubmit="event.preventDefault(); sendCustomChat();">
+        <input id="chat-custom-input" type="text" maxlength="500" placeholder="Write a message" autocomplete="off" enterkeyhint="send" aria-label="Message" />
+        <button type="submit" class="chat-send" aria-label="Send message">
+          <span class="material-symbols-outlined">send</span>
         </button>
-      </div>
+      </form>
     </div>
   </div>
 

@@ -46,7 +46,7 @@ async function postJson(url, headers, body, timeoutMs = 10000) {
   }
 }
 
-async function sendEmail({ to, subject, text, html }) {
+async function deliverEmail({ to, subject, text, html }) {
   const p = provider();
 
   if (p === 'brevo') {
@@ -84,6 +84,19 @@ async function sendEmail({ to, subject, text, html }) {
   throw new Error(`Unknown EMAIL_PROVIDER "${p}".`);
 }
 
+// Sends the email and records it in the message log (address masked, body never stored).
+async function sendEmail({ to, subject, text, html, purpose, userId }) {
+  const messageLog = require('./messageLog');
+  try {
+    const r = await deliverEmail({ to, subject, text, html });
+    await messageLog.log({ channel: 'EMAIL', purpose, to, userId, subject, status: r.provider === 'simulator' ? 'SIMULATED' : 'SENT', provider: r.provider });
+    return r;
+  } catch (e) {
+    await messageLog.log({ channel: 'EMAIL', purpose, to, userId, subject, status: 'FAILED', provider: provider(), error: e.message });
+    throw e;
+  }
+}
+
 async function sendOtpEmail({ to, code }) {
   const subject = 'Your Aarohan verification code';
   const text =
@@ -98,7 +111,7 @@ async function sendOtpEmail({ to, code }) {
     `<p style="margin:0;color:#A3A3A3;font-size:13px">It expires in 5 minutes. Do not share it with anyone. If you did not ask for this code, ignore this email.</p>` +
     `</div>`;
 
-  const result = await sendEmail({ to, subject, text, html });
+  const result = await sendEmail({ to, subject, text, html, purpose: 'LOGIN_CODE' });
 
   // Development only: print the code so the app can be tested without sending real email.
   if (result.provider === 'simulator' && process.env.NODE_ENV === 'development') {

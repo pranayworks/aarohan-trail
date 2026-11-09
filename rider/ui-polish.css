@@ -1,0 +1,111 @@
+/* =============================================================================
+   Aarohan rider UI polish. Plain CSS loaded AFTER Tailwind, so it needs no rebuild.
+   Round 1: header, notices, stacking order, brand colours, home sheet.
+   ============================================================================= */
+
+:root {
+  --ink: #0B0B0B;
+  --brand: #FF6A00;
+  --brand-dark: #C2410C;
+  --brand-soft: #FFF4EB;
+  --brand-line: #FFD6B8;
+  --muted: #6B7280;
+  --line: #ECECEC;
+
+  /* Re-colour the old green palette to the brand orange: every emerald-* / teal-* class follows. */
+  --color-emerald-50: #FFF4EB;  --color-emerald-100: #FFE6D1; --color-emerald-200: #FFD0A8;
+  --color-emerald-300: #FFB070; --color-emerald-400: #FF8A33; --color-emerald-500: #FF7A1A;
+  --color-emerald-600: #FF6A00; --color-emerald-700: #C2410C; --color-emerald-800: #9A3412;
+  --color-emerald-900: #7C2D12; --color-emerald-950: #431407;
+  --color-teal-50: #FFF4EB;     --color-teal-700: #C2410C;
+}
+
+/* Brand rule: dark text on orange. */
+.bg-emerald-500, .bg-emerald-600 { color: var(--ink); }
+.bg-emerald-500 *, .bg-emerald-600 * { color: inherit; }
+.text-emerald-600 { color: #E04F00; }
+
+/* ---------------------------------------------------------------- App bar */
+.app-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  padding-top: env(safe-area-inset-top);
+  background: rgba(255, 255, 255, 0.96);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.app-bar-inner {
+  height: 64px; max-width: 448px; margin: 0 auto; padding: 0 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.app-bar-left, .app-bar-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--ink); text-decoration: none; }
+.brand-mark { width: 34px; height: 34px; display: block; }
+.brand-word { font-family: var(--font-heading); font-weight: 700; font-size: 21px; letter-spacing: -0.02em; }
+.pill {
+  height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 700 12px/1 'Inter', system-ui, sans-serif; color: var(--ink); cursor: pointer;
+}
+.pill .material-symbols-outlined { font-size: 18px; color: var(--brand); }
+.icon-btn:not(.hidden) {
+  width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--ink); cursor: pointer; padding: 0;
+}
+.icon-btn.sos:not(.hidden) { background: #FEE2E2; border-color: #FECACA; color: #B91C1C; }
+.icon-btn .material-symbols-outlined { font-size: 22px; }
+
+/* Cash-only pilot: there is no wallet to show */
+.payments-off #header-wallet-btn { display: none; }
+
+/* --------------------------------------------- Location notice -> small toast */
+#gps-warning-banner {
+  top: auto !important; bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+  left: 12px !important; right: 12px !important; z-index: 60 !important;
+  background: #151515 !important; color: #fff !important;
+  border-radius: 14px !important; padding: 10px 12px !important;
+  font-weight: 600 !important; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28) !important;
+}
+#gps-warning-banner button { background: rgba(255, 255, 255, 0.16) !important; }
+
+/* ----------------------------------------------- Stacking: modals above map controls */
+div:has(> #leaflet-map) { isolation: isolate; }  /* the map's floating controls can never sit above sheets/modals */
+[id$="-modal"].fixed { z-index: 2000; }
+#heatmap-toggle-btn { z-index: 5; }
+.floating-address-capsule { z-index: 5; }
+
+/* ------------------------------------------------------------------- Home sheet */
+#home-ride-card .text-blue-600 { color: var(--brand); }
+/* One service only? Hide the lone "Ride" button. It returns automatically when Parcel is switched on. */
+#home-mode-tabs-container:not(:has(#home-parcel-card:not([style*="display: none"]))) { display: none; }
+
+#home-bottom-sheet [onclick="openSearchModal()"] {
+  height: 56px; border-radius: 18px; border: 1.5px solid var(--ink); background: #fff;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08); padding: 0 16px;
+}
+#home-bottom-sheet [onclick="openSearchModal()"] .material-symbols-outlined { color: var(--brand); }
+#home-bottom-sheet [onclick="openSearchModal()"] > div.absolute { display: none; }
+
+/* ------------------------------------------------------------- Round 2: map + notices */
+.pickup-point-pill { background: var(--ink); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); }
+.pickup-point-pill::after { border-top-color: var(--ink); }
+#gps-warning-banner .truncate { white-space: normal; overflow: visible; line-height: 1.25; }
+
+/* ------------------------------------------------------------ Round 3: primary button */
+/* The main Book button is your brand orange (theme.css already forces dark text on it). */
+#book-cta-btn { background: var(--brand); box-shadow: 0 10px 24px rgba(255, 106, 0, 0.35); }
+#book-cta-btn:hover { background: #FF7A1A; }
+
+/* ------------------------------------------------- Round 3: remove things that are not real */
+/* Made-up demo elements. They stay in the page (so no code breaks) but riders never see them:
+   a fake turn-by-turn card, an "encrypted audio" safety card, a test-detour button, a "simulate arrival"
+   test button, a fixed "captains nearby" number, and a surge banner/heatmap built from 3 hard-coded zones. */
+#turn-by-turn-card,
+#tracking-safety-shield-banner,
+#tracking-complete-btn,
+#dispatch-captains-count,
+#surge-alert-banner,
+#heatmap-toggle-btn { display: none !important; }
+
+/* ------------------------------------------------------------- Round 3: header on small screens */
+.pill { white-space: nowrap; }
+.app-bar:has(#header-back-btn:not(.hidden)) .brand-word { display: none; } /* arrow + logo mark only */

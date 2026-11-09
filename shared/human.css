@@ -1,0 +1,26 @@
+/* =============================================================================
+   Typography and tone: calmer, less "template". Loaded by the rider, driver and admin apps.
+   Fonts come from Google Fonts (allowed by the security policy); system fonts are the fallback.
+   ============================================================================= */
+:root {
+  --font-heading: 'Bricolage Grotesque', 'Figtree', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Figtree', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+html, body {
+  font-family: var(--font-body);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Headings and big numbers use the display face */
+h1, h2, h3, h4, .brand-word, .font-heading { font-family: var(--font-heading); letter-spacing: -0.02em; }
+
+/* Lighter weights: the old screens shouted everything in 800/900 */
+.font-black, .font-extrabold { font-weight: 700; }
+.font-bold { font-weight: 600; }
+
+/* No all-caps micro labels with wide spacing */
+.uppercase { text-transform: none; }
+.tracking-widest, .tracking-wider, .tracking-wide { letter-spacing: 0; }

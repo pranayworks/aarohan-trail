@@ -1,25 +1,64 @@
 apply plugin: 'com.android.application'
 
 android {
+    // The Java package of the code (MainActivity, widget). Each app below has its own applicationId.
     namespace = "com.aarohan.driver"
     compileSdk = rootProject.ext.compileSdkVersion
+
     defaultConfig {
-        applicationId "com.aarohan.driver"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // The cloud build (and the Play Store) raise these numbers on every release: -PVERSION_CODE=12 -PVERSION_NAME=1.0.12
+        versionCode (project.findProperty('VERSION_CODE') ?: '1').toInteger()
+        versionName (project.findProperty('VERSION_NAME') ?: '1.0')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    buildTypes {
+
+    // TWO APPS FROM ONE PROJECT:
+    //   rider  = "Aarohan"          com.aarohan.rider   (opens /rider/next/)
+    //   driver = "Aarohan Captain"  com.aarohan.driver  (opens /driver/next/)
+    // Each has its own name, widget text and shortcuts in app/src/<flavor>/res, and its own capacitor.config.json in
+    // app/src/<flavor>/assets (written by: npm run cap:prod).
+    flavorDimensions "app"
+    productFlavors {
+        driver {
+            dimension "app"
+            applicationId "com.aarohan.driver"
+        }
+        rider {
+            dimension "app"
+            applicationId "com.aarohan.rider"
+        }
+    }
+
+    // Signing for the Play Store comes from environment variables (never from files in Git).
+    signingConfigs {
         release {
+            if (System.getenv('KEYSTORE_FILE')) {
+                storeFile file(System.getenv('KEYSTORE_FILE'))
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias System.getenv('KEY_ALIAS')
+                keyPassword System.getenv('KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            // Debug builds can talk to http://10.0.2.2:3000 on your computer.
+            manifestPlaceholders = [usesCleartext: "true"]
+        }
+        release {
+            manifestPlaceholders = [usesCleartext: "false"] // the live app uses https only
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (System.getenv('KEYSTORE_FILE')) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
@@ -44,11 +83,16 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
+// Push notifications need Firebase files: app/src/driver/google-services.json and app/src/rider/google-services.json
+// (or one app/google-services.json that lists both apps). Without them the apps still build; they just get no push.
 try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
+    def both = file('src/driver/google-services.json').exists() && file('src/rider/google-services.json').exists()
+    def single = file('google-services.json').exists() && file('google-services.json').text
+    if (both || single) {
         apply plugin: 'com.google.gms.google-services'
+    } else {
+        logger.lifecycle("Firebase files not found, so push notifications are off in this build.")
     }
 } catch(Exception e) {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+    logger.info("google-services.json problem, push notifications are off: " + e.message)
 }

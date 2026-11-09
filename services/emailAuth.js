@@ -309,13 +309,103 @@ async function adminEmailLogin({ email, password, otp, ip = null, userAgent = nu
   return { success: true, ...session, user: publicUser(user, false) };
 }
 
+// ---------------------------------------------------------------------------
+// FORGOT PASSWORD (admin accounts only: riders and drivers have no password, they sign in with an emailed code)
+//   1. requestAdminPasswordReset: always answers the same way, so nobody can find out who is an admin.
+//   2. resetAdminPassword: needs the emailed code AND a strong new password; it signs the admin out everywhere.
+// The reset code is kept in the same table as login codes under a separate key ("reset:" + email), so the two never mix.
+// ---------------------------------------------------------------------------
+const RESET_KEY = (clean) => 'reset:' + clean;
+const RESET_MINUTES = 10;
+const WEAK = ['password', 'password1', 'password123', '1234567890', 'qwertyuiop', 'aarohan123', 'letmein123', 'admin12345', 'welcome123'];
+
+function validateNewPassword(pw, email) {
+  const p = typeof pw === 'string' ? pw : '';
+  if (p.length < 10) throw new AuthError('The new password must be at least 10 characters.', 400);
+  if (p.length > 128) throw new AuthError('The new password is too long (128 characters at most).', 400);
+  if (!/[a-z]/i.test(p) || !/[0-9]/.test(p)) throw new AuthError('Use letters and at least one number in the new password.', 400);
+  const local = String(email || '').split('@')[0].toLowerCase();
+  if (local.length >= 4 && p.toLowerCase().includes(local)) throw new AuthError('The password must not contain your email name.', 400);
+  if (WEAK.includes(p.toLowerCase()) || /^(.)\1+$/.test(p)) throw new AuthError('That password is too easy to guess. Choose another.', 400);
+}
+
+async function requestAdminPasswordReset(email, ip = null) {
+  authService.assertAuthSecrets();
+  const clean = normalizeEmail(email);
+  if (!clean) throw new AuthError('Please enter a valid email address.');
+  checkLimits(clean, ip);
+  // The answer is identical whether or not this is an admin email.
+  const answer = { success: true, message: 'If that email belongs to an admin account, we have sent a reset code to it. It is valid for ' + RESET_MINUTES + ' minutes.', expiresInSeconds: RESET_MINUTES * 60 };
+  const user = await prisma.user.findFirst({ where: { email: clean }, select: { id: true, role: true, status: true, passwordHash: true } });
+  if (!user || user.role !== 'ADMIN' || user.status !== 'ACTIVE' || !user.passwordHash) return answer;
+
+  const key = RESET_KEY(clean), code = crypto.randomInt(100000, 1000000).toString();
+  await prisma.emailOtp.upsert({
+    where: { email: key },
+    create: { email: key, codeHash: hashEmailOtp(key, code), attempts: 0, maxAttempts: 5, expiresAt: new Date(Date.now() + RESET_MINUTES * 60000), isConsumed: false, ipAddress: ip },
+    update: { codeHash: hashEmailOtp(key, code), attempts: 0, expiresAt: new Date(Date.now() + RESET_MINUTES * 60000), isConsumed: false, ipAddress: ip }
+  });
+  // Sent in the background so a slow mail server does not reveal that this email is an admin.
+  emailService.sendEmail({
+    to: clean, subject: 'Reset your Aarohan admin password', purpose: 'PASSWORD_RESET', userId: user.id,
+    text: `Your Aarohan admin password reset code is ${code}.\nIt is valid for ${RESET_MINUTES} minutes. Do not share it with anyone.\n\nIf you did not ask for this, ignore this email: your password has not changed.`,
+    html: `<p>Your Aarohan admin password reset code is</p><p style="font-size:30px;letter-spacing:6px;font-weight:800">${code}</p><p>It is valid for ${RESET_MINUTES} minutes. Do not share it with anyone.</p><p>If you did not ask for this, ignore this email: your password has not changed.</p>`
+  }).catch((err) => console.warn(`[EmailAuth] Reset email to ${emailService.maskEmail(clean)} failed: ${err.message}`));
+  await prisma.auditLog.create({ data: { user: { connect: { id: user.id } }, action: 'OTP_REQUEST', entityType: 'USER', entityId: user.id, details: { type: 'ADMIN_PASSWORD_RESET_REQUESTED' }, ipAddress: ip } }).catch(() => {});
+  return answer;
+}
+
+async function resetAdminPassword({ email, otp, newPassword, ip = null }) {
+  authService.assertAuthSecrets();
+  const clean = normalizeEmail(email);
+  if (!clean) throw new AuthError('Please enter a valid email address.');
+  const key = RESET_KEY(clean);
+  try { await checkEmailOtp(key, otp, ip); }
+  catch (err) {
+    // "no code was asked for" and "wrong code" must look the same, otherwise this would reveal who is an admin.
+    if (/No verification code requested/.test(err.message)) throw new AuthError('That code is not valid. Ask for a new one.', 401);
+    throw err;
+  }
+  validateNewPassword(newPassword, clean); // a weak password does not use up the code
+  await consumeEmailOtp(key);
+
+  const user = await prisma.user.findFirst({ where: { email: clean }, select: { id: true, role: true, status: true, name: true } });
+  if (!user || user.role !== 'ADMIN' || user.status !== 'ACTIVE') throw new AuthError('That code is not valid. Ask for a new one.', 401);
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  await prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }); // signed out everywhere
+  try { require('../middleware/auth').clearAuthCache(user.id); } catch (_) { /* cache is short-lived anyway */ }
+  adminLocks.delete(clean); // a locked-out admin can get back in this way
+  await prisma.auditLog.create({ data: { user: { connect: { id: user.id } }, action: 'PROFILE_UPDATED', entityType: 'USER', entityId: user.id, details: { event: 'ADMIN_PASSWORD_RESET' }, ipAddress: ip } }).catch(() => {});
+  emailService.sendEmail({ to: clean, subject: 'Your Aarohan admin password was changed', purpose: 'PASSWORD_CHANGED', userId: user.id,
+    text: 'Your Aarohan admin password was just changed, and you were signed out everywhere. If this was not you, contact Aarohan support immediately.',
+    html: '<p>Your Aarohan admin password was just changed, and you were signed out everywhere.</p><p>If this was not you, contact Aarohan support immediately.</p>' }).catch(() => {});
+  return { success: true, message: 'Your password was changed. Please sign in with your new password.' };
+}
+
+// Is this email already registered? Used by the sign-in screen so a returning person is sent to sign in (and a new person to
+// account creation). Only "exists" and the account status are returned, nothing else about the person.
+async function emailStatus(email) {
+  const clean = normalizeEmail(email);
+  if (!clean) throw new AuthError('Enter a valid email address.', 400);
+  const user = await prisma.user.findFirst({ where: { email: clean }, select: { status: true } });
+  return { exists: !!user, status: user ? user.status : null };
+}
+
 module.exports = {
   AuthError,
+  requestAdminPasswordReset,
+  resetAdminPassword,
+  validateNewPassword,
+  emailStatus,
   normalizeEmail,
   normalizeMalawiPhone,
   requestEmailOtp,
   checkEmailOtp,
   loginWithEmail,
   adminEmailLogin,
+  issueSession,
+  publicUser,
   resetEmailRateLimitsForTesting
 };

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="theme-color" content="#FF6A00"/>
+  <meta name="theme-color" content="#E9EBEE"/>
   <title>Aarohan Operations Center • Admin Dispatch Hub</title>
   <link rel="icon" type="image/svg+xml" href="/assets/brand/favicon.svg"/>
   <!-- Self-hosted Design System: Poppins & Inter (Latin subset) via /shared/theme.css -->
@@ -27,6 +27,11 @@
       border-radius: 9999px;
     }
   </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/human.css?v=1" />
+  <link rel="stylesheet" href="/admin/ash.css?v=1" />
 </head>
 <body class="text-on-surface antialiased min-h-screen flex flex-col">
 
@@ -35,6 +40,7 @@
   <script src="../shared/sound.js"></script>
   <script src="../shared/state.js"></script>
   <script src="../shared/i18n.js"></script>
+  <script src="../shared/brand-text.js?v=1"></script>
   <script src="../shared/auth.js"></script>
 
   <!-- Top Real-Time Ops Telemetry Bar -->
@@ -118,6 +124,16 @@
           <img src="/assets/brand/logo-full-color.svg" alt="Aarohan" class="h-6 w-auto" />
           <span class="text-[9px] font-bold text-white/40 uppercase">v2.0</span>
         </div>
+        <button onclick="switchAdminTab('overview')" id="tab-btn-overview" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">dashboard</span>
+          <span>Overview</span>
+        </button>
+
+        <button onclick="switchAdminTab('users')" id="tab-btn-users" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">group</span>
+          <span>Users &amp; Accounts</span>
+        </button>
+
         <button onclick="switchAdminTab('dispatch')" id="tab-btn-dispatch" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-bold text-xs text-primary bg-primary-fixed/40 transition-colors">
           <span class="material-symbols-outlined text-[20px]">radar</span>
           <span>Live Fleet &amp; Dispatch</span>
@@ -136,11 +152,13 @@
         <button onclick="switchAdminTab('cash-reconciliation')" id="tab-btn-cash-reconciliation" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
           <span class="material-symbols-outlined text-[20px]">payments</span>
           <span>Cash Commission Debt</span>
+          <span id="badge-cash" class="hidden ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error text-[10px] font-black flex items-center justify-center"></span>
         </button>
 
         <button onclick="switchAdminTab('drivers')" id="tab-btn-drivers" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
           <span class="material-symbols-outlined text-[20px]">local_taxi</span>
           <span>Driver Partner KYC</span>
+          <span id="badge-drivers" class="hidden ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error text-[10px] font-black flex items-center justify-center"></span>
         </button>
 
         <button onclick="switchAdminTab('surge')" id="tab-btn-surge" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
@@ -151,6 +169,32 @@
         <button onclick="switchAdminTab('disputes')" id="tab-btn-disputes" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
           <span class="material-symbols-outlined text-[20px]">support_agent</span>
           <span>Disputes &amp; Care Desk</span>
+          <span id="badge-disputes" class="hidden ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-error text-on-error text-[10px] font-black flex items-center justify-center"></span>
+        </button>
+
+        <button onclick="switchAdminTab('ads-rider')" id="tab-btn-ads-rider" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">campaign</span>
+          <span>Rider App Ads</span>
+        </button>
+
+        <button onclick="switchAdminTab('ads-driver')" id="tab-btn-ads-driver" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">ad_units</span>
+          <span>Driver App Ads</span>
+        </button>
+
+        <button onclick="switchAdminTab('earnings')" id="tab-btn-earnings" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">payments</span>
+          <span>Driver Earnings</span>
+        </button>
+
+        <button onclick="switchAdminTab('messages')" id="tab-btn-messages" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">forward_to_inbox</span>
+          <span>Messages &amp; Alerts</span>
+        </button>
+
+        <button onclick="switchAdminTab('audit')" id="tab-btn-audit" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px]">manage_search</span>
+          <span>Audit Trail</span>
         </button>
 
         <button onclick="switchAdminTab('sms')" id="tab-btn-sms" class="admin-nav-btn flex items-center gap-2.5 px-3 py-2.5 rounded-xl font-semibold text-xs text-on-surface-variant hover:bg-surface-container transition-colors">
@@ -163,7 +207,7 @@
       <div class="bg-surface-container-lowest rounded-2xl p-3.5 shadow-sm border border-outline-variant/30 flex flex-col gap-2">
         <span class="text-[11px] font-extrabold uppercase tracking-wider text-outline">Open Connected Apps</span>
         
-        <a href="../rider/index.html" target="_blank" class="flex items-center justify-between px-3 py-2 rounded-xl bg-primary-fixed/30 hover:bg-primary-fixed/60 text-primary font-bold text-xs transition-colors">
+        <a href="../rider/next/" target="_blank" class="flex items-center justify-between px-3 py-2 rounded-xl bg-primary-fixed/30 hover:bg-primary-fixed/60 text-primary font-bold text-xs transition-colors">
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[16px]">smartphone</span>
             <span>Rider App</span>
@@ -171,20 +215,12 @@
           <span class="material-symbols-outlined text-[16px]">open_in_new</span>
         </a>
 
-        <a href="../driver/index.html" target="_blank" class="flex items-center justify-between px-3 py-2 rounded-xl bg-secondary-fixed/40 hover:bg-secondary-fixed/70 text-secondary font-bold text-xs transition-colors">
+        <a href="../driver/next/" target="_blank" class="flex items-center justify-between px-3 py-2 rounded-xl bg-secondary-fixed/40 hover:bg-secondary-fixed/70 text-secondary font-bold text-xs transition-colors">
           <div class="flex items-center gap-2">
             <span class="material-symbols-outlined text-[16px]">directions_car</span>
             <span>Driver App</span>
           </div>
           <span class="material-symbols-outlined text-[16px]">open_in_new</span>
-        </a>
-
-        <a href="../index.html" class="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-semibold text-xs transition-colors">
-          <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-[16px]">devices</span>
-            <span>Master Simulator</span>
-          </div>
-          <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
         </a>
       </div>
 
@@ -811,6 +847,11 @@
               <p class="text-xs text-on-surface-variant">Review passenger disputes, driver conduct, fare queries, and parcel issues across Lilongwe.</p>
             </div>
             <div class="flex items-center gap-2">
+              <select id="admin-disputes-role-filter" onchange="loadAdminTickets()" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold outline-none border border-outline-variant/40">
+                <option value="">Riders and drivers</option>
+                <option value="RIDER">Rider tickets</option>
+                <option value="DRIVER">Driver tickets</option>
+              </select>
               <select id="admin-disputes-status-filter" onchange="loadAdminTickets()" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold outline-none border border-outline-variant/40">
                 <option value="">All Statuses</option>
                 <option value="OPEN">Open</option>
@@ -851,6 +892,129 @@
       <!-- ============================================== -->
       <!-- TAB 8: SMS GATEWAY, COST CONTROL & TELEMETRY   -->
       <!-- ============================================== -->
+      <!-- OVERVIEW -->
+      <section id="tab-overview" class="admin-panel hidden flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-extrabold text-on-surface">Overview</h2>
+          <button onclick="loadOverview()" class="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs font-bold">Refresh</button>
+        </div>
+        <div id="overview-body" class="flex flex-col gap-4"><div class="p-6 text-center text-on-surface-variant">Loading...</div></div>
+      </section>
+
+      <!-- USERS & ACCOUNTS -->
+      <section id="tab-users" class="admin-panel hidden flex flex-col gap-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="text-lg font-extrabold text-on-surface mr-auto">Users &amp; accounts</h2>
+          <input id="users-q" placeholder="Search name, phone or email" onkeydown="if(event.key==='Enter')loadUsers()" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold outline-none border border-outline-variant/40 w-56"/>
+          <select id="users-role" onchange="loadUsers()" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold outline-none border border-outline-variant/40"><option value="">Riders and drivers</option><option value="RIDER">Riders</option><option value="DRIVER">Drivers</option></select>
+          <select id="users-status" onchange="loadUsers()" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold outline-none border border-outline-variant/40"><option value="">Any status</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Suspended</option><option value="DELETED">Deleted</option></select>
+          <button onclick="loadUsers()" class="px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold">Search</button>
+        </div>
+        <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm overflow-x-auto">
+          <table class="w-full text-left text-xs"><thead class="bg-surface-container-low text-on-surface-variant uppercase text-[10px] tracking-wider"><tr><th class="p-3">Name</th><th class="p-3">Role</th><th class="p-3">Contact</th><th class="p-3">Status</th><th class="p-3">Joined</th><th class="p-3 text-right"></th></tr></thead>
+          <tbody id="users-tbody" class="divide-y divide-outline-variant/20"><tr><td colspan="6" class="p-6 text-center text-on-surface-variant">Search to find an account.</td></tr></tbody></table>
+        </div>
+        <div id="users-total" class="text-[11px] text-on-surface-variant"></div>
+      </section>
+
+      <!-- Rider ADS -->
+      <section id="tab-ads-rider" class="admin-panel hidden flex flex-col gap-4">
+        <div class="flex items-center justify-between"><div><h2 class="text-lg font-extrabold text-on-surface">Rider app ads</h2><p class="text-xs text-on-surface-variant">Upload a picture or a short video. It appears on the Home screen of the rider app, with a small "Ad" label.</p></div><button onclick="loadAds('RIDER')" class="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs font-bold">Refresh</button></div>
+        <div class="bg-surface-container-lowest rounded-2xl p-4 border border-outline-variant/30 shadow-sm">
+          <div class="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant mb-3">New ad</div>
+          <div class="grid md:grid-cols-2 gap-3">
+            <div class="flex flex-col gap-2">
+              <input id="ad-title-RIDER" maxlength="80" placeholder="Title (2 to 80 characters)" class="h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/>
+              <input id="ad-caption-RIDER" maxlength="200" placeholder="Short caption (optional)" class="h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/>
+              <input id="ad-link-RIDER" placeholder="Link people open when they tap (optional, must start with https://)" class="h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/>
+              <div class="flex gap-2"><label class="flex-1 text-[11px] font-bold text-on-surface-variant">Starts<input id="ad-start-RIDER" type="datetime-local" class="mt-1 w-full h-10 px-2 bg-surface-container-low rounded-xl text-xs outline-none border border-outline-variant/40"/></label><label class="flex-1 text-[11px] font-bold text-on-surface-variant">Ends<input id="ad-end-RIDER" type="datetime-local" class="mt-1 w-full h-10 px-2 bg-surface-container-low rounded-xl text-xs outline-none border border-outline-variant/40"/></label></div>
+              <label class="text-[11px] font-bold text-on-surface-variant">Priority (higher shows first)<input id="ad-prio-RIDER" type="number" value="0" min="-100" max="100" class="mt-1 w-full h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/></label>
+              <label class="text-[11px] font-bold text-on-surface-variant">Where in the app it appears<select id="ad-place-RIDER" class="mt-1 w-full h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"></select></label>
+              <div class="rounded-xl border border-outline-variant/40 p-3 bg-surface-container-low">
+                <div class="text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant">Show only near a place (optional)</div>
+                <div class="text-[11px] text-on-surface-variant mb-2">Leave empty to show it everywhere in Malawi. A phone's location is only used to check the distance. It is never stored.</div>
+                <div class="grid grid-cols-3 gap-2"><input id="ad-glat-RIDER" placeholder="Latitude" class="h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/><input id="ad-glng-RIDER" placeholder="Longitude" class="h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/><input id="ad-grad-RIDER" placeholder="Radius km" class="h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/></div>
+                <input id="ad-glabel-RIDER" maxlength="80" placeholder="Name of the place (for example Area 3 market)" class="mt-2 w-full h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/>
+                <div class="flex gap-2 mt-2"><button type="button" onclick="pickAdPlace('RIDER')" class="px-3 h-8 rounded-lg bg-surface-container-high text-xs font-bold">Pick on map</button><button type="button" onclick="clearAdPlace('RIDER')" class="px-3 h-8 rounded-lg bg-surface-container-high text-xs font-bold">Clear</button></div>
+              </div>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label class="flex flex-col items-center justify-center gap-2 min-h-[150px] rounded-2xl border-2 border-dashed border-outline-variant/60 bg-surface-container-low cursor-pointer text-xs font-bold text-on-surface-variant text-center p-3" id="ad-drop-RIDER"><span class="material-symbols-outlined text-[28px]">upload</span><span>Choose a picture (JPG, PNG, WEBP, up to 5 MB)<br/>or a video (MP4, WEBM, up to 25 MB)</span><input id="ad-file-RIDER" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" class="hidden" onchange="previewAd('RIDER')"/></label>
+              <div id="ad-prev-RIDER" class="rounded-xl overflow-hidden bg-surface-container-high hidden"></div>
+              <div id="ad-msg-RIDER" class="text-xs font-semibold"></div>
+              <button onclick="publishAd('RIDER')" id="ad-pub-RIDER" class="h-10 rounded-xl bg-primary text-on-primary text-sm font-extrabold">Publish ad</button>
+            </div>
+          </div>
+        </div>
+        <div id="ads-list-RIDER" class="grid md:grid-cols-2 gap-3"><div class="p-6 text-center text-on-surface-variant col-span-full">Loading...</div></div>
+      </section>
+
+      <!-- Driver ADS -->
+      <section id="tab-ads-driver" class="admin-panel hidden flex flex-col gap-4">
+        <div class="flex items-center justify-between"><div><h2 class="text-lg font-extrabold text-on-surface">Driver app ads</h2><p class="text-xs text-on-surface-variant">Upload a picture or a short video. It appears on the Home screen of the driver app, with a small "Ad" label.</p></div><button onclick="loadAds('DRIVER')" class="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs font-bold">Refresh</button></div>
+        <div class="bg-surface-container-lowest rounded-2xl p-4 border border-outline-variant/30 shadow-sm">
+          <div class="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant mb-3">New ad</div>
+          <div class="grid md:grid-cols-2 gap-3">
+            <div class="flex flex-col gap-2">
+              <input id="ad-title-DRIVER" maxlength="80" placeholder="Title (2 to 80 characters)" class="h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/>
+              <input id="ad-caption-DRIVER" maxlength="200" placeholder="Short caption (optional)" class="h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/>
+              <input id="ad-link-DRIVER" placeholder="Link people open when they tap (optional, must start with https://)" class="h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/>
+              <div class="flex gap-2"><label class="flex-1 text-[11px] font-bold text-on-surface-variant">Starts<input id="ad-start-DRIVER" type="datetime-local" class="mt-1 w-full h-10 px-2 bg-surface-container-low rounded-xl text-xs outline-none border border-outline-variant/40"/></label><label class="flex-1 text-[11px] font-bold text-on-surface-variant">Ends<input id="ad-end-DRIVER" type="datetime-local" class="mt-1 w-full h-10 px-2 bg-surface-container-low rounded-xl text-xs outline-none border border-outline-variant/40"/></label></div>
+              <label class="text-[11px] font-bold text-on-surface-variant">Priority (higher shows first)<input id="ad-prio-DRIVER" type="number" value="0" min="-100" max="100" class="mt-1 w-full h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"/></label>
+              <label class="text-[11px] font-bold text-on-surface-variant">Where in the app it appears<select id="ad-place-DRIVER" class="mt-1 w-full h-10 px-3 bg-surface-container-low rounded-xl text-sm outline-none border border-outline-variant/40"></select></label>
+              <div class="rounded-xl border border-outline-variant/40 p-3 bg-surface-container-low">
+                <div class="text-[11px] font-extrabold uppercase tracking-wider text-on-surface-variant">Show only near a place (optional)</div>
+                <div class="text-[11px] text-on-surface-variant mb-2">Leave empty to show it everywhere in Malawi. A phone's location is only used to check the distance. It is never stored.</div>
+                <div class="grid grid-cols-3 gap-2"><input id="ad-glat-DRIVER" placeholder="Latitude" class="h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/><input id="ad-glng-DRIVER" placeholder="Longitude" class="h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/><input id="ad-grad-DRIVER" placeholder="Radius km" class="h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/></div>
+                <input id="ad-glabel-DRIVER" maxlength="80" placeholder="Name of the place (for example Area 3 market)" class="mt-2 w-full h-9 px-2 bg-surface-container-lowest rounded-lg text-xs outline-none border border-outline-variant/40"/>
+                <div class="flex gap-2 mt-2"><button type="button" onclick="pickAdPlace('DRIVER')" class="px-3 h-8 rounded-lg bg-surface-container-high text-xs font-bold">Pick on map</button><button type="button" onclick="clearAdPlace('DRIVER')" class="px-3 h-8 rounded-lg bg-surface-container-high text-xs font-bold">Clear</button></div>
+              </div>
+            </div>
+            <div class="flex flex-col gap-2">
+              <label class="flex flex-col items-center justify-center gap-2 min-h-[150px] rounded-2xl border-2 border-dashed border-outline-variant/60 bg-surface-container-low cursor-pointer text-xs font-bold text-on-surface-variant text-center p-3" id="ad-drop-DRIVER"><span class="material-symbols-outlined text-[28px]">upload</span><span>Choose a picture (JPG, PNG, WEBP, up to 5 MB)<br/>or a video (MP4, WEBM, up to 25 MB)</span><input id="ad-file-DRIVER" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" class="hidden" onchange="previewAd('DRIVER')"/></label>
+              <div id="ad-prev-DRIVER" class="rounded-xl overflow-hidden bg-surface-container-high hidden"></div>
+              <div id="ad-msg-DRIVER" class="text-xs font-semibold"></div>
+              <button onclick="publishAd('DRIVER')" id="ad-pub-DRIVER" class="h-10 rounded-xl bg-primary text-on-primary text-sm font-extrabold">Publish ad</button>
+            </div>
+          </div>
+        </div>
+        <div id="ads-list-DRIVER" class="grid md:grid-cols-2 gap-3"><div class="p-6 text-center text-on-surface-variant col-span-full">Loading...</div></div>
+      </section>
+
+      <!-- DRIVER EARNINGS -->
+      <section id="tab-earnings" class="admin-panel hidden flex flex-col gap-4">
+        <div class="flex flex-wrap items-end gap-2">
+          <div class="mr-auto"><h2 class="text-lg font-extrabold text-on-surface">Driver earnings &amp; commission</h2><p class="text-xs text-on-surface-variant">Completed rides only. Fares, the driver's share, Aarohan's commission, and what each driver still owes.</p></div>
+          <label class="text-[11px] font-bold text-on-surface-variant">From<input id="earn-from" type="date" class="mt-1 block h-9 px-2 bg-surface-container-low rounded-xl text-xs border border-outline-variant/40"/></label>
+          <label class="text-[11px] font-bold text-on-surface-variant">To<input id="earn-to" type="date" class="mt-1 block h-9 px-2 bg-surface-container-low rounded-xl text-xs border border-outline-variant/40"/></label>
+          <button onclick="loadEarnings()" class="px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold">Show</button>
+          <button onclick="downloadEarnings()" class="px-3 py-2 rounded-xl bg-surface-container-high text-xs font-bold">Download CSV</button>
+        </div>
+        <div id="earn-totals" class="grid grid-cols-2 lg:grid-cols-5 gap-3"></div>
+        <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-surface-container-low text-on-surface-variant uppercase text-[10px] tracking-wider"><tr><th class="p-3">Driver</th><th class="p-3">Vehicle</th><th class="p-3 text-right">Rides</th><th class="p-3 text-right">Fares</th><th class="p-3 text-right">Driver share</th><th class="p-3 text-right">Commission</th><th class="p-3 text-right">Owes Aarohan</th><th class="p-3 text-right">Rating</th></tr></thead><tbody id="earn-tbody" class="divide-y divide-outline-variant/20"></tbody></table></div>
+      </section>
+
+      <!-- MESSAGES & ALERTS -->
+      <section id="tab-messages" class="admin-panel hidden flex flex-col gap-4">
+        <div class="flex flex-wrap items-center gap-2"><div class="mr-auto"><h2 class="text-lg font-extrabold text-on-surface">Messages &amp; alerts sent</h2><p class="text-xs text-on-surface-variant">Every email, push notification and SMS the platform sent. Only masked addresses are kept, never the message text.</p></div>
+          <select id="msg-channel" onchange="loadMessages()" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold border border-outline-variant/40"><option value="">All channels</option><option value="EMAIL">Email</option><option value="PUSH">Push</option><option value="SMS">SMS</option></select>
+          <select id="msg-status" onchange="loadMessages()" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold border border-outline-variant/40"><option value="">Any result</option><option value="SENT">Sent</option><option value="FAILED">Failed</option><option value="SIMULATED">Simulated (test)</option></select>
+          <button onclick="loadMessages()" class="px-3 py-1.5 rounded-lg bg-surface-container-high text-xs font-bold">Refresh</button></div>
+        <div id="msg-totals" class="grid grid-cols-2 gap-3 max-w-md"></div>
+        <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-surface-container-low text-on-surface-variant uppercase text-[10px] tracking-wider"><tr><th class="p-3">When</th><th class="p-3">Channel</th><th class="p-3">Purpose</th><th class="p-3">To</th><th class="p-3">Subject</th><th class="p-3">Result</th><th class="p-3">Provider</th></tr></thead><tbody id="msg-tbody" class="divide-y divide-outline-variant/20"></tbody></table></div>
+      </section>
+
+      <!-- AUDIT TRAIL -->
+      <section id="tab-audit" class="admin-panel hidden flex flex-col gap-4">
+        <div class="flex flex-wrap items-center gap-2"><div class="mr-auto"><h2 class="text-lg font-extrabold text-on-surface">Audit trail</h2><p class="text-xs text-on-surface-variant">Everything that happened on the platform: who did it, to what, from where. It cannot be edited.</p></div>
+          <input id="aud-q" placeholder="Search name or ID" onkeydown="if(event.key==='Enter')loadAudit(1)" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs border border-outline-variant/40 w-44"/>
+          <select id="aud-action" onchange="loadAudit(1)" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold border border-outline-variant/40"><option value="">Every action</option></select>
+          <select id="aud-entity" onchange="loadAudit(1)" class="h-9 px-3 bg-surface-container-low rounded-xl text-xs font-semibold border border-outline-variant/40"><option value="">Every kind</option><option>USER</option><option>DRIVER</option><option>TRIP</option><option>AD</option><option>PRICING</option><option>PAYMENT</option><option>WALLET</option><option>SOS</option><option>TICKET</option></select>
+          <button onclick="loadAudit(1)" class="px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold">Search</button></div>
+        <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-surface-container-low text-on-surface-variant uppercase text-[10px] tracking-wider"><tr><th class="p-3">When</th><th class="p-3">Who</th><th class="p-3">Action</th><th class="p-3">On</th><th class="p-3">From</th><th class="p-3">Details</th></tr></thead><tbody id="aud-tbody" class="divide-y divide-outline-variant/20"></tbody></table></div>
+        <div class="flex items-center justify-between text-xs text-on-surface-variant"><span id="aud-total"></span><span><button onclick="loadAudit(window.__audPage-1)" class="px-3 py-1.5 rounded-lg bg-surface-container-high font-bold">Newer</button> <button onclick="loadAudit(window.__audPage+1)" class="px-3 py-1.5 rounded-lg bg-surface-container-high font-bold">Older</button></span></div>
+      </section>
+
       <section id="tab-sms" class="admin-panel hidden flex flex-col gap-4">
         
         <!-- Header & Gateway Status Card -->
@@ -995,7 +1159,16 @@
 
       if (window.mwendoSound) window.mwendoSound.playClick();
 
-      if (tabName === 'trips') {
+      if (tabName === 'ads-rider') { loadAds('RIDER'); }
+      else if (tabName === 'ads-driver') { loadAds('DRIVER'); }
+      else if (tabName === 'earnings') { loadEarnings(); }
+      else if (tabName === 'messages') { loadMessages(); }
+      else if (tabName === 'audit') { loadAudit(1); }
+      else if (tabName === 'overview') {
+        loadOverview();
+      } else if (tabName === 'users') {
+        loadUsers();
+      } else if (tabName === 'trips') {
         loadAdminTrips();
         refreshFinancialLedger();
       } else if (tabName === 'disputes') {
@@ -1179,9 +1352,9 @@
     async function resolveAdminSOS() {
       const incident = activeSosIncidents[0];
       if (!incident) return;
-      const notes = prompt('What was done? (resolution note, e.g. "Called rider, safe at home")', '');
+      const notes = await adminPrompt('What was done? (resolution note, e.g. "Called rider, safe at home")', '');
       if (notes === null) return;
-      const falseAlarm = confirm('Was this a FALSE ALARM?\n\nOK = false alarm\nCancel = real incident, now resolved');
+      const falseAlarm = await adminConfirm('Was this a FALSE ALARM?\n\nOK = false alarm\nCancel = real incident, now resolved');
       try {
         const res = await authFetch(`/api/admin/sos/${incident.id}/resolve`, {
           method: 'POST',
@@ -1229,11 +1402,61 @@
     // =========================================================================
     // AAROHAN FINANCIAL LEDGER & PRICING CONTROLLER (30% SPLIT & RECONCILIATION)
     // =========================================================================
-    function authFetch(url, options = {}) {
-      if (window.aarohanAuth) {
-        return window.aarohanAuth.fetchWithAuth(url, options);
+    // ---- In-page dialogs. The browser's built-in confirm()/prompt()/alert() pop-ups are blocked in many
+    // browsers and preview panes, which made buttons like Approve look dead. These always show.
+    function adminDialog(kind, message, def) {
+      return new Promise((resolve) => {
+        const esc = (x) => String(x == null ? '' : x).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const box = document.createElement('div');
+        box.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(20,24,30,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+        box.innerHTML = '<div style="background:#fff;color:#1E2228;border-radius:18px;max-width:460px;width:100%;padding:22px;box-shadow:0 30px 80px rgba(0,0,0,.35);font-family:inherit"><div style="white-space:pre-wrap;font-size:15px;line-height:1.5">' + esc(message) + '</div>' +
+          (kind === 'prompt' ? '<input id="ad-in" style="width:100%;margin-top:14px;padding:11px 12px;border:1px solid #CBD0D6;border-radius:12px;font-size:15px" value="' + esc(def || '') + '"/>' : '') +
+          '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">' + (kind === 'alert' ? '' : '<button id="ad-no" style="padding:10px 16px;border-radius:12px;border:1px solid #CBD0D6;background:#fff;font-weight:700;cursor:pointer">Cancel</button>') + '<button id="ad-ok" style="padding:10px 18px;border-radius:12px;border:0;background:#2F343C;color:#fff;font-weight:800;cursor:pointer">' + (kind === 'alert' ? 'OK' : 'Confirm') + '</button></div></div>';
+        document.body.appendChild(box);
+        const input = box.querySelector('#ad-in'); if (input) { input.focus(); input.select(); }
+        const done = (v) => { box.remove(); resolve(v); };
+        box.querySelector('#ad-ok').onclick = () => done(kind === 'prompt' ? (input.value || '') : true);
+        const no = box.querySelector('#ad-no'); if (no) no.onclick = () => done(kind === 'prompt' ? null : false);
+      });
+    }
+    const adminConfirm = (m) => adminDialog('confirm', m);
+    const adminPrompt = (m, d) => adminDialog('prompt', m, d);
+    window.alert = (m) => { adminDialog('alert', m); };
+
+    // ---- Open driver documents with the admin's login. In development the files are protected, and a plain
+    // link click carries no login, so it would be refused. This fetches the file and shows it in the page.
+    document.addEventListener('click', async (e) => {
+      const a = e.target.closest && e.target.closest('a[href*="/api/driver/documents/raw"]');
+      if (!a) return;
+      e.preventDefault();
+      const box = document.createElement('div');
+      box.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(20,24,30,.8);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px';
+      box.innerHTML = '<div style="color:#fff;font-weight:700;margin-bottom:10px" id="dv-title">Opening document...</div><div id="dv-body" style="max-width:96vw;max-height:80vh;overflow:auto;background:#fff;border-radius:14px;padding:8px;min-width:240px;min-height:120px;display:flex;align-items:center;justify-content:center;color:#1E2228"></div><button id="dv-x" style="margin-top:14px;padding:10px 20px;border-radius:12px;border:0;background:#fff;font-weight:800;cursor:pointer">Close</button>';
+      document.body.appendChild(box);
+      const close = () => { box.remove(); };
+      box.querySelector('#dv-x').onclick = close; box.addEventListener('click', (ev) => { if (ev.target === box) close(); });
+      try {
+        const res = await authFetch(a.getAttribute('href'));
+        if (!res.ok) { let m = 'Could not open this document (' + res.status + ').'; try { const d = await res.json(); if (d.error) m = d.error; } catch (_) {} throw new Error(m); }
+        const blob = await res.blob(), url = URL.createObjectURL(blob), body = box.querySelector('#dv-body');
+        const who = ((document.getElementById('admin-user-label') || {}).innerText || 'staff') + ' · ' + new Date().toLocaleString(); // traceable if a screenshot leaks
+        const mark = '<div style="position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;transform:rotate(-24deg);font-weight:800;font-size:18px;color:rgba(30,34,40,.28);text-align:center;line-height:2.4;overflow:hidden;white-space:pre">' + ((('Aarohan confidential · ' + who.replace(/[<>&"]/g, '') + '\n').repeat(6))) + '</div>';
+        box.querySelector('#dv-title').textContent = (a.textContent || 'Document').trim().replace(/\s+/g, ' ').slice(0, 60);
+        body.style.position = 'relative';
+        body.innerHTML = (/pdf/i.test(blob.type) ? '<iframe src="' + url + '" style="width:min(92vw,820px);height:76vh;border:0"></iframe>' : '<img src="' + url + '" style="max-width:100%;max-height:76vh;border-radius:8px"/>') + mark;
+      } catch (err) { box.querySelector('#dv-title').textContent = 'Document'; box.querySelector('#dv-body').textContent = err.message; }
+    });
+
+    async function authFetch(url, options = {}) {
+      const res = window.aarohanAuth ? await window.aarohanAuth.fetchWithAuth(url, options) : await fetch(url, options);
+      // Not signed in (or the session ended): say so clearly instead of crashing the page.
+      if (!res) throw new Error('You are not signed in as an admin. Refresh this page and sign in with your admin email.');
+      if (res.status === 403) {
+        let msg = 'This account is not allowed to do that. Sign in with an admin account.';
+        try { const d = await res.clone().json(); if (d && d.error) msg = d.error; } catch (_) {}
+        res.adminDenied = msg;
       }
-      return fetch(url, options);
+      return res;
     }
 
     async function refreshFinancialLedger() {
@@ -1261,7 +1484,7 @@
             tbody.innerHTML = breakdowns.slice().reverse().map(b => `
               <tr class="hover:bg-surface-container-low transition-colors">
                 <td class="p-3 font-mono font-bold text-primary">${b.rideId}</td>
-                <td class="p-3 max-w-[200px] truncate" title="${b.pickupAddress} -> ${b.destinationAddress}">${b.pickupAddress?.split(',')[0]} &rarr; ${b.destinationAddress?.split(',')[0]}</td>
+                <td class="p-3 max-w-[200px] truncate" title="${escapeHtml(b.pickupAddress)} -> ${escapeHtml(b.destinationAddress)}">${escapeHtml(b.pickupAddress?.split(',')[0])} &rarr; ${escapeHtml(b.destinationAddress?.split(',')[0])}</td>
                 <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${b.paymentMethod === 'CASH' ? 'bg-secondary-fixed text-secondary' : 'bg-primary-fixed text-primary'}">${b.paymentMethod}</span></td>
                 <td class="p-3 font-bold">MWK ${b.grossFare.toLocaleString()}</td>
                 <td class="p-3 font-medium text-on-surface-variant">MWK ${b.eligibleFare.toLocaleString()}</td>
@@ -1381,7 +1604,7 @@
     }
 
     async function activatePricingVersion(versionId) {
-      if (!confirm(`Are you sure you want to activate pricing version ${versionId}?`)) return;
+      if (!await adminConfirm(`Are you sure you want to activate pricing version ${versionId}?`)) return;
       try {
         const res = await authFetch('/api/pricing/activate', {
           method: 'POST',
@@ -1442,7 +1665,7 @@
         tbody.innerHTML = rows.map((d) => `
           <tr>
             <td class="p-3 font-mono font-bold text-primary">${esc(String(d.driverId).slice(0, 8).toUpperCase())}</td>
-            <td class="p-3">${esc(d.name)}<div class="text-[10px] text-on-surface-variant">${esc(d.plateNumber || '')}</div></td>
+            <td class="p-3">${escapeHtml(esc(d.name))}<div class="text-[10px] text-on-surface-variant">${escapeHtml(esc(d.plateNumber || ''))}</div></td>
             <td class="p-3">${mwk(d.cashCollectedMWK)}</td>
             <td class="p-3 font-bold text-error">${mwk(d.commissionIncurredMWK)}</td>
             <td class="p-3 font-bold text-primary">${mwk(d.verifiedRemittedMWK)}</td>
@@ -1519,14 +1742,14 @@
                   </div>
                   <div>
                     <div class="flex items-center gap-2 flex-wrap">
-                      <h4 class="font-extrabold text-sm text-on-surface">${d.name || 'Candidate Driver'}</h4>
+                      <h4 class="font-extrabold text-sm text-on-surface">${escapeHtml(d.name || 'Candidate Driver')}</h4>
                       <span class="bg-amber-500/15 text-amber-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">PENDING REVIEW</span>
-                      <span class="text-xs font-mono font-bold text-primary">${d.phone}</span>
+                      <span class="text-xs font-mono font-bold text-primary">${escapeHtml(d.phone)}</span>
                     </div>
                     <div class="text-xs text-on-surface-variant mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
-                      <span>Vehicle: <strong>${vehicle.type || 'MOTO'} &bull; ${vehicle.makeModel || 'N/A'} (${vehicle.year || 'N/A'})</strong></span>
-                      <span>Plate: <strong>${vehicle.plateNumber || 'N/A'}</strong></span>
-                      <span>Colour: <strong>${vehicle.color || 'N/A'}</strong></span>
+                      <span>Vehicle: <strong>${vehicle.type || 'MOTO'} &bull; ${escapeHtml(vehicle.makeModel || 'N/A')} (${vehicle.year || 'N/A'})</strong></span>
+                      <span>Plate: <strong>${escapeHtml(vehicle.plateNumber || 'N/A')}</strong></span>
+                      <span>Colour: <strong>${escapeHtml(vehicle.color || 'N/A')}</strong></span>
                     </div>
                     <div class="text-[11px] text-outline mt-0.5">
                       Emergency Contact: <strong>${d.emergencyContactName || 'N/A'} (${d.emergencyContactPhone || 'N/A'})</strong> &bull; Applied: ${regDate}
@@ -1534,17 +1757,18 @@
                   </div>
                 </div>
 
-                <!-- Action Buttons: Approve, Reject, Suspend -->
+                <!-- Action Buttons: Review, Approve, Reject, Suspend -->
                 <div class="flex items-center gap-2 self-end sm:self-center shrink-0">
-                  <button onclick="approveDriverAction('${d.id}', '${d.name}')" class="px-3 py-1.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-black rounded-lg shadow-sm transition-all flex items-center gap-1 active:scale-95">
+                  <button onclick="reviewDriverKyc('${d.id}')" class="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-black rounded-lg border border-outline-variant transition-all">Review identity</button>
+                  <button data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name || '')}" onclick="approveDriverAction(this.dataset.id, this.dataset.name)" class="px-3 py-1.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-black rounded-lg shadow-sm transition-all flex items-center gap-1 active:scale-95">
                     <span class="material-symbols-outlined text-sm">check_circle</span>
                     <span>Approve</span>
                   </button>
-                  <button onclick="rejectDriverAction('${d.id}', '${d.name}')" class="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error text-xs font-black rounded-lg border border-error/30 transition-all flex items-center gap-1 active:scale-95">
+                  <button data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name || '')}" onclick="rejectDriverAction(this.dataset.id, this.dataset.name)" class="px-3 py-1.5 bg-error/10 hover:bg-error/20 text-error text-xs font-black rounded-lg border border-error/30 transition-all flex items-center gap-1 active:scale-95">
                     <span class="material-symbols-outlined text-sm">cancel</span>
                     <span>Reject</span>
                   </button>
-                  <button onclick="suspendDriverAction('${d.id}', '${d.name}')" class="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold rounded-lg border border-outline-variant/30 transition-all">
+                  <button data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name || '')}" onclick="suspendDriverAction(this.dataset.id, this.dataset.name)" class="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold rounded-lg border border-outline-variant/30 transition-all">
                     Suspend
                   </button>
                 </div>
@@ -1558,7 +1782,7 @@
                     <a href="${doc.signedUrl || '#'}" target="_blank" rel="noopener noreferrer" class="p-2 bg-surface-container rounded-lg border border-outline-variant/30 hover:border-primary flex items-center justify-between gap-2 text-xs font-bold transition-all group">
                       <div class="flex items-center gap-1.5 truncate">
                         <span class="material-symbols-outlined text-sm text-primary">description</span>
-                        <span class="truncate">${doc.type.replace(/_/g, ' ')}</span>
+                        <span class="truncate">${doc.type.replace(/_/g, ' ')}${doc.signedUrl ? '' : ' (link unavailable)'}</span>
                       </div>
                       <span class="material-symbols-outlined text-xs text-outline group-hover:text-primary shrink-0">open_in_new</span>
                     </a>
@@ -1570,12 +1794,294 @@
           `;
         }).join('');
       } catch (e) {
-        container.innerHTML = `<div class="p-4 text-center text-xs text-error font-semibold">Error loading queue: ${e.message}</div>`;
+        container.innerHTML = `<div class="p-4 text-center text-xs text-error font-semibold">Error loading queue: ${escapeHtml(e.message)}</div>`;
       }
     }
 
+    // ---- Strict driver review: identity record, documents, and the checklist that unlocks approval.
+
+    // =========================================================================
+    // FACE COMPARISON: the five live frames next to the National ID photo
+    // =========================================================================
+    async function blobUrlFor(url) {
+      const res = url.startsWith('/api/') ? await authFetch(url) : await fetch(url);
+      if (!res.ok) throw new Error('Could not load a photo');
+      return URL.createObjectURL(await res.blob());
+    }
+    async function openFaceCompare(frames, idUrl) {
+      const box = document.createElement('div');
+      box.style.cssText = 'position:fixed;inset:0;z-index:100002;background:rgba(20,24,30,.85);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:20px';
+      box.innerHTML = '<div style="background:#fff;border-radius:18px;max-width:980px;width:100%;padding:20px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:20px;font-weight:800;margin:0">Compare faces</h2><button id="fc-x" style="padding:8px 14px;border-radius:10px;border:1px solid #CBD0D6;background:#fff;font-weight:700;cursor:pointer">Close</button></div><div id="fc-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-top:14px"><em>Loading photos...</em></div><p style="font-size:12px;color:#5E6672;margin-top:12px">Aarohan confidential. This view is logged.</p></div>';
+      document.body.appendChild(box); box.querySelector('#fc-x').onclick = () => box.remove();
+      const items = (idUrl ? [{ label: 'National ID', url: idUrl }] : []).concat(frames.map((f) => ({ label: f.label === 'straight' ? 'Looking straight' : 'Turned ' + f.label, url: f.url })));
+      const grid = box.querySelector('#fc-grid'); grid.innerHTML = '';
+      for (const it of items) {
+        const cell = document.createElement('div'); cell.innerHTML = '<div style="font-size:12px;font-weight:700;margin-bottom:4px">' + escapeHtml(it.label) + '</div><div style="position:relative;background:#eee;border-radius:12px;overflow:hidden;min-height:120px"></div>';
+        grid.appendChild(cell);
+        try { const u = await blobUrlFor(it.url); cell.lastChild.innerHTML = '<img src="' + u + '" style="width:100%;display:block"/>'; } catch (e) { cell.lastChild.textContent = 'Could not load'; }
+      }
+    }
+
+    // =========================================================================
+    // OVERVIEW
+    // =========================================================================
+    const mk = (n) => 'MK ' + Number(n || 0).toLocaleString();
+    async function loadOverview() {
+      const body = document.getElementById('overview-body'); if (!body) return;
+      try {
+        const res = await authFetch('/api/admin/overview'); const o = await res.json(); if (!res.ok) throw new Error(o.error || 'Could not load');
+        const card = (label, value, sub, go) => '<div ' + (go ? 'onclick="switchAdminTab(\'' + go + '\')" style="cursor:pointer"' : '') + ' class="bg-surface-container-lowest rounded-2xl p-4 border border-outline-variant/30 shadow-sm"><div class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">' + label + '</div><div class="text-2xl font-black mt-1">' + value + '</div>' + (sub ? '<div class="text-[11px] text-on-surface-variant mt-1">' + sub + '</div>' : '') + '</div>';
+        const a = o.attention, maxG = Math.max(1, ...o.days.map((d) => d.gross));
+        body.innerHTML =
+          '<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">' + card('Rides today', o.today.completed, o.today.requested + ' requested, ' + o.today.cancelled + ' cancelled') + card('Fares today', mk(o.today.gross), 'Paid by riders') + card('Aarohan commission today', mk(o.today.commission), '30% of fares') + card('Drivers online', o.driversOnline, o.newUsers7d + ' new people this week') + '</div>' +
+          '<div class="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant mt-2">Needs your attention</div>' +
+          '<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">' + card('Driver applications', a.pendingApplications, 'waiting for review', 'drivers') + card('Commission payments', a.pendingPayments, 'waiting to be verified', 'cash-reconciliation') + card('Open tickets', a.openTickets, 'riders and drivers', 'disputes') + card('Drivers owe Aarohan', mk(a.commissionOwedMWK), 'cash trips not yet paid', 'cash-reconciliation') + '</div>' +
+          '<div class="bg-surface-container-lowest rounded-2xl p-4 border border-outline-variant/30 shadow-sm"><div class="flex justify-between"><div class="text-xs font-extrabold uppercase tracking-wider text-on-surface-variant">Last 7 days</div><div class="text-xs font-bold">' + o.week.completed + ' rides, ' + mk(o.week.gross) + ' fares, ' + mk(o.week.commission) + ' commission</div></div>' +
+          '<div style="display:flex;align-items:flex-end;gap:10px;height:150px;margin-top:14px">' + o.days.map((d) => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div style="font-size:10px;font-weight:700;margin-bottom:3px">' + (d.trips || '') + '</div><div style="width:100%;max-width:46px;border-radius:8px 8px 3px 3px;background:#5E6672;height:' + Math.max(3, Math.round(d.gross / maxG * 100)) + '%"></div><div style="font-size:10px;color:#5E6672;margin-top:5px">' + escapeHtml(d.date.slice(5)) + '</div></div>').join('') + '</div></div>';
+      } catch (e) { body.innerHTML = '<div class="p-6 text-center text-error font-bold">' + escapeHtml(e.message) + '</div>'; }
+    }
+
+    // =========================================================================
+    // USERS & ACCOUNTS
+    // =========================================================================
+    async function loadUsers() {
+      const tb = document.getElementById('users-tbody'); if (!tb) return;
+      const q = document.getElementById('users-q').value.trim(), role = document.getElementById('users-role').value, status = document.getElementById('users-status').value;
+      tb.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-on-surface-variant">Searching...</td></tr>';
+      try {
+        const qs = [q && 'q=' + encodeURIComponent(q), role && 'role=' + role, status && 'status=' + status].filter(Boolean).join('&');
+        const res = await authFetch('/api/admin/users' + (qs ? '?' + qs : '')); const d = await res.json(); if (!res.ok) throw new Error(d.error || 'Could not load');
+        document.getElementById('users-total').textContent = d.total + ' account' + (d.total === 1 ? '' : 's') + (d.total > d.users.length ? ' (showing the newest ' + d.users.length + ', narrow the search to see others)' : '');
+        tb.innerHTML = d.users.length ? d.users.map((u) => '<tr class="hover:bg-surface-container-low"><td class="p-3 font-bold">' + escapeHtml(u.name || '-') + '</td><td class="p-3">' + (u.role === 'DRIVER' ? 'Driver' : 'Rider') + '</td><td class="p-3">' + escapeHtml(u.phone || '') + '<span class="block text-[10px] text-on-surface-variant">' + escapeHtml(u.email || '') + '</span></td><td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ' + (u.status === 'ACTIVE' ? 'bg-primary-fixed text-primary' : 'bg-error/10 text-error') + '">' + escapeHtml(u.status) + '</span></td><td class="p-3 text-on-surface-variant">' + escapeHtml(String(u.createdAt || '').slice(0, 10)) + '</td><td class="p-3 text-right"><button data-id="' + escapeHtml(u.id) + '" onclick="openUser(this.dataset.id)" class="px-2.5 py-1 bg-primary text-on-primary rounded-lg text-xs font-bold">Open</button></td></tr>').join('') : '<tr><td colspan="6" class="p-6 text-center text-on-surface-variant">No accounts found.</td></tr>';
+      } catch (e) { tb.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-error font-bold">' + escapeHtml(e.message) + '</td></tr>'; }
+    }
+    async function openUser(id) {
+      const box = document.createElement('div'); box.id = 'user-modal';
+      box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(20,24,30,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px';
+      box.innerHTML = '<div style="background:#fff;color:#1E2228;border-radius:18px;max-width:820px;width:100%;padding:24px"><div id="um-body">Loading...</div></div>';
+      document.body.appendChild(box); box.addEventListener('click', (e) => { if (e.target === box) box.remove(); });
+      const row = (a, b) => b ? '<tr><td style="padding:4px 14px 4px 0;color:#5E6672">' + a + '</td><td style="padding:4px 0;font-weight:600">' + escapeHtml(b) + '</td></tr>' : '';
+      try {
+        const res = await authFetch('/api/admin/users/' + encodeURIComponent(id)); const d = await res.json(); if (!res.ok) throw new Error(d.error || 'Could not load');
+        const u = d.user, isAdmin = (window.__adminRole || 'ADMIN') === 'ADMIN';
+        document.getElementById('um-body').innerHTML =
+          '<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:22px;font-weight:800;margin:0">' + escapeHtml(u.name || 'Account') + ' <span style="font-size:12px;font-weight:700;color:#5E6672">' + (u.role === 'DRIVER' ? 'Driver' : 'Rider') + ' &middot; ' + escapeHtml(u.status) + '</span></h2><button id="um-x" style="padding:8px 14px;border-radius:10px;border:1px solid #CBD0D6;background:#fff;font-weight:700;cursor:pointer">Close</button></div>' +
+          '<p style="font-size:12px;color:#8A5A00;margin:8px 0">This view is logged.</p><table>' + row('Phone', u.phone) + row('Email', u.email) + row('Gender', u.gender) + row('Date of birth', u.dateOfBirth) + row('Joined', String(u.createdAt || '').slice(0, 10)) + row('Referral code', u.referralCode) + row('Referred by', u.referredBy && u.referredBy.name) + row('People referred', String(u.referredCount)) +
+          (u.driver ? row('Driver status', u.driver.approvalStatus) + row('Vehicle', u.driver.vehicle ? [u.driver.vehicle.type, u.driver.vehicle.makeModel, u.driver.vehicle.color, u.driver.vehicle.plateNumber].filter(Boolean).join(' · ') : '') : '') + '</table>' +
+          '<div style="display:flex;gap:10px;margin:14px 0"><div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:20px">' + d.stats.completed + '</b><div style="font-size:12px;color:#5E6672">Completed trips</div></div><div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:20px">' + d.stats.cancelled + '</b><div style="font-size:12px;color:#5E6672">Cancelled trips</div></div></div>' +
+          (d.money ? '<div style="display:flex;gap:10px;margin:0 0 14px"><div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:16px">' + mk(d.money.gross) + '</b><div style="font-size:12px;color:#5E6672">' + (u.role === 'DRIVER' ? 'Fares collected' : 'Total spent') + '</div></div>' + (u.role === 'DRIVER' ? '<div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:16px">' + mk(d.money.driverShare) + '</b><div style="font-size:12px;color:#5E6672">Driver earned</div></div><div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:16px">' + mk(d.money.commission) + '</b><div style="font-size:12px;color:#5E6672">Aarohan commission</div></div>' : '') + '</div>' : '') +
+          (u.driver ? '<div style="display:flex;gap:10px;margin:0 0 14px"><div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:16px;color:' + (u.driver.commissionDebtMWK > 0 ? '#8A2B2B' : 'inherit') + '">' + mk(u.driver.commissionDebtMWK) + '</b><div style="font-size:12px;color:#5E6672">Owes Aarohan</div></div><div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:16px">' + (u.driver.rating != null ? Number(u.driver.rating).toFixed(1) : '-') + '</b><div style="font-size:12px;color:#5E6672">Rating (' + Number(u.driver.ratingCount || 0) + ')</div></div><div style="flex:1;background:#F4F5F7;border-radius:12px;padding:12px"><b style="font-size:16px">' + escapeHtml(String(u.driver.availability || '').toLowerCase()) + '</b><div style="font-size:12px;color:#5E6672">Right now</div></div></div>' + ((u.driver.documents || []).length ? '<h3 style="margin:0 0 6px;font-weight:800">Documents</h3><div style="margin-bottom:14px">' + u.driver.documents.map((x) => '<span style="display:inline-block;margin:0 6px 6px 0;padding:5px 10px;border:1px solid #CBD0D6;border-radius:999px;font-size:12px;font-weight:600">' + escapeHtml(String(x.type).replace(/_/g, ' ').toLowerCase()) + ': ' + escapeHtml(String(x.status).toLowerCase()) + '</span>').join('') + '</div>' : '') + '<button id="um-kyc" style="margin-bottom:14px;padding:9px 14px;border-radius:10px;border:1px solid #CBD0D6;background:#fff;font-weight:700;cursor:pointer">Open identity review</button>' : '') +
+          '<h3 style="margin:14px 0 6px;font-weight:800">Emergency contacts</h3>' + ((u.emergencyContacts || []).length ? u.emergencyContacts.map((c) => '<div>' + escapeHtml(c.name) + ' &middot; ' + escapeHtml(c.phone) + '</div>').join('') : '<em style="color:#5E6672">None added</em>') +
+          '<h3 style="margin:14px 0 6px;font-weight:800">Recent trips</h3>' + ((d.recentTrips || []).length ? '<table style="width:100%;font-size:12px">' + d.recentTrips.map((t) => '<tr><td style="padding:4px 0">' + escapeHtml(String(t.createdAt || '').slice(0, 10)) + '</td><td>' + escapeHtml(t.status) + '</td><td>' + escapeHtml((t.pickupAddress || '').split(',')[0]) + ' &rarr; ' + escapeHtml((t.dropoffAddress || '').split(',')[0]) + '</td><td style="text-align:right">' + mk(t.fareMWK) + '</td></tr>').join('') + '</table>' : '<em style="color:#5E6672">No trips</em>') +
+          '<h3 style="margin:14px 0 6px;font-weight:800">Support tickets</h3>' + ((d.tickets || []).length ? d.tickets.map((t) => '<div style="font-size:13px">' + escapeHtml(t.subject) + ' <span style="color:#5E6672">(' + escapeHtml(t.status) + ')</span></div>').join('') : '<em style="color:#5E6672">None</em>') +
+          (u.status !== 'DELETED' ? '<div style="margin-top:18px;border-top:1px solid #E3E6EA;padding-top:14px"><button id="um-status" style="padding:11px 18px;border-radius:12px;border:0;background:' + (u.status === 'ACTIVE' ? '#8A2B2B' : '#2F5D3A') + ';color:#fff;font-weight:800;cursor:pointer">' + (u.status === 'ACTIVE' ? 'Suspend this account' : 'Reactivate this account') + '</button><span id="um-msg" style="margin-left:12px;font-weight:600"></span></div>' : '');
+        document.getElementById('um-x').onclick = () => box.remove();
+        const kb = document.getElementById('um-kyc'); if (kb) kb.onclick = () => { box.remove(); reviewDriverKyc(u.driver.id); };
+        const sb = document.getElementById('um-status');
+        if (sb) sb.onclick = async () => {
+          const next = u.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+          const reason = await adminPrompt((next === 'SUSPENDED' ? 'Why are you suspending ' : 'Why are you reactivating ') + (u.name || 'this account') + '? (kept in the audit log)', '');
+          if (!reason || reason.trim().length < 3) return;
+          const r = await authFetch('/api/admin/users/' + encodeURIComponent(id) + '/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next, reason: reason.trim() }) });
+          const j = await r.json(); const m = document.getElementById('um-msg'); m.style.color = r.ok ? '#2F5D3A' : '#8A2B2B'; m.textContent = r.ok ? 'Done. Status is now ' + next + '.' : (j.error || 'Could not change the status. Only an admin can do this.');
+          if (r.ok) { loadUsers(); setTimeout(() => { box.remove(); openUser(id); }, 900); }
+        };
+      } catch (e) { document.getElementById('um-body').innerHTML = '<p style="color:#8A2B2B">' + escapeHtml(e.message) + '</p>'; }
+    }
+
+
+    // =========================================================================
+    // ADS (rider app and driver app)
+    // =========================================================================
+    const fmtDT = (v) => v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    function previewAd(aud) {
+      const f = document.getElementById('ad-file-' + aud).files[0], box = document.getElementById('ad-prev-' + aud);
+      if (!f) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+      const u = URL.createObjectURL(f);
+      box.innerHTML = f.type.startsWith('video/') ? '<video src="' + u + '" muted autoplay loop playsinline style="width:100%;max-height:220px;object-fit:cover"></video>' : '<img src="' + u + '" style="width:100%;max-height:220px;object-fit:cover"/>';
+      box.classList.remove('hidden');
+    }
+
+    // ---- where an ad appears, and showing it only near a place
+    const AD_PLACES = {
+      RIDER: { HOME: 'Home screen, under the "Where to?" box', SEARCHING: 'While the rider waits for a captain', COMPLETED: 'After a ride, on the thank-you screen' },
+      DRIVER: { HOME: 'Home screen, under the Go online button', EARNINGS: 'The Earnings tab' }
+    };
+    const placeLabel = (aud, p) => (AD_PLACES[aud] && AD_PLACES[aud][p]) || p || 'Home screen';
+    function fillPlacements(aud) {
+      const sel = document.getElementById('ad-place-' + aud); if (!sel || sel.options.length) return;
+      Object.keys(AD_PLACES[aud]).forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = AD_PLACES[aud][k]; sel.appendChild(o); });
+    }
+    function clearAdPlace(aud) { ['ad-glat', 'ad-glng', 'ad-grad', 'ad-glabel'].forEach((id) => { document.getElementById(id + '-' + aud).value = ''; }); }
+    function pickAdPlace(aud) {
+      const CITIES = { Lilongwe: [-13.9626, 33.7741], Blantyre: [-15.7861, 35.0058], Mzuzu: [-11.4656, 34.0207], Zomba: [-15.3833, 35.3188] };
+      const box = document.createElement('div'); box.style.cssText = 'position:fixed;inset:0;z-index:100003;background:rgba(20,24,30,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+      box.innerHTML = '<div style="background:#fff;border-radius:18px;max-width:640px;width:100%;padding:18px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font-size:18px;font-weight:800;margin:0">Pick the place</h3><button id="pm-x" style="padding:6px 12px;border-radius:10px;border:1px solid #CBD0D6;background:#fff;font-weight:700;cursor:pointer">Close</button></div><p style="font-size:12px;color:#5E6672;margin:6px 0 8px">Tap the map to choose the centre. People within the radius will see the ad.</p><div id="pm-cities" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div><div id="pm-map" style="height:340px;border-radius:12px;overflow:hidden;background:#E3E6EA"></div><div style="display:flex;gap:8px;align-items:center;margin-top:10px"><label style="font-size:12px;font-weight:700">Radius (km)<input id="pm-r" type="number" min="0.5" max="500" step="0.5" value="3" style="margin-left:6px;width:80px;padding:6px 8px;border:1px solid #CBD0D6;border-radius:8px"/></label><input id="pm-l" placeholder="Name of the place" maxlength="80" style="flex:1;padding:8px 10px;border:1px solid #CBD0D6;border-radius:8px;font-size:13px"/><button id="pm-ok" style="padding:9px 16px;border-radius:12px;border:0;background:#2F343C;color:#fff;font-weight:800;cursor:pointer">Use this place</button></div><div id="pm-m" style="font-size:12px;font-weight:600;margin-top:8px;color:#8A2B2B"></div></div>';
+      document.body.appendChild(box); box.querySelector('#pm-x').onclick = () => box.remove();
+      const v = (id) => document.getElementById(id + '-' + aud).value;
+      let pt = (v('ad-glat') && v('ad-glng')) ? [Number(v('ad-glat')), Number(v('ad-glng'))] : null;
+      box.querySelector('#pm-r').value = v('ad-grad') || 3; box.querySelector('#pm-l').value = v('ad-glabel') || '';
+      if (typeof L === 'undefined') { box.querySelector('#pm-m').textContent = 'The map could not load. Type the latitude and longitude instead.'; return; }
+      const start = pt || CITIES.Lilongwe, map = L.map(box.querySelector('#pm-map')).setView(start, pt ? 13 : 12);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap, CARTO' }).addTo(map);
+      let marker = null, circle = null;
+      const draw = () => { if (!pt) return; const r = Math.max(0.5, Number(box.querySelector('#pm-r').value) || 3) * 1000; if (marker) marker.setLatLng(pt); else marker = L.marker(pt).addTo(map); if (circle) { circle.setLatLng(pt); circle.setRadius(r); } else circle = L.circle(pt, { radius: r, color: '#2F343C', weight: 2, fillOpacity: .12 }).addTo(map); };
+      if (pt) draw();
+      map.on('click', (e) => { pt = [e.latlng.lat, e.latlng.lng]; draw(); });
+      box.querySelector('#pm-r').oninput = draw;
+      Object.keys(CITIES).forEach((c) => { const b = document.createElement('button'); b.textContent = c; b.style.cssText = 'padding:5px 10px;border-radius:999px;border:1px solid #CBD0D6;background:#fff;font-size:12px;font-weight:700;cursor:pointer'; b.onclick = () => map.setView(CITIES[c], 12); box.querySelector('#pm-cities').appendChild(b); });
+      setTimeout(() => map.invalidateSize(), 200);
+      box.querySelector('#pm-ok').onclick = () => {
+        if (!pt) { box.querySelector('#pm-m').textContent = 'Tap the map to choose a place first.'; return; }
+        document.getElementById('ad-glat-' + aud).value = pt[0].toFixed(5); document.getElementById('ad-glng-' + aud).value = pt[1].toFixed(5);
+        document.getElementById('ad-grad-' + aud).value = box.querySelector('#pm-r').value || '3'; document.getElementById('ad-glabel-' + aud).value = box.querySelector('#pm-l').value.trim(); box.remove();
+      };
+    }
+
+    async function loadAds(aud) {
+      const list = document.getElementById('ads-list-' + aud); if (!list) return; fillPlacements(aud);
+      try {
+        const res = await authFetch('/api/admin/ads?audience=' + aud); const d = await res.json(); if (!res.ok) throw new Error(d.error || 'Could not load');
+        const chip = { LIVE: 'bg-primary-fixed text-primary', SCHEDULED: 'bg-secondary-fixed text-secondary', ENDED: 'bg-surface-container-high text-on-surface-variant', OFF: 'bg-error/10 text-error' };
+        const btn = (a, label, fn, extra, cls) => '<button data-id="' + escapeHtml(a.id) + '" data-aud="' + aud + '" ' + (extra || '') + ' onclick="' + fn + '" class="flex-1 h-9 rounded-lg ' + (cls || 'bg-surface-container-high') + ' text-xs font-bold">' + label + '</button>';
+        list.innerHTML = d.ads.length ? d.ads.map((a) => '<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-sm overflow-hidden"><div style="aspect-ratio:16/7;background:#D9DCE1">' + (a.mediaType === 'VIDEO' ? '<video src="' + escapeHtml(a.mediaUrl) + '" muted loop playsinline controls style="width:100%;height:100%;object-fit:cover"></video>' : '<img src="' + escapeHtml(a.mediaUrl) + '" style="width:100%;height:100%;object-fit:cover"/>') + '</div><div class="p-3"><div class="flex items-center justify-between gap-2"><b class="text-sm truncate">' + escapeHtml(a.title) + '</b><span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ' + (chip[a.status] || '') + '">' + escapeHtml(a.status) + '</span></div>' + (a.caption ? '<div class="text-xs text-on-surface-variant mt-0.5">' + escapeHtml(a.caption) + '</div>' : '') + '<div class="text-[11px] text-on-surface-variant mt-2">' + (a.startsAt || a.endsAt ? escapeHtml(fmtDT(a.startsAt) || 'now') + ' to ' + escapeHtml(fmtDT(a.endsAt) || 'no end') : 'Always on') + ' &middot; priority ' + Number(a.priority) + (a.linkUrl ? ' &middot; has link' : '') + '</div><div class="text-[11px] mt-1">Shown on: <b>' + escapeHtml(placeLabel(aud, a.placement)) + '</b>' + (a.geoLat != null ? ' &middot; only within ' + Number(a.geoRadiusKm) + ' km of <b>' + escapeHtml(a.geoLabel || (Number(a.geoLat).toFixed(3) + ', ' + Number(a.geoLng).toFixed(3))) + '</b>' : ' &middot; everywhere in Malawi') + '</div><div class="grid grid-cols-3 gap-2 mt-3 text-center"><div class="bg-surface-container-low rounded-lg p-2"><b class="block text-sm">' + Number(a.impressions).toLocaleString() + '</b><span class="text-[10px] text-on-surface-variant">Views</span></div><div class="bg-surface-container-low rounded-lg p-2"><b class="block text-sm">' + Number(a.clicks).toLocaleString() + '</b><span class="text-[10px] text-on-surface-variant">Taps</span></div><div class="bg-surface-container-low rounded-lg p-2"><b class="block text-sm">' + Number(a.ctr) + '%</b><span class="text-[10px] text-on-surface-variant">Tap rate</span></div></div><div class="flex gap-2 mt-3">' + btn(a, a.active ? 'Pause' : 'Turn on', "toggleAd(this.dataset.id, this.dataset.on === '1', this.dataset.aud)", 'data-on="' + (a.active ? '0' : '1') + '"') + btn(a, 'Edit', 'editAd(this.dataset.id, this.dataset.aud)') + btn(a, 'Delete', 'deleteAd(this.dataset.id, this.dataset.aud)', '', 'bg-error/10 text-error') + '</div></div></div>').join('') : '<div class="p-6 text-center text-on-surface-variant col-span-full">No ads yet. Upload your first one above.</div>';
+        window['__ads' + aud] = d.ads;
+      } catch (e) { list.innerHTML = '<div class="p-4 text-center text-error font-bold col-span-full">' + escapeHtml(e.message) + '</div>'; }
+    }
+    async function publishAd(aud) {
+      const msg = document.getElementById('ad-msg-' + aud), btn = document.getElementById('ad-pub-' + aud), v = (id) => document.getElementById(id + '-' + aud).value;
+      const f = document.getElementById('ad-file-' + aud).files[0];
+      const say = (t, ok) => { msg.style.color = ok ? '#2F5D3A' : '#8A2B2B'; msg.textContent = t; };
+      if (!f) return say('Choose a picture or a video first.', false);
+      const fd = new FormData(); fd.append('audience', aud); fd.append('title', v('ad-title')); fd.append('caption', v('ad-caption')); fd.append('linkUrl', v('ad-link')); fd.append('priority', v('ad-prio') || '0'); fd.append('placement', v('ad-place')); if (v('ad-glat') || v('ad-glng') || v('ad-grad')) { fd.append('geoLat', v('ad-glat')); fd.append('geoLng', v('ad-glng')); fd.append('geoRadiusKm', v('ad-grad')); fd.append('geoLabel', v('ad-glabel')); }
+      if (v('ad-start')) fd.append('startsAt', new Date(v('ad-start')).toISOString()); if (v('ad-end')) fd.append('endsAt', new Date(v('ad-end')).toISOString());
+      fd.append('media', f); btn.disabled = true; btn.textContent = 'Uploading...';
+      try {
+        const res = await authFetch('/api/admin/ads', { method: 'POST', body: fd }); const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Upload failed');
+        say('Published. It is now in the ' + (aud === 'RIDER' ? 'rider' : 'driver') + ' app.', true);
+        clearAdPlace(aud); ['ad-title', 'ad-caption', 'ad-link', 'ad-start', 'ad-end'].forEach((id) => { document.getElementById(id + '-' + aud).value = ''; }); document.getElementById('ad-file-' + aud).value = ''; previewAd(aud); loadAds(aud);
+      } catch (e) { say(e.message, false); } finally { btn.disabled = false; btn.textContent = 'Publish ad'; }
+    }
+    async function toggleAd(id, on, aud) { const r = await authFetch('/api/admin/ads/' + encodeURIComponent(id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: on }) }); if (!r.ok) alert((await r.json()).error || 'Could not change the ad.'); loadAds(aud); }
+    async function deleteAd(id, aud) { if (!await adminConfirm('Delete this ad? The picture or video is removed and people stop seeing it. This cannot be undone.')) return; const r = await authFetch('/api/admin/ads/' + encodeURIComponent(id), { method: 'DELETE' }); if (!r.ok) alert((await r.json()).error || 'Could not delete.'); loadAds(aud); }
+    async function editAd(id, aud) {
+      const a = (window['__ads' + aud] || []).find((x) => x.id === id); if (!a) return;
+      const loc = (v) => v ? new Date(new Date(v).getTime() - new Date(v).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
+      const box = document.createElement('div'); box.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(20,24,30,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+      const inp = 'width:100%;margin-top:4px;padding:10px 12px;border:1px solid #CBD0D6;border-radius:12px;font-size:14px';
+      box.innerHTML = '<div style="background:#fff;color:#1E2228;border-radius:18px;max-width:460px;width:100%;padding:22px;max-height:90vh;overflow:auto"><h3 style="font-size:18px;font-weight:800;margin:0 0 12px">Edit ad</h3>' +
+        '<label style="font-size:12px;font-weight:700">Title<input id="ea-t" style="' + inp + '" value="' + escapeHtml(a.title) + '" maxlength="80"/></label><label style="font-size:12px;font-weight:700;display:block;margin-top:10px">Caption<input id="ea-c" style="' + inp + '" value="' + escapeHtml(a.caption || '') + '" maxlength="200"/></label>' +
+        '<label style="font-size:12px;font-weight:700;display:block;margin-top:10px">Link (https://)<input id="ea-l" style="' + inp + '" value="' + escapeHtml(a.linkUrl || '') + '"/></label><div style="display:flex;gap:8px;margin-top:10px"><label style="flex:1;font-size:12px;font-weight:700">Starts<input id="ea-s" type="datetime-local" style="' + inp + '" value="' + loc(a.startsAt) + '"/></label><label style="flex:1;font-size:12px;font-weight:700">Ends<input id="ea-e" type="datetime-local" style="' + inp + '" value="' + loc(a.endsAt) + '"/></label></div>' +
+        '<label style="font-size:12px;font-weight:700;display:block;margin-top:10px">Priority<input id="ea-p" type="number" style="' + inp + '" value="' + Number(a.priority) + '"/></label>' + '<label style="font-size:12px;font-weight:700;display:block;margin-top:10px">Where it appears<select id="ea-w" style="' + inp + '">' + Object.keys(AD_PLACES[aud]).map((k) => '<option value="' + k + '"' + (k === (a.placement || 'HOME') ? ' selected' : '') + '>' + escapeHtml(AD_PLACES[aud][k]) + '</option>').join('') + '</select></label><div style="display:flex;gap:6px;margin-top:10px"><label style="flex:1;font-size:12px;font-weight:700">Latitude<input id="ea-glat" style="' + inp + '" value="' + (a.geoLat != null ? a.geoLat : '') + '"/></label><label style="flex:1;font-size:12px;font-weight:700">Longitude<input id="ea-glng" style="' + inp + '" value="' + (a.geoLng != null ? a.geoLng : '') + '"/></label><label style="width:90px;font-size:12px;font-weight:700">Km<input id="ea-grad" style="' + inp + '" value="' + (a.geoRadiusKm != null ? a.geoRadiusKm : '') + '"/></label></div><input id="ea-glab" maxlength="80" placeholder="Name of the place" style="' + inp + '" value="' + escapeHtml(a.geoLabel || '') + '"/><div style="font-size:11px;color:#5E6672;margin-top:4px">Leave the three place boxes empty to show the ad everywhere in Malawi.</div>' + '<div id="ea-m" style="font-size:12px;font-weight:600;margin-top:10px;color:#8A2B2B"></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px"><button id="ea-x" style="padding:10px 16px;border-radius:12px;border:1px solid #CBD0D6;background:#fff;font-weight:700;cursor:pointer">Cancel</button><button id="ea-ok" style="padding:10px 18px;border-radius:12px;border:0;background:#2F343C;color:#fff;font-weight:800;cursor:pointer">Save</button></div></div>';
+      document.body.appendChild(box); box.querySelector('#ea-x').onclick = () => box.remove();
+      box.querySelector('#ea-ok').onclick = async () => {
+        const g = (i) => box.querySelector('#' + i).value;
+        const r = await authFetch('/api/admin/ads/' + encodeURIComponent(id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: g('ea-t'), caption: g('ea-c'), linkUrl: g('ea-l'), priority: g('ea-p'), placement: g('ea-w'), geoLat: g('ea-glat'), geoLng: g('ea-glng'), geoRadiusKm: g('ea-grad'), geoLabel: g('ea-glab'), startsAt: g('ea-s') ? new Date(g('ea-s')).toISOString() : null, endsAt: g('ea-e') ? new Date(g('ea-e')).toISOString() : null }) });
+        const d = await r.json(); if (!r.ok) { box.querySelector('#ea-m').textContent = d.error || 'Could not save.'; return; } box.remove(); loadAds(aud);
+      };
+    }
+
+    // =========================================================================
+    // DRIVER EARNINGS, MESSAGES, AUDIT TRAIL
+    // =========================================================================
+    async function loadEarnings() {
+      const tb = document.getElementById('earn-tbody'); if (!tb) return;
+      const f = document.getElementById('earn-from').value, t = document.getElementById('earn-to').value;
+      const qs = [f && 'from=' + encodeURIComponent(new Date(f + 'T00:00:00').toISOString()), t && 'to=' + encodeURIComponent(new Date(t + 'T23:59:59').toISOString())].filter(Boolean).join('&');
+      tb.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-on-surface-variant">Loading...</td></tr>';
+      try {
+        const res = await authFetch('/api/admin/driver-earnings' + (qs ? '?' + qs : '')); const d = await res.json(); if (!res.ok) throw new Error(d.error || 'Could not load');
+        window.__earnRows = d.rows; const T = d.totals, card = (l, v) => '<div class="bg-surface-container-lowest rounded-2xl p-3 border border-outline-variant/30 shadow-sm"><div class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">' + l + '</div><div class="text-lg font-black mt-1">' + v + '</div></div>';
+        document.getElementById('earn-totals').innerHTML = card('Rides', T.trips) + card('Fares', mk(T.gross)) + card('Drivers earned', mk(T.driverShare)) + card('Aarohan commission', mk(T.commission)) + card('Drivers owe Aarohan', mk(T.owes));
+        tb.innerHTML = d.rows.length ? d.rows.map((r) => '<tr><td class="p-3 font-bold">' + escapeHtml(r.name || '-') + '<span class="block text-[10px] text-on-surface-variant">' + escapeHtml(r.phone || '') + '</span></td><td class="p-3">' + escapeHtml((r.vehicle || '') + ' ' + (r.plate || '')) + '</td><td class="p-3 text-right">' + r.trips + '</td><td class="p-3 text-right">' + mk(r.gross) + '</td><td class="p-3 text-right">' + mk(r.driverShare) + '</td><td class="p-3 text-right">' + mk(r.commission) + '</td><td class="p-3 text-right ' + (r.owes > 0 ? 'font-bold' : '') + '">' + mk(r.owes) + '</td><td class="p-3 text-right">' + (r.rating != null ? Number(r.rating).toFixed(1) : '-') + '</td></tr>').join('') : '<tr><td colspan="8" class="p-6 text-center text-on-surface-variant">No completed rides in this period.</td></tr>';
+      } catch (e) { tb.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-error font-bold">' + escapeHtml(e.message) + '</td></tr>'; }
+    }
+    function downloadEarnings() {
+      const rows = window.__earnRows || []; const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const csv = ['Driver,Phone,Vehicle,Plate,Rides,Fares MWK,Driver share MWK,Commission MWK,Owes MWK,Rating'].concat(rows.map((r) => [r.name, r.phone, r.vehicle, r.plate, r.trips, r.gross, r.driverShare, r.commission, r.owes, r.rating].map(q).join(','))).join('\n');
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'driver-earnings-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
+    }
+    async function loadMessages() {
+      const tb = document.getElementById('msg-tbody'); if (!tb) return;
+      const qs = [document.getElementById('msg-channel').value && 'channel=' + document.getElementById('msg-channel').value, document.getElementById('msg-status').value && 'status=' + document.getElementById('msg-status').value].filter(Boolean).join('&');
+      tb.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-on-surface-variant">Loading...</td></tr>';
+      try {
+        const res = await authFetch('/api/admin/messages' + (qs ? '?' + qs : '')); const d = await res.json(); if (!res.ok) throw new Error(d.error || 'Could not load');
+        document.getElementById('msg-totals').innerHTML = '<div class="bg-surface-container-lowest rounded-2xl p-3 border border-outline-variant/30"><div class="text-[10px] font-bold uppercase text-on-surface-variant">Sent, last 24 hours</div><div class="text-xl font-black">' + d.sentLast24h + '</div></div><div class="bg-surface-container-lowest rounded-2xl p-3 border border-outline-variant/30"><div class="text-[10px] font-bold uppercase text-on-surface-variant">Failed, last 24 hours</div><div class="text-xl font-black ' + (d.failedLast24h ? 'text-error' : '') + '">' + d.failedLast24h + '</div></div>';
+        const chip = { SENT: 'bg-primary-fixed text-primary', SIMULATED: 'bg-surface-container-high text-on-surface-variant', FAILED: 'bg-error/10 text-error', QUEUED: 'bg-secondary-fixed text-secondary' };
+        tb.innerHTML = d.rows.length ? d.rows.map((r) => '<tr><td class="p-3 whitespace-nowrap">' + escapeHtml(fmtDT(r.at)) + '</td><td class="p-3">' + escapeHtml(r.channel) + '</td><td class="p-3">' + escapeHtml(String(r.purpose || '').replace(/_/g, ' ').toLowerCase()) + '</td><td class="p-3 font-mono">' + escapeHtml(r.to) + '</td><td class="p-3 max-w-[220px] truncate">' + escapeHtml(r.subject || '') + '</td><td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ' + (chip[r.status] || '') + '">' + escapeHtml(r.status) + '</span>' + (r.error ? '<span class="block text-[10px] text-error">' + escapeHtml(r.error) + '</span>' : '') + '</td><td class="p-3">' + escapeHtml(r.provider || '') + '</td></tr>').join('') : '<tr><td colspan="7" class="p-6 text-center text-on-surface-variant">Nothing has been sent yet.</td></tr>';
+      } catch (e) { tb.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-error font-bold">' + escapeHtml(e.message) + '</td></tr>'; }
+    }
+    const AUDIT_ACTIONS = ['USER_LOGIN', 'USER_REGISTER', 'DRIVER_REGISTERED', 'DRIVER_APPROVED', 'DRIVER_REJECTED', 'DRIVER_SUSPENDED', 'TRIP_CREATED', 'TRIP_ACCEPTED', 'TRIP_STARTED', 'TRIP_COMPLETED', 'TRIP_CANCELLED', 'PIN_FAILED', 'PRICE_CONFIG_UPDATED', 'PAYMENT_INITIATED', 'COMMISSION_SETTLED', 'MANUAL_ADJUSTMENT', 'SOS_TRIGGERED', 'SOS_RESOLVED', 'TICKET_CREATED', 'TICKET_RESOLVED', 'ADMIN_USER_VIEWED', 'ADMIN_USER_STATUS_CHANGED', 'ADMIN_TRIP_RECORD_VIEWED', 'ADMIN_GPS_TRAIL_VIEWED', 'ADMIN_CHAT_VIEWED', 'PROFILE_UPDATED', 'ACCOUNT_DELETED', 'AD_CREATED', 'AD_UPDATED', 'AD_DELETED'];
+    window.__audPage = 1;
+    async function loadAudit(page) {
+      const tb = document.getElementById('aud-tbody'); if (!tb) return; page = Math.max(1, page || 1); window.__audPage = page;
+      const sel = document.getElementById('aud-action'); if (sel.options.length < 2) AUDIT_ACTIONS.forEach((a) => { const o = document.createElement('option'); o.value = a; o.textContent = a.replace(/_/g, ' ').toLowerCase(); sel.appendChild(o); });
+      const qs = ['page=' + page, sel.value && 'action=' + sel.value, document.getElementById('aud-entity').value && 'entityType=' + document.getElementById('aud-entity').value, document.getElementById('aud-q').value.trim() && 'q=' + encodeURIComponent(document.getElementById('aud-q').value.trim())].filter(Boolean).join('&');
+      tb.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-on-surface-variant">Loading...</td></tr>';
+      try {
+        const res = await authFetch('/api/admin/audit?' + qs); const d = await res.json(); if (!res.ok) throw new Error(d.error || 'Could not load');
+        document.getElementById('aud-total').textContent = d.total.toLocaleString() + ' entries, page ' + d.page;
+        tb.innerHTML = d.rows.length ? d.rows.map((r) => { const det = r.details ? JSON.stringify(r.details) : ''; return '<tr class="hover:bg-surface-container-low"><td class="p-3 whitespace-nowrap">' + escapeHtml(fmtDT(r.at)) + '</td><td class="p-3">' + (r.who ? '<b>' + escapeHtml(r.who.name || '-') + '</b> <span class="text-[10px] text-on-surface-variant">' + escapeHtml(r.who.role) + '</span>' : '<span class="text-on-surface-variant">System</span>') + '</td><td class="p-3 font-bold">' + escapeHtml(String(r.action).replace(/_/g, ' ').toLowerCase()) + '</td><td class="p-3">' + escapeHtml(r.entityType) + '<span class="block text-[10px] font-mono text-on-surface-variant">' + escapeHtml(String(r.entityId || '').slice(0, 13)) + '</span></td><td class="p-3 font-mono">' + escapeHtml(r.ip || '') + '</td><td class="p-3 max-w-[260px] truncate text-[11px] text-on-surface-variant" title="' + escapeHtml(det) + '">' + escapeHtml(det.slice(0, 90)) + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="p-6 text-center text-on-surface-variant">Nothing found.</td></tr>';
+      } catch (e) { tb.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-error font-bold">' + escapeHtml(e.message) + '</td></tr>'; }
+    }
+
+    // =========================================================================
+    // LIVE BADGES: the numbers next to the menu items refresh every 20 seconds
+    // =========================================================================
+    async function refreshBadges() {
+      try {
+        const res = await window.aarohanAuth.fetchWithAuth('/api/admin/overview'); if (!res || !res.ok) return; const o = await res.json(), a = o.attention;
+        const set = (id, n) => { const el = document.getElementById(id); if (!el) return; el.textContent = n > 99 ? '99+' : n; el.classList.toggle('hidden', !(n > 0)); };
+        set('badge-drivers', a.pendingApplications); set('badge-disputes', a.openTickets); set('badge-cash', a.pendingPayments);
+        const visible = (id) => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); };
+        if (visible('tab-overview')) loadOverview(); if (visible('tab-drivers')) { refreshPendingDrivers(); } if (visible('tab-disputes')) loadAdminTickets(); if (visible('tab-cash-reconciliation')) { refreshPendingSettlements(); }
+      } catch (_) { /* not signed in yet */ }
+    }
+    setInterval(refreshBadges, 20000); setTimeout(refreshBadges, 2500);
+
+    async function reviewDriverKyc(driverId) {
+      const old = document.getElementById('kyc-review'); if (old) old.remove();
+      const box = document.createElement('div'); box.id = 'kyc-review';
+      box.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(20,24,30,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px;font-family:inherit';
+      box.innerHTML = '<div style="background:#fff;color:#1E2228;border-radius:18px;max-width:760px;width:100%;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.35)"><div id="kyc-body">Loading...</div></div>';
+      document.body.appendChild(box); box.addEventListener('click', (e) => { if (e.target === box) box.remove(); });
+      const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const chip = 'display:inline-block;margin:0 8px 8px 0;padding:8px 12px;border:1px solid #CBD0D6;border-radius:10px;text-decoration:none;color:#1E2228;font-weight:600';
+      try {
+        const [kr, dr] = await Promise.all([authFetch('/api/admin/drivers/' + driverId + '/kyc'), authFetch('/api/admin/drivers/' + driverId + '/documents')]);
+        const k = await kr.json(), docs = await dr.json();
+        if (!kr.ok) throw new Error(k.error || 'Could not load');
+        const kc = k.kyc, row = (a, b) => b ? '<tr><td style="padding:4px 12px 4px 0;color:#5E6672">' + a + '</td><td style="padding:4px 0;font-weight:600">' + esc(b) + '</td></tr>' : '';
+        const items = k.checklistItems.map((i) => '<label style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #E3E6EA;cursor:pointer"><input type="checkbox" data-k="' + i.key + '" ' + ((kc && kc.checklist && kc.checklist[i.key]) ? 'checked' : '') + ' style="margin-top:3px"/><span>' + esc(i.label) + '</span></label>').join('');
+        const lv = k.liveness, idDoc = (docs.documents || []).find((d) => d.type === 'NATIONAL_ID');
+        const liveHtml = lv && lv.status === 'ALTERNATIVE_REQUESTED'
+          ? '<h3 style="margin:18px 0 6px;font-weight:800">Live face check: video call needed</h3><p style="font-size:13px;margin:0 0 6px;padding:10px 12px;background:#FFF4E0;border-radius:10px;color:#6B4A00"><b>The driver could not use the camera.</b> Reason: ' + esc(lv.alternativeReason || 'not given') + '.<br/>Call them on ' + esc(k.user.phone) + ' and verify by a short video call that the person matches the National ID photo. Only then tick the face check item below.</p>'
+          : lv
+          ? '<h3 style="margin:18px 0 6px;font-weight:800">Live face check (' + esc(String(lv.status).replace(/_/g, ' ').toLowerCase()) + ')</h3><p style="font-size:13px;color:#5E6672;margin:0 0 8px">The driver was asked to turn: ' + esc((lv.steps || []).join(', ').toLowerCase()) + '. ' + (lv.guided ? '<b>No automatic head-turn detection was used on this phone (guided mode), so look at the five photos very carefully.</b> ' : '') + 'Check that the same real person appears in all five photos and matches the National ID photo.</p><button id="kyc-faces" style="padding:10px 16px;border-radius:12px;border:0;background:#2F343C;color:#fff;font-weight:800;cursor:pointer">Compare faces with the ID photo</button>'
+          : '<h3 style="margin:18px 0 6px;font-weight:800">Live face check</h3><p style="color:#8A5A00"><b>The driver has not done the live face check yet.</b></p>';
+        const links = (docs.documents || []).map((d) => '<a href="' + esc(d.signedUrl) + '" target="_blank" rel="noopener" style="' + chip + '">' + esc(d.type.replace(/_/g, ' ')) + ' (' + esc(d.status) + ')</a>').join('') + (k.selfieUrl ? '<a href="' + esc(k.selfieUrl) + '" target="_blank" rel="noopener" style="' + chip + '">LIVE SELFIE</a>' : '');
+        document.getElementById('kyc-body').innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:22px;font-weight:800;margin:0">Identity review: ' + esc(k.user.name) + '</h2><button id="kyc-x" style="font-size:22px;border:0;background:none;cursor:pointer">&times;</button></div>' +
+          (!kc ? '<p style="color:#8A5A00;margin-top:14px"><b>This driver has not saved identity details yet.</b></p>' : '<p style="color:#8A5A00;font-size:13px;margin:10px 0">Sensitive: ' + (kc.numbersMasked ? 'ID and licence numbers are hidden for your role (only an admin sees them in full)' : 'full ID and licence numbers are shown to admins only') + ', and this view is logged.</p><table style="font-size:14px;margin-top:6px"><tbody>' +
+          row('Name', k.user.name) + row('Phone', k.user.phone) + row('Email', k.user.email) + row('Date of birth', k.user.dateOfBirth) + row('Gender', k.user.gender) + row('Legal name on ID', kc.legalName) + row('National ID', kc.nationalId) + row('Licence number', kc.licenseNumber) + row('Licence class', kc.licenseClass) + row('Licence expires', kc.licenseExpiry) + row('Address', kc.address + ', ' + kc.district) + row('Next of kin', kc.nextOfKinName + ' (' + (kc.nextOfKinRelation || '') + ') ' + kc.nextOfKinPhone) + row('Payout', kc.payoutNetwork + ' ' + kc.payoutPhone) + row('Vehicle', k.vehicle ? k.vehicle.type + ', ' + k.vehicle.makeModel + ', ' + k.vehicle.color + ', plate ' + k.vehicle.plateNumber : '') + row('Registration expires', kc.registrationExpiry) + row('Insurance', kc.insurancePolicyNo + ' (expires ' + kc.insuranceExpiry + ')') + row('Fitness expires', kc.fitnessExpiry) + row('Declaration accepted', kc.declarationAcceptedAt ? new Date(kc.declarationAcceptedAt).toLocaleString() : 'Not yet') + '</tbody></table>') +
+          '<h3 style="margin:18px 0 8px;font-weight:800">Documents (links expire in 15 minutes)</h3><div>' + (links || '<em>No documents uploaded</em>') + '</div>' +
+          liveHtml +
+          '<h3 style="margin:18px 0 4px;font-weight:800">Reviewer checklist</h3><p style="font-size:13px;color:#5E6672;margin:0 0 6px">Every item must be confirmed before the driver can be approved.</p>' + items +
+          '<div style="display:flex;gap:10px;margin-top:16px"><button id="kyc-save" style="padding:11px 18px;border-radius:12px;border:0;background:#2F343C;color:#fff;font-weight:800;cursor:pointer">Save checklist</button><button id="kyc-close" style="padding:11px 18px;border-radius:12px;border:1px solid #CBD0D6;background:#fff;font-weight:700;cursor:pointer">Close</button></div><div id="kyc-msg" style="margin-top:10px;font-size:14px"></div>';
+        document.getElementById('kyc-x').onclick = document.getElementById('kyc-close').onclick = () => box.remove();
+        const fb = document.getElementById('kyc-faces'); if (fb) fb.onclick = () => openFaceCompare((lv && lv.frames) || [], idDoc && idDoc.signedUrl);
+        document.getElementById('kyc-save').onclick = async () => {
+          const checked = {}; box.querySelectorAll('input[data-k]').forEach((i) => { checked[i.dataset.k] = i.checked; });
+          const r = await authFetch('/api/admin/drivers/' + driverId + '/checklist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items: checked }) });
+          const d = await r.json(); const m = document.getElementById('kyc-msg');
+          m.style.color = r.ok ? '#2F5D3A' : '#8A2B2B'; m.textContent = r.ok ? 'Checklist saved (' + Object.values(d.checklist).filter(Boolean).length + ' of ' + Object.keys(d.checklist).length + ' confirmed). You can approve once everything is ticked.' : (d.error || 'Could not save');
+        };
+      } catch (e) { document.getElementById('kyc-body').innerHTML = '<p style="color:#8A2B2B">' + esc(e.message) + '</p>'; }
+    }
+
     async function approveDriverAction(driverId, name) {
-      if (!confirm(`Are you sure you want to APPROVE captain ${name || driverId}?\nThis marks their documents approved and allows them to go online.`)) return;
+      if (!await adminConfirm(`Are you sure you want to APPROVE captain ${name || driverId}?\nThis marks their documents approved and allows them to go online.`)) return;
 
       try {
         const res = await authFetch(`/api/admin/drivers/${driverId}/approve`, {
@@ -1588,7 +2094,7 @@
           refreshPendingDrivers();
           refreshFleetDrivers();
         } else {
-          alert('Approval failed: ' + (data.error || 'Server error'));
+          alert('Approval failed: ' + (data.error || 'Server error') + (data.missing ? '\n\n' + data.missing.map((m) => '- ' + m).join('\n') : ''));
         }
       } catch (e) {
         alert('Network error: ' + e.message);
@@ -1596,7 +2102,7 @@
     }
 
     async function rejectDriverAction(driverId, name) {
-      const reason = prompt(`Enter rejection reason for candidate ${name || driverId}:`, 'Documents illegible or vehicle registration expired');
+      const reason = await adminPrompt(`Enter rejection reason for candidate ${name || driverId}:`, 'Documents illegible or vehicle registration expired');
       if (reason === null) return;
 
       try {
@@ -1619,7 +2125,7 @@
     }
 
     async function suspendDriverAction(driverId, name) {
-      const reason = prompt(`Enter reason for suspending driver ${name || driverId}:`, 'Safety compliance audit');
+      const reason = await adminPrompt(`Enter reason for suspending driver ${name || driverId}:`, 'Safety compliance audit');
       if (reason === null) return;
 
       try {
@@ -1653,12 +2159,12 @@
             <div class="flex items-center gap-2.5">
               <span class="material-symbols-outlined text-lg text-primary">local_taxi</span>
               <div>
-                <span class="font-bold text-on-surface">${d.name || 'Captain'} (${d.phone})</span>
-                <span class="text-outline block text-[10px]">${d.vehicleType || 'MOTO'} &bull; Plate: ${d.plateNumber || 'N/A'} &bull; Status: <strong>${d.status}</strong> (${d.approvalStatus})</span>
+                <span class="font-bold text-on-surface">${escapeHtml(d.name || 'Captain')} (${escapeHtml(d.phone)})</span>
+                <span class="text-outline block text-[10px]">${escapeHtml(d.vehicleType || 'MOTO')} &bull; Plate: ${escapeHtml(d.plateNumber || 'N/A')} &bull; Status: <strong>${d.status}</strong> (${d.approvalStatus})</span>
               </div>
             </div>
             <div class="flex items-center gap-1.5">
-              ${d.approvalStatus === 'APPROVED' ? `<button onclick="suspendDriverAction('${d.id}', '${d.name}')" class="px-2 py-1 bg-surface-container hover:bg-surface-container-high rounded text-[11px] font-bold">Suspend</button>` : ''}
+              ${d.approvalStatus === 'APPROVED' ? `<button data-id="${escapeHtml(d.id)}" data-name="${escapeHtml(d.name || '')}" onclick="suspendDriverAction(this.dataset.id, this.dataset.name)" class="px-2 py-1 bg-surface-container hover:bg-surface-container-high rounded text-[11px] font-bold">Suspend</button>` : ''}
               <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${d.approvalStatus === 'APPROVED' ? 'bg-primary-fixed text-primary' : 'bg-amber-500/20 text-amber-700'}">${d.approvalStatus}</span>
             </div>
           </div>
@@ -1724,12 +2230,12 @@
           </div>
         `).join('');
       } catch (err) {
-        container.innerHTML = `<div class="p-4 text-center text-xs text-error font-medium">Error: ${err.message}</div>`;
+        container.innerHTML = `<div class="p-4 text-center text-xs text-error font-medium">Error: ${escapeHtml(err.message)}</div>`;
       }
     }
 
     async function approveSettlementAction(settlementId, name, amount) {
-      if (!confirm(`Approve commission settlement of MWK ${amount.toLocaleString()} from ${name}?\n\nThis writes a balanced ledger journal and reduces the driver's commission debt in one transaction.`)) {
+      if (!await adminConfirm(`Approve commission settlement of MWK ${amount.toLocaleString()} from ${name}?\n\nThis writes a balanced ledger journal and reduces the driver's commission debt in one transaction.`)) {
         return;
       }
 
@@ -1754,7 +2260,7 @@
     }
 
     async function rejectSettlementAction(settlementId, name) {
-      const reason = prompt(`Enter rejection reason for settlement from ${name}:`, 'Invalid mobile money reference number');
+      const reason = await adminPrompt(`Enter rejection reason for settlement from ${name}:`, 'Invalid mobile money reference number');
       if (reason === null) return;
       if (!reason.trim()) {
         alert('A reason is required to reject a settlement');
@@ -1826,7 +2332,7 @@
             const fare = t.fareMWK || t.finalFare || 0;
             const userStr = isParcel
               ? `<div><span class="font-bold">${t.parcelDetail?.recipientName || 'Recipient'}</span><span class="text-[10px] text-on-surface-variant block">${t.parcelDetail?.recipientPhone || ''}</span></div>`
-              : `<div><span class="font-bold">${t.rider?.name || 'Rider'}</span><span class="text-[10px] text-on-surface-variant block">${t.rider?.phone || ''}</span></div>`;
+              : `<div><span class="font-bold">${escapeHtml(t.rider?.name || 'Rider')}</span><span class="text-[10px] text-on-surface-variant block">${escapeHtml(t.rider?.phone || '')}</span></div>`;
 
             return `
               <tr class="hover:bg-surface-container-low transition-colors">
@@ -1834,7 +2340,7 @@
                 <td class="p-3">${sBadge}</td>
                 <td class="p-3">${userStr}</td>
                 <td class="p-3">
-                  <div class="truncate max-w-[200px] font-medium">${t.pickupAddress || 'Pickup'} &rarr; ${t.dropoffAddress || 'Dropoff'}</div>
+                  <div class="truncate max-w-[200px] font-medium">${escapeHtml(t.pickupAddress || 'Pickup')} &rarr; ${escapeHtml(t.dropoffAddress || 'Dropoff')}</div>
                   ${stopsBadge}
                 </td>
                 <td class="p-3">
@@ -1855,7 +2361,7 @@
           }).join('');
         }
       } catch (err) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-error font-bold">${err.message}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-error font-bold">${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -1888,7 +2394,7 @@
           if (trip.stops && trip.stops.length > 0) {
             stopsContainer.classList.remove('hidden');
             stopsContainer.innerHTML = trip.stops.map(s => `
-              <div class="text-[11px] text-amber-800 font-bold">📍 Stop ${s.sequence}: ${s.address}</div>
+              <div class="text-[11px] text-amber-800 font-bold">📍 Stop ${s.sequence}: ${escapeHtml(s.address)}</div>
             `).join('');
           } else {
             stopsContainer.classList.add('hidden');
@@ -1916,8 +2422,8 @@
             chatContainer.innerHTML = '<span class="text-on-surface-variant text-center py-2">No chat messages for this trip.</span>';
           } else {
             chatContainer.innerHTML = msgs.map(m => `
-              <div class="p-1.5 rounded-lg text-xs bg-surface-container ${m.senderRole === 'RIDER' ? 'text-primary' : 'text-secondary'}">
-                <strong>${m.senderRole}:</strong> ${m.messageText}
+              <div class="p-1.5 rounded-lg text-xs bg-surface-container ${escapeHtml(m.senderRole === 'RIDER' ? 'text-primary' : 'text-secondary')}">
+                <strong>${escapeHtml(m.senderRole)}:</strong> ${escapeHtml(m.messageText)}
                 <span class="text-[9px] text-outline block text-right">${new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             `).join('');
@@ -1972,14 +2478,14 @@
             attribution: '&copy; CartoDB &copy; OpenStreetMap'
           }).addTo(adminInspectorMap);
 
-          L.marker([pickupLat, pickupLng]).addTo(adminInspectorMap).bindPopup(`<b>Pickup:</b> ${trip.pickupAddress || 'Start'}`);
+          L.marker([pickupLat, pickupLng]).addTo(adminInspectorMap).bindPopup(`<b>Pickup:</b> ${escapeHtml(trip.pickupAddress || 'Start')}`);
           if (trip.dropoffLat && trip.dropoffLng) {
-            L.marker([trip.dropoffLat, trip.dropoffLng]).addTo(adminInspectorMap).bindPopup(`<b>Dropoff:</b> ${trip.dropoffAddress || 'End'}`);
+            L.marker([trip.dropoffLat, trip.dropoffLng]).addTo(adminInspectorMap).bindPopup(`<b>Dropoff:</b> ${escapeHtml(trip.dropoffAddress || 'End')}`);
           }
 
           (trip.stops || []).forEach(s => {
             if (s.lat && s.lng) {
-              L.marker([s.lat, s.lng]).addTo(adminInspectorMap).bindPopup(`<b>Stop ${s.sequence}:</b> ${s.address}`);
+              L.marker([s.lat, s.lng]).addTo(adminInspectorMap).bindPopup(`<b>Stop ${s.sequence}:</b> ${escapeHtml(s.address)}`);
             }
           });
 
@@ -2031,7 +2537,9 @@
       if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-on-surface-variant">Loading support disputes...</td></tr>';
 
       try {
-        const url = statusFilter ? `/api/admin/tickets?status=${statusFilter}` : '/api/admin/tickets';
+        const roleFilter = document.getElementById('admin-disputes-role-filter')?.value || '';
+        const qs = [statusFilter && 'status=' + encodeURIComponent(statusFilter), roleFilter && 'role=' + encodeURIComponent(roleFilter)].filter(Boolean).join('&');
+        const url = '/api/admin/tickets' + (qs ? '?' + qs : '');
         const res = await authFetch(url);
         if (!res.ok) throw new Error('Failed to load tickets');
         const data = await res.json();
@@ -2051,12 +2559,12 @@
                 <td class="p-3 font-mono font-bold text-on-surface">${t.id.substring(0, 8).toUpperCase()}</td>
                 <td class="p-3 font-bold">${t.category.replace(/_/g, ' ')}</td>
                 <td class="p-3">
-                  <span class="font-extrabold text-on-surface block truncate max-w-[240px]">${t.subject}</span>
-                  <span class="text-[10px] text-on-surface-variant block truncate max-w-[240px]">${t.description}</span>
+                  <span class="font-extrabold text-on-surface block truncate max-w-[240px]">${escapeHtml(t.subject)}</span>
+                  <span class="text-[10px] text-on-surface-variant block truncate max-w-[240px]">${escapeHtml(t.description)}</span>
                 </td>
                 <td class="p-3">
-                  <span class="font-bold">${t.user?.name || 'User'}</span>
-                  <span class="text-[10px] text-on-surface-variant block">${t.user?.phone || ''}</span>
+                  <span class="font-bold">${escapeHtml(t.user?.name || 'User')}</span> <span class="ml-1 px-1.5 py-0.5 rounded bg-surface-container-high text-[9px] font-extrabold uppercase">${t.user?.role === 'DRIVER' ? 'Driver' : 'Rider'}</span>
+                  <span class="text-[10px] text-on-surface-variant block">${escapeHtml(t.user?.phone || '')}</span>
                 </td>
                 <td class="p-3 text-[10px] uppercase ${prioClass}">${t.priority}</td>
                 <td class="p-3">
@@ -2073,7 +2581,7 @@
           }).join('');
         }
       } catch (err) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-error font-bold">${err.message}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-error font-bold">${escapeHtml(err.message)}</td></tr>`;
       }
     }
 
@@ -2177,6 +2685,16 @@
     // Initial load guarded by AArohan Auth
     window.addEventListener('DOMContentLoaded', () => {
       if (window.aarohanAuth) {
+        // This page is for staff only. A rider or driver login left in this browser must not open it.
+        try {
+          const who = window.aarohanAuth.getUser && window.aarohanAuth.getUser();
+          if (who && !['ADMIN', 'SUPPORT', 'FINANCE'].includes(who.role)) {
+            window.aarohanAuth.clearSession();
+            const note = document.createElement('div'); note.id = 'admin-signin-note';
+            note.textContent = 'You were signed in as a ' + String(who.role).toLowerCase() + ' (' + (who.name || who.email || who.phone || '') + '). The admin panel needs an admin sign-in.';
+            document.body.prepend(note);
+          }
+        } catch (_) { /* fall through to the normal sign-in */ }
         window.aarohanAuth.ensureAuth({
           role: 'ADMIN',
           onAuthenticated: (adminUser) => {

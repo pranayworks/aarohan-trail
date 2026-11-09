@@ -250,3 +250,8 @@ button[class*="bg-primary"] *,
   align-items: center;
   justify-content: center;
 }
+
+/* Login box: readable hints and footer on the dark card */
+#aarohan-auth-modal input::placeholder { color: #8C8C8C; opacity: 1; }
+#aarohan-auth-modal .text-outline { color: #9A9A9A; }
+#aarohan-auth-modal .text-on-surface-variant, #aarohan-auth-modal [class*="text-[#A3A3A3]"] { color: #B4B4B4; }

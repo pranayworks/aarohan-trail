@@ -1,4 +1,7 @@
 # AArohan Driver Android Build & Packaging Guide
+
+> **Update:** the Android app now opens the NEW driver app (`/driver/next/`). `npm run cap:prod` needs `DEPLOYED_SERVER_URL` set to your live https address. The camera permission (face check and document photos) is included. See `docs/launch-day.md` for the ordered steps.
+
 **Application ID:** `com.aarohan.driver`  
 **Application Name:** `AArohan Driver`  
 **Target Platform:** Android 8.0+ (API level 26 - 34+)  

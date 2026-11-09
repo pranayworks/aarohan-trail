@@ -33,6 +33,11 @@ const devRouter = require('./routes/dev');
 const ticketsRouter = require('./routes/tickets');
 const legalRouter = require('./routes/legal');
 const sosRouter = require('./routes/sos');
+const meRouter = require('./routes/me');
+const adminUsersRouter = require('./routes/adminUsers');
+const driverApplicationRouter = require('./routes/driverApplication');
+const adsRouter = require('./routes/ads');
+const adminDataRouter = require('./routes/adminData');
 
 // Modular Socket Handlers
 const setupSockets = require('./sockets');
@@ -181,14 +186,16 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://api.mapbox.com', 'https://cdn.jsdelivr.net'],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://api.mapbox.com', 'https://cdn.jsdelivr.net', 'https://accounts.google.com'],
+      frameSrc: ["'self'", 'https://accounts.google.com'],
       // The app screens use inline onclick="..." handlers. Helmet's default `script-src-attr 'none'`
       // silently disables EVERY one of them, so it must be allowed explicitly.
       scriptSrcAttr: ["'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com', 'https://fonts.googleapis.com'],
-      imgSrc: ["'self'", 'data:', 'blob:', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'https://api.maptiler.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://api.mapbox.com', 'https://fonts.googleapis.com', 'https://accounts.google.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://*.supabase.co', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'https://api.maptiler.com', 'https://lh3.googleusercontent.com'],
+      mediaSrc: ["'self'", 'blob:', 'https://*.supabase.co'], // ad videos
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-      connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://api.maptiler.com', 'https://nominatim.openstreetmap.org', '*.sentry.io'],
+      connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://api.maptiler.com', 'https://nominatim.openstreetmap.org', '*.sentry.io', 'https://accounts.google.com', 'https://cdn.jsdelivr.net', 'https://storage.googleapis.com'], // the last two load the face-detection model for the driver face check
       workerSrc: ["'self'", 'blob:'],
       childSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
@@ -241,6 +248,7 @@ const PUBLIC_API_ROUTES = [
   '/api/health',
   '/api/ready',
   '/api/app-config',
+  '/api/app-version',
   '/api/network-info',
   '/api/map-config',
   '/api/places/reverse',
@@ -312,6 +320,11 @@ const noCacheStatic = {
   }
 };
 
+// The new apps are now THE apps. The old ones stay reachable at /rider/index.html and /driver/index.html for reference.
+app.get(['/rider', '/rider/'], (req, res) => res.redirect(302, '/rider/next/'));
+app.get(['/driver', '/driver/'], (req, res) => res.redirect(302, '/driver/next/'));
+// Ad pictures and videos saved on this computer during development (production uses the public Supabase bucket).
+app.use('/media/ads', express.static(path.join(__dirname, 'uploads', 'ads'), { maxAge: '7d', setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff') }));
 app.use('/rider', express.static(path.join(__dirname, 'rider'), noCacheStatic));
 app.use('/driver', express.static(path.join(__dirname, 'driver'), noCacheStatic));
 app.use('/admin', express.static(path.join(__dirname, 'admin'), noCacheStatic));
@@ -323,6 +336,8 @@ if (!require('fs').existsSync(path.join(LEAFLET_DIR, 'leaflet.js'))) {
   console.warn('[Maps] node_modules/leaflet is missing: run `npm install`. Maps will not load until it is installed.');
 }
 app.use('/vendor/leaflet', express.static(LEAFLET_DIR, { maxAge: '30d', immutable: true }));
+// Face-detection files for the driver face check, hosted here so it never depends on an outside website (npm run setup:face).
+app.use('/vendor/mediapipe', express.static(path.join(__dirname, 'vendor', 'mediapipe'), { maxAge: '30d', immutable: true }));
 
 // Prototypes (strictly blocked in production)
 app.use('/prototypes', (req, res, next) => {
@@ -382,11 +397,31 @@ app.get('/api/map-config', (req, res) => {
 });
 
 // App Configuration (service area, env, flags)
+// Play Store / web update check. Set APP_LATEST_VERSION when you publish a new build, and
+// APP_MIN_VERSION to force everyone below it to update. PLAY_STORE_URL is the listing link.
+const semverParts = (v) => String(v || '0').split('.').map((n) => parseInt(n, 10) || 0);
+const semverLess = (a, b) => { const x = semverParts(a), y = semverParts(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
+const BUILD_ID = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.BUILD_ID || String(Date.now());
+app.get('/api/app-version', (req, res) => {
+  const app_ = String(req.query.app || 'rider') === 'driver' ? 'DRIVER' : 'RIDER';
+  const latest = process.env[`APP_${app_}_LATEST_VERSION`] || process.env.APP_LATEST_VERSION || '1.0.0';
+  const min = process.env[`APP_${app_}_MIN_VERSION`] || process.env.APP_MIN_VERSION || '1.0.0';
+  const current = String(req.query.version || '0.0.0').slice(0, 20);
+  res.json({
+    latest, min, current, build: BUILD_ID,
+    updateAvailable: semverLess(current, latest),
+    forced: semverLess(current, min),
+    storeUrl: process.env[`PLAY_STORE_URL_${app_}`] || process.env.PLAY_STORE_URL || '',
+    message: process.env.APP_UPDATE_MESSAGE || 'A new version of Aarohan is ready with fixes and improvements.'
+  });
+});
+
 app.get('/api/app-config', (req, res) => {
   res.json({
     platform: 'Aarohan Mobility',
     appName: 'Aarohan Smart Urban Mobility Platform',
     serviceDescription: 'Real-time urban ride-hailing and parcel logistics ecosystem for Lilongwe, Malawi',
+    googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim() || null,
     contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || '',
     env: process.env.NODE_ENV || 'development',
     allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development',
@@ -411,6 +446,11 @@ app.use('/api', driversRouter);
 app.use('/api', adminRouter);
 app.use('/api', paymentsRouter);
 app.use('/api', sosRouter);
+app.use('/api', meRouter);
+app.use('/api', adminUsersRouter);
+app.use('/api', driverApplicationRouter);
+app.use('/api', adsRouter);
+app.use('/api', adminDataRouter);
 app.use('/api', notificationsRouter);
 app.use('/api', devRouter);
 app.use('/api', ticketsRouter);
@@ -447,6 +487,7 @@ module.exports = {
 // Start Server
 if (require.main === module) {
   server.listen(PORT, '0.0.0.0', () => {
+    try { require('./services/driverReminders').start(); } catch (e) { console.warn('[Reminders] not started:', e.message); }
     const localUrl = `http://localhost:${PORT}`;
     const networkRiderUrl = `http://${LOCAL_IP}:${PORT}/rider/`;
 

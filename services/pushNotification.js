@@ -92,6 +92,8 @@ async function sendPushToUser(userId, { title, body, data = {} }) {
     if (!tokens || tokens.length === 0) {
       return { success: false, reason: 'no_registered_device_tokens' };
     }
+    const purpose = (data && (data.type || data.purpose)) || 'GENERAL';
+    const mlog = (status, error) => require('./messageLog').log({ channel: 'PUSH', purpose, to: tokens.length + ' device(s)', userId, subject: title, status, provider: 'fcm', error });
 
     const registrationTokens = tokens.map(t => t.token);
     const admin = initFirebase();
@@ -102,6 +104,7 @@ async function sendPushToUser(userId, { title, body, data = {} }) {
       console.log(`   Title: "${title}"`);
       console.log(`   Body:  "${body}"`);
       console.log(`   Data:  `, data);
+      await mlog('SIMULATED');
       return { success: true, mocked: true, recipientCount: registrationTokens.length };
     }
 
@@ -145,6 +148,7 @@ async function sendPushToUser(userId, { title, body, data = {} }) {
       });
     }
 
+    await mlog(response.failureCount > 0 && response.successCount === 0 ? 'FAILED' : 'SENT', response.failureCount ? response.failureCount + ' failed' : null);
     return {
       success: true,
       successCount: response.successCount,

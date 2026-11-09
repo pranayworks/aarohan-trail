@@ -142,8 +142,11 @@ class PricingService {
       const rows = await prisma.pricingConfig.findMany({
         orderBy: { createdAt: 'desc' }
       });
-      if (rows && rows.length > 0) {
-        this.versions = rows.map(r => this._dbRowToVersion(r));
+      // Aarohan prices in Malawi kwacha: ignore any saved price list in another currency
+      // (for example one left behind by a test), so it can never show up as a Malawi price.
+      const mwkRows = (rows || []).filter(r => (r.currency || 'MWK') === 'MWK');
+      if (mwkRows.length > 0) {
+        this.versions = mwkRows.map(r => this._dbRowToVersion(r));
         return this.versions;
       }
       // If DB is empty, seed initial launch version

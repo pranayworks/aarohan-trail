@@ -176,6 +176,7 @@ async function getSignedUrl(storagePath, expiresIn = 900) {
 }
 
 module.exports = {
+  getSupabaseClient,
   BUCKET_NAME,
   MAX_FILE_SIZE_BYTES,
   ALLOWED_MIME_TYPES,

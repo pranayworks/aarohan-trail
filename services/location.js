@@ -50,7 +50,9 @@ function haversineDistanceKm(lat1, lon1, lat2, lon2) {
 
 class LocationService {
   constructor() {
-    this.mapboxToken = process.env.MAPBOX_ACCESS_TOKEN || process.env.MAP_API_KEY || '';
+    // The SERVER uses its own secret token (MAPBOX_SERVER_TOKEN, starts with sk.) for street names and road routes. That way the
+    // public token shown in the apps can be locked to your website address, and the secret one never leaves the server.
+    this.mapboxToken = process.env.MAPBOX_SERVER_TOKEN || process.env.MAPBOX_ACCESS_TOKEN || process.env.MAP_API_KEY || '';
   }
 
   setMapboxToken(token) {
@@ -71,39 +73,10 @@ class LocationService {
       return geocodeCache.get(cacheKey);
     }
 
-    // Try Nominatim first for detailed street-level Malawi landmarks
-    try {
-      const nomUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latNum}&lon=${lngNum}&zoom=18&addressdetails=1`;
-      const res = await fetch(nomUrl, {
-        headers: { 'User-Agent': 'GamanMobility/1.0 (support@gaman.mw)' },
-        signal: AbortSignal.timeout(2500)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.display_name) {
-          const addr = data.address || {};
-          const title = addr.building || addr.amenity || addr.road || addr.suburb || 'Lilongwe Landmark';
-          const subtitle = [addr.suburb || addr.quarter, addr.city || 'Lilongwe', 'Malawi'].filter(Boolean).join(', ');
-
-          const result = {
-            displayName: data.display_name,
-            title,
-            subtitle,
-            lat: latNum,
-            lng: lngNum,
-            provider: 'nominatim'
-          };
-          geocodeCache.set(cacheKey, result);
-          return result;
-        }
-      }
-    } catch (e) {
-      // Fall through to Mapbox
-    }
-
-    // Fallback to Mapbox Geocoding if token available
-    if (this.mapboxToken) {
+    // With a Mapbox key, Mapbox answers first (it is built for apps like this and has no 1-request-a-second rule).
+    // The free public Nominatim server is only the backup, and it is labelled with OUR name as its usage policy requires.
+    const tryMapbox = async () => {
+      if (!this.mapboxToken) return null;
       try {
         const mbUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lngNum},${latNum}.json?access_token=${this.mapboxToken}`;
         const res = await fetch(mbUrl, { signal: AbortSignal.timeout(2500) });
@@ -111,20 +84,33 @@ class LocationService {
           const data = await res.json();
           if (data && data.features && data.features.length) {
             const f = data.features[0];
-            const result = {
-              displayName: f.place_name,
-              title: f.text || f.place_name.split(',')[0],
-              subtitle: f.place_name,
-              lat: latNum,
-              lng: lngNum,
-              provider: 'mapbox'
-            };
-            geocodeCache.set(cacheKey, result);
-            return result;
+            return { displayName: f.place_name, title: f.text || f.place_name.split(',')[0], subtitle: f.place_name, lat: latNum, lng: lngNum, provider: 'mapbox' };
           }
         }
-      } catch (e) {}
-    }
+      } catch (e) { /* try the next one */ }
+      return null;
+    };
+    const tryNominatim = async () => {
+      try {
+        const nomUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latNum}&lon=${lngNum}&zoom=18&addressdetails=1`;
+        const res = await fetch(nomUrl, {
+          headers: { 'User-Agent': `Aarohan/1.0 (${process.env.CONTACT_EMAIL || 'aarohan.help@gmail.com'})` },
+          signal: AbortSignal.timeout(2500)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.display_name) {
+            const addr = data.address || {};
+            const title = addr.building || addr.amenity || addr.road || addr.suburb || 'Lilongwe Landmark';
+            const subtitle = [addr.suburb || addr.quarter, addr.city || 'Lilongwe', 'Malawi'].filter(Boolean).join(', ');
+            return { displayName: data.display_name, title, subtitle, lat: latNum, lng: lngNum, provider: 'nominatim' };
+          }
+        }
+      } catch (e) { /* fall through */ }
+      return null;
+    };
+    const found = this.mapboxToken ? ((await tryMapbox()) || (await tryNominatim())) : ((await tryNominatim()) || null);
+    if (found) { geocodeCache.set(cacheKey, found); return found; }
 
     // Return coordinate fallback if offline or service unreachable
     const fallback = {
@@ -538,6 +524,10 @@ class LocationService {
 }
 
 const instance = new LocationService();
+// Malawi only: the existing country boundary is reused. In production a location anywhere else is never accepted.
+const isInsideMalawi = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && isWithinMalawi(lat, lng);
+instance.isInsideMalawi = isInsideMalawi;
+instance.MALAWI_BBOX = MALAWI_BBOX;
 instance.isWithinLilongweServiceArea = isWithinLilongweServiceArea;
 instance.LILONGWE_SERVICE_BBOX = LILONGWE_SERVICE_BBOX;
 

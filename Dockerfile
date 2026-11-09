@@ -21,6 +21,8 @@ COPY . .
 
 # Generate Prisma Client & compile production CSS
 RUN npx prisma generate
+# Face-detection files for the driver face check, hosted on our own server (skipped if already committed; falls back to a public CDN if the download fails)
+RUN node scripts/fetch-face-models.js || echo "Face files not downloaded; the app will use the public CDN or guided mode."
 RUN npx tailwindcss -i shared/input.css -o shared/tailwind.built.css --minify || true
 
 # Stage 2: Production Runtime
@@ -57,6 +59,7 @@ COPY --from=builder /app/driver ./driver
 COPY --from=builder /app/admin ./admin
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/assets ./assets
+COPY --from=builder /app/vendor ./vendor
 COPY --from=builder /app/server.js ./server.js
 COPY --from=builder /app/landing.html ./landing.html
 # Needed at runtime: location data, legal pages, admin script, and the Prisma CLI for `migrate deploy`

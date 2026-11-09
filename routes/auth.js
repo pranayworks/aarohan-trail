@@ -287,6 +287,29 @@ const adminEmailLoginSchema = z.object({
 const sendAuthError = (res, err) =>
   res.status(err.statusCode || 400).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
 
+// Does this email already have an account? Strict rate limit (people could otherwise use it to list who is registered).
+const emailCheckLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many tries. Please wait a few minutes and try again.' }
+});
+router.post('/email/check', emailCheckLimiter, requireMode('email'), validateBody(emailRequestSchema), async (req, res) => {
+  try { return res.json({ success: true, ...(await emailAuth.emailStatus(req.body.email)) }); } catch (err) { return sendAuthError(res, err); }
+});
+
+// Forgot password (admin accounts only). Strict limits: this is a favourite target for attackers.
+const resetLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many password reset tries. Please wait 15 minutes.' } });
+const adminForgotSchema = z.object({ email: z.string().min(5).max(254) });
+const adminResetSchema = z.object({ email: z.string().min(5).max(254), otp: z.string().length(6, 'The code has 6 digits'), newPassword: z.string().min(10, 'The new password must be at least 10 characters').max(128) });
+router.post('/admin/forgot-password', resetLimiter, requireMode('email'), validateBody(adminForgotSchema), async (req, res) => {
+  try { return res.json(await emailAuth.requestAdminPasswordReset(req.body.email, req.ip)); } catch (err) { return sendAuthError(res, err); }
+});
+router.post('/admin/reset-password', resetLimiter, requireMode('email'), validateBody(adminResetSchema), async (req, res) => {
+  try { return res.json(await emailAuth.resetAdminPassword({ email: req.body.email, otp: req.body.otp, newPassword: req.body.newPassword, ip: req.ip })); } catch (err) { return sendAuthError(res, err); }
+});
+
 router.post('/email/otp/request', requireMode('email'), validateBody(emailRequestSchema), async (req, res) => {
   try {
     return res.json(await emailAuth.requestEmailOtp(req.body.email, req.ip));
@@ -306,6 +329,38 @@ router.post('/email/otp/verify', requireMode('email'), validateBody(emailVerifyS
       userAgent: req.headers['user-agent'] || null
     }));
   } catch (err) {
+    return sendAuthError(res, err);
+  }
+});
+
+// Used while signing up: does this referral code exist? Returns the first name only. Rate limited.
+router.get('/referral/:code', adminLoginLimiter, async (req, res) => {
+  const code = String(req.params.code || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{4,12}$/.test(code)) return res.json({ valid: false });
+  try {
+    const u = await prisma.user.findUnique({ where: { referralCode: code }, select: { name: true, status: true } });
+    if (!u || u.status !== 'ACTIVE') return res.json({ valid: false });
+    return res.json({ valid: true, from: String(u.name || '').split(' ')[0] || 'a friend' });
+  } catch (err) { return res.status(500).json({ error: 'Could not check the code right now.' }); }
+});
+
+const googleAuth = require('../services/googleAuth');
+const googleSchema = z.object({
+  credential: z.string().min(50).max(4096),
+  name: z.string().trim().max(60).optional(),
+  phone: z.string().trim().max(20).optional()
+});
+// Sign in / sign up with Google. Needs GOOGLE_CLIENT_ID; works alongside email codes.
+router.post('/google', adminLoginLimiter, validateBody(googleSchema), async (req, res) => {
+  try {
+    return res.json(await googleAuth.loginWithGoogle({
+      credential: req.body.credential, name: req.body.name, phone: req.body.phone,
+      ip: req.ip, userAgent: req.headers['user-agent'] || null
+    }));
+  } catch (err) {
+    if (err && err.suggestedName !== undefined) {
+      return res.status(err.statusCode || 409).json({ error: err.message, code: err.code, suggestedName: err.suggestedName });
+    }
     return sendAuthError(res, err);
   }
 });

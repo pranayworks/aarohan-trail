@@ -33,6 +33,14 @@ async function triggerSos({ userId, role, driverId = null, data, io = null }) {
   });
   if (!me) throw new Error('Account not found');
 
+  // All of the rider's emergency contacts (up to 3). Older accounts only have the single contact on the user.
+  let contacts = [];
+  try {
+    if (prisma.emergencyContact && prisma.emergencyContact.findMany) {
+      contacts = await prisma.emergencyContact.findMany({ where: { userId: me.id }, orderBy: { position: 'asc' }, select: { name: true, phone: true } });
+    }
+  } catch (_) { /* the single contact below still works */ }
+
   // One incident per person per minute: a repeated press returns the same incident.
   const recent = await prisma.sosEvent.findFirst({
     where: { userId: me.id, status: 'ACTIVE', createdAt: { gte: new Date(Date.now() - 60 * 1000) } },
@@ -116,6 +124,7 @@ async function triggerSos({ userId, role, driverId = null, data, io = null }) {
     riderPhone: me.phone,
     emergencyContactName: me.emergencyContactName || null,
     emergencyPhone: me.emergencyContactPhone || null,
+    emergencyContacts: contacts,
     time: nowLabel(),
     status: 'ACTIVE_DISPATCH_ALERT',
     note

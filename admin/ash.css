@@ -1,0 +1,58 @@
+/* Admin panel: white and ash theme (overrides the old dark/orange variables). */
+:root {
+  --bg-dark: #E9EBEE; --card-dark: #FFFFFF; --white: #1E2228; --primary: #2F343C; --border: rgba(40, 46, 56, 0.14);
+  --text-secondary: #5E6672;
+  --color-bg: #E9EBEE; --color-surface: #E9EBEE; --color-card: #FFFFFF; --color-card-elevated: #F3F4F6; --color-card-border: rgba(40, 46, 56, 0.14);
+  --color-text-on-dark: #1E2228; --color-text-on-dark-secondary: #5E6672; --color-text-on-dark-muted: #8B929D;
+  --color-primary: #2F343C; --color-primary-text: #FFFFFF; --color-primary-container: #4A515B; --color-on-primary: #FFFFFF;
+  --color-surface-container-lowest: #FFFFFF; --color-surface-container-low: #F6F7F9; --color-surface-container: #F1F3F5; --color-surface-container-high: #E6E9ED; --color-surface-container-highest: #D9DDE2;
+  --color-on-surface: #1E2228; --color-on-surface-variant: #5E6672; --color-outline: #9AA1AB; --color-outline-variant: #CBD0D6;
+  --color-error: #8A2B2B; --color-status-error: #8A2B2B; --color-status-success: #2F5D3A; --color-status-warning: #8A5A00;
+  color-scheme: light;
+}
+html, body { background: #E9EBEE !important; color: #1E2228 !important; font-family: 'Figtree', system-ui, sans-serif; }
+h1, h2, h3, h4 { font-family: 'Bricolage Grotesque', 'Figtree', sans-serif; }
+.bg-surface-container-lowest, [class*="bg-surface-container"], .dark-card { background-color: #FFFFFF; }
+.bg-surface-container, .bg-surface-container-high { background-color: #F1F3F5; }
+input, select, textarea { background: #FFFFFF; color: #1E2228; border-color: #CBD0D6; }
+.admin-nav-btn { color: #3F454E; }
+.admin-nav-btn:hover { background: #E6E9ED; }
+.admin-nav-btn.active, .admin-nav-btn[aria-selected="true"] { background: #2F343C !important; color: #FFFFFF !important; }
+::-webkit-scrollbar-thumb { background: #B7BDC5; }
+table { color: #1E2228; }
+#admin-signin-note { position: sticky; top: 0; z-index: 60; background: #2B2F36; color: #fff; padding: 10px 16px; font-size: 13px; font-weight: 600; text-align: center; }
+#admin-signin-note button { margin-left: 12px; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.5); background: transparent; color: #fff; font-weight: 700; cursor: pointer; }
+
+/* admin sign-in box (rendered by the shared sign-in helper) */
+#aarohan-auth-modal { background: rgba(233, 235, 238, 0.97) !important; }
+#aarohan-auth-modal > div { background: #FFFFFF !important; border-color: rgba(40, 46, 56, 0.14) !important; color: #1E2228 !important; box-shadow: 0 30px 80px rgba(30, 34, 40, 0.16) !important; }
+#aarohan-auth-modal [class*="text-white"], #aarohan-auth-modal h1, #aarohan-auth-modal h2, #aarohan-auth-modal label { color: #1E2228 !important; }
+#aarohan-auth-modal [class*="text-[#FF6A00]"], #aarohan-auth-modal [class*="text-[#FFA247]"], #aarohan-auth-modal [class*="text-primary"] { color: #4A515B !important; }
+#aarohan-auth-modal [class*="bg-[#FF6A00]"] { background: #2F343C !important; color: #FFFFFF !important; box-shadow: 0 10px 24px rgba(30, 34, 40, 0.22) !important; }
+#aarohan-auth-modal [class*="bg-[#FF6A00]"] * { color: #FFFFFF !important; }
+#aarohan-auth-modal input { background: #F3F4F6 !important; color: #1E2228 !important; border: 1px solid #CBD0D6 !important; }
+#aarohan-auth-modal [class*="text-[#A3A3A3]"], #aarohan-auth-modal [class*="text-[#737373]"], #aarohan-auth-modal [class*="text-gray"] { color: #5E6672 !important; }
+
+/* the logo files have white lettering: turn the orange to ash and the white to dark on light backgrounds */
+img[src*="/assets/brand/logo"] { filter: grayscale(1) invert(1) contrast(1.15); }
+
+/* header bar and leftover orange accents */
+header, body > header, [class*="bg-[#0B0B0B]"], [class*="bg-[#0b0b0b]"] { background: #FFFFFF !important; color: #1E2228 !important; border-color: #CBD0D6 !important; }
+header *, [class*="bg-[#0B0B0B]"] * { color: inherit; }
+header [class*="text-white"], header [class*="text-gray"], header [class*="text-[#"] { color: #3F454E !important; }
+[class*="bg-[#FF6A00]"], [class*="bg-orange"] { background: #2F343C !important; color: #FFFFFF !important; border-color: #2F343C !important; }
+[class*="text-[#FF6A00]"], [class*="text-[#FFA247]"], [class*="text-orange"] { color: #4A515B !important; }
+[class*="border-[#FF6A00]"] { border-color: #6B727D !important; }
+header button { background: #F3F4F6 !important; color: #1E2228 !important; border: 1px solid #CBD0D6 !important; }
+header button * { color: #1E2228 !important; }
+header [class*="bg-[#FF6A00]"], header [class*="bg-[#FF6A00]"] * { color: #FFFFFF !important; background-color: transparent; }
+header [class*="bg-[#FF6A00]"] { background: #2F343C !important; }
+a[href*="/driver"] [class*="text-"], [class*="text-[#FFA"], [class*="text-orange-"], [class*="text-amber-4"], [class*="text-amber-5"] { color: #4A515B !important; }
+
+/* Text on dark buttons and badges must be white. The old orange theme (shared/theme.css) forced near-black text on every
+   button with "bg-primary" in its class; this overrides it for the dark ash buttons only (not the light tinted ones). */
+button[class*="bg-primary"]:not([class*="bg-primary-fixed"]):not([class*="bg-primary-container"]),
+button[class*="bg-primary"]:not([class*="bg-primary-fixed"]):not([class*="bg-primary-container"]) *,
+a[class*="bg-primary"]:not([class*="bg-primary-fixed"]):not([class*="bg-primary-container"]),
+.text-on-primary, .text-on-primary * { color: #FFFFFF !important; }
+.text-on-error { color: #FFFFFF !important; }

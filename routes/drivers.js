@@ -90,8 +90,8 @@ router.post('/drivers/location', requireDriverApproval, validateBody(restDriverL
     : (req.user.driverId || req.driver?.id);
   const { lat, lng, heading, accuracy, speed } = req.body;
 
-  const MAX_COMMISSION_DEBT_MWK = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
-  if (req.driver && req.driver.commissionDebtMWK > MAX_COMMISSION_DEBT_MWK) {
+  const MAX_COMMISSION_DEBT_MWK = require('../services/commissionLimit').limitMWK();
+  if (req.driver && req.driver.commissionDebtMWK >= MAX_COMMISSION_DEBT_MWK) {
     return res.status(403).json({
       error: `Forbidden: Commission debt (MK ${req.driver.commissionDebtMWK.toLocaleString()}) exceeds limit of MK ${MAX_COMMISSION_DEBT_MWK.toLocaleString()}. Pay commission to go online.`,
       code: 'COMMISSION_DEBT_EXCEEDED'
@@ -152,8 +152,8 @@ router.get('/driver/commission-summary', async (req, res) => {
     });
 
     const todayEarningsMWK = todayTrips.reduce((sum, t) => sum + (t.driverShareMWK || 0) + (t.driverTipMWK || 0), 0);
-    const maxDebtLimitMWK = parseInt(process.env.MAX_COMMISSION_DEBT_MWK, 10) || 15000;
-    const canGoOnline = driver.approvalStatus === 'APPROVED' && driver.commissionDebtMWK <= maxDebtLimitMWK;
+    const maxDebtLimitMWK = require('../services/commissionLimit').limitMWK();
+    const canGoOnline = driver.approvalStatus === 'APPROVED' && driver.commissionDebtMWK < maxDebtLimitMWK;
 
     res.json({
       success: true,
@@ -164,7 +164,7 @@ router.get('/driver/commission-summary', async (req, res) => {
       todayTripsCount: todayTrips.length,
       maxDebtLimitMWK,
       canGoOnline,
-      debtLimitExceeded: driver.commissionDebtMWK > maxDebtLimitMWK
+      debtLimitExceeded: driver.commissionDebtMWK >= maxDebtLimitMWK
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -279,7 +279,11 @@ router.post('/driver/documents', handleUpload, async (req, res) => {
     }
 
     const { documentType } = req.body;
-    const validTypes = ['DRIVING_LICENSE', 'NATIONAL_ID', 'VEHICLE_REGISTRATION', 'CERTIFICATE_OF_FITNESS', 'INSURANCE_CERTIFICATE', 'DRIVER_PHOTO'];
+    if (documentType === 'DRIVER_PHOTO') {
+      // The face photo must come from the live face check (random head turns), never from an upload.
+      return res.status(400).json({ error: 'The face photo must be taken with the live face check in the app.' });
+    }
+    const validTypes = ['DRIVING_LICENSE', 'NATIONAL_ID', 'VEHICLE_REGISTRATION', 'CERTIFICATE_OF_FITNESS', 'INSURANCE_CERTIFICATE', 'NUMBER_PLATE_PHOTO', 'VEHICLE_PHOTO', 'DRIVER_PHOTO'];
     if (!documentType || !validTypes.includes(documentType)) {
       return res.status(400).json({ error: `Invalid document type "${documentType}". Must be one of [${validTypes.join(', ')}]` });
     }
@@ -288,9 +292,19 @@ router.post('/driver/documents', handleUpload, async (req, res) => {
       where: { userId: req.user.id }
     });
 
-    if (!driver) {
-      return res.status(400).json({ error: 'Driver profile does not exist. Please register vehicle and profile first.' });
+    const rules = require('../services/documentRules');
+    if (!req.file || !rules.isJpeg(req.file.buffer)) {
+      return res.status(400).json({ error: 'Photos must be taken with the camera (JPEG). PDFs, screenshots and edited files are not accepted.' });
     }
+    const fileHash = rules.fingerprint(req.file.buffer);
+    // Two quick checks run at the same time (every round trip to the database costs time on a slow link).
+    const [kycRow, repeated] = await Promise.all([
+      driver ? prisma.driverKyc.findUnique({ where: { driverId: driver.id } }).catch(() => null) : null,
+      driver ? prisma.driverDocument.findFirst({ where: { fileHash, NOT: { AND: [{ driverId: driver.id }, { type: documentType }] } }, select: { id: true } }) : null
+    ]);
+    const gate = rules.canUpload(driver, kycRow); // no changes after approval or while under review
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
+    if (repeated) return res.status(409).json({ error: 'This exact photo was already used for another document. Please take a new photo with your camera.' });
 
     const uploadResult = await supabaseStorage.uploadDriverDocument({
       driverId: driver.id,
@@ -319,6 +333,7 @@ router.post('/driver/documents', handleUpload, async (req, res) => {
           where: { id: existing.id },
           data: {
             storagePath: uploadResult.storagePath,
+            fileHash,
             status: 'PENDING',
             rejectionReason: null,
             reviewedAt: null,
@@ -331,13 +346,15 @@ router.post('/driver/documents', handleUpload, async (req, res) => {
             driverId: driver.id,
             type: documentType,
             storagePath: uploadResult.storagePath,
+            fileHash,
             status: 'PENDING'
           }
         });
       }
     }
 
-    const signedUrl = await supabaseStorage.getSignedUrl(uploadResult.storagePath, 900);
+    // No signed link is made here: the driver app never needs it, and creating one costs another round trip.
+    const signedUrl = null;
 
     return res.json({
       success: true,

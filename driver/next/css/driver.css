@@ -1,0 +1,33 @@
+/* Aarohan Captain: extra pieces on top of the shared white and ash design system. */
+.go-btn { width: 100%; min-height: 64px; border-radius: 22px; font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; justify-content: center; gap: 12px; transition: transform var(--t-fast) var(--ease), background var(--t-med); }
+.go-btn:active { transform: scale(0.98); }
+.go-btn.off { background: linear-gradient(180deg, var(--gold-300), var(--gold-400)); color: #fff; box-shadow: 0 14px 30px rgba(30, 34, 40, 0.25); }
+.go-btn.on { background: var(--surface); border: 1.5px solid var(--gold-400); color: var(--text); }
+.state-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--silver-600); flex: none; }
+.state-dot.on { background: var(--gold-400); animation: nearping 1.8s ease-out infinite; }
+.progress { height: 10px; border-radius: 10px; background: var(--surface-3); overflow: hidden; }
+.progress i { display: block; height: 100%; border-radius: 10px; background: linear-gradient(90deg, var(--steel-500), var(--gold-400)); transition: width 900ms var(--ease); }
+.offer { position: absolute; left: 12px; right: 12px; bottom: calc(96px + var(--safe-bottom)); z-index: 480; background: var(--sheet-bg); -webkit-backdrop-filter: blur(26px) saturate(1.3); backdrop-filter: blur(26px) saturate(1.3); border: 1px solid var(--line-strong); border-radius: 26px; padding: 18px; box-shadow: 0 20px 60px rgba(30, 34, 40, 0.28); animation: slideUp var(--t-slow) var(--ease) both; }
+.offer .fare { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1; }
+.timer-ring { width: 54px; height: 54px; flex: none; position: relative; }
+.timer-ring svg { transform: rotate(-90deg); }
+.timer-ring b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 18px; }
+.step { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 16px; min-height: 72px; }
+.step + .step { border-top: 1px solid var(--line); }
+.step .n { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 700; flex: none; }
+.step.done .n { background: var(--gold-400); border-color: var(--gold-400); color: #fff; }
+.doc { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); margin-bottom: 10px; }
+.doc .thumb { width: 52px; height: 52px; border-radius: 12px; background: var(--surface-3); display: flex; align-items: center; justify-content: center; color: var(--silver-500); overflow: hidden; flex: none; }
+.doc .thumb img { width: 100%; height: 100%; object-fit: cover; }
+.pin-input { display: flex; gap: 10px; justify-content: center; }
+.pin-input input { width: 58px; height: 68px; text-align: center; font-family: var(--font-display); font-size: 30px; font-weight: 700; border-radius: 16px; border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--text); outline: none; }
+.pin-input input:focus { border-color: var(--gold-400); box-shadow: 0 0 0 4px rgba(var(--tint-rgb), 0.12); }
+.money-hero { text-align: center; padding: 26px 16px; }
+.money-hero .big { font-family: var(--font-display); font-size: 46px; font-weight: 700; line-height: 1; }
+.bars { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-top: 8px; }
+.bars div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+.bars i { width: 100%; border-radius: 8px 8px 4px 4px; background: linear-gradient(180deg, var(--steel-400), var(--gold-400)); min-height: 4px; transition: height 800ms var(--ease); }
+.bars span { font-size: 11px; color: var(--text-dim); }
+.waiting-art { width: 120px; height: 120px; margin: 0 auto 20px; border-radius: 36px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--gold-300); animation: floaty 4s ease-in-out infinite; box-shadow: var(--card-shadow); }
+.step .r-title, .doc .r-title { font-weight: 600; font-size: 16px; }
+.step .r-sub, .doc .r-sub { font-size: 13px; color: var(--text-dim); margin-top: 1px; }

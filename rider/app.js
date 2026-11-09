@@ -60,9 +60,7 @@
   let currentTip = 0;
 
   // In-App Chat & Call
-  let chatMessages = [
-    { sender: 'driver', text: 'Moni! I am on my way to your pickup location.', time: 'Just now' }
-  ];
+  // (chat messages are kept by the store; see shared/chat-ui.js)
   let callTimerInterval = null;
   let callSeconds = 0;
   let isCallMuted = false;
@@ -350,7 +348,7 @@
 
     if (!navigator.geolocation) {
       updateGpsBadge(false, 'GPS Unavailable');
-      showGpsWarningNotice('Geolocation is not supported by your browser. You can drag the green pin on the map to set pickup.');
+      showGpsWarningNotice('Location isn\'t available. Drag the pin to set your pickup.');
       return;
     }
 
@@ -409,11 +407,11 @@
       },
       (err) => {
         console.warn('[AArohanGeo] Geolocation error:', err.code, err.message);
-        let notice = 'GPS permission denied. Please drag the green pin to your exact pickup spot.';
-        if (err.code === 2) notice = 'GPS position unavailable. Drag green pin on map to set pickup.';
-        if (err.code === 3) notice = 'GPS timeout. Drag green pin on map to set pickup.';
+        let notice = 'Location is off. Drag the pin to set your pickup.';
+        if (err.code === 2) notice = 'Can\'t find you. Drag the pin to set your pickup.';
+        if (err.code === 3) notice = 'Location is slow. Drag the pin to set your pickup.';
 
-        updateGpsBadge(false, 'GPS Off • Drag Pin');
+        updateGpsBadge(false, 'GPS off');
         showGpsWarningNotice(notice);
         updatePickupDisplayDOM();
       },
@@ -471,6 +469,8 @@
       notice.className = 'fixed top-17 inset-x-3 z-[1050] max-w-md mx-auto bg-amber-500 text-white px-3.5 py-2 rounded-2xl text-xs font-bold shadow-xl flex items-center justify-between gap-2 border border-amber-600';
       document.body.appendChild(notice);
     }
+    clearTimeout(notice._autoHide);
+    notice._autoHide = setTimeout(() => { if (notice.parentNode) notice.remove(); }, 9000);
     notice.innerHTML = `
       <div class="flex items-center gap-2 min-w-0">
         <span class="material-symbols-outlined text-[18px] shrink-0">location_off</span>
@@ -1130,8 +1130,8 @@
       iconEl.innerText = activeTierId === 'moto' ? 'two_wheeler' : (activeTierId === 'auto' ? 'electric_rickshaw' : 'local_taxi');
     }
 
-    document.getElementById('dispatch-status-title').innerText = `Broadcasting to Lilongwe ${activeTierName} Captains...`;
-    document.getElementById('dispatch-status-sub').innerText = `Scanning verified captains along Kaunda Rd, Area 47 & corridor to ${currentDestination.name}.`;
+    document.getElementById('dispatch-status-title').innerText = `Finding your ${activeTierName} captain...`;
+    document.getElementById('dispatch-status-sub').innerText = `Contacting the nearest verified captain for your trip to ${currentDestination.name}.`;
     document.getElementById('dispatch-summary').innerText = `${activeTierName} • MK ${finalFare.toLocaleString()}`;
     document.getElementById('dispatch-destination-sub').innerText = currentDestination.name;
 
@@ -1210,9 +1210,9 @@
           progressEl.style.width = `${pct}%`;
         }
         if (secondsLeft === 30) {
-          if (subEl) subEl.innerText = 'Broadcasting to expanding corridor (Area 47, 49 & City Centre)...';
+          if (subEl) subEl.innerText = 'Still looking. Trying captains a little further away...';
         } else if (secondsLeft === 15) {
-          if (subEl) subEl.innerText = 'Priority dispatch active across Lilongwe captains...';
+          if (subEl) subEl.innerText = 'Almost there. Checking the next nearest captain...';
         }
       } else {
         secondsLeft = 45;
@@ -1682,56 +1682,8 @@
   // =========================================================================
   // 10. IN-APP CHAT & CALL SCREEN
   // =========================================================================
-  function initChatDrawer() {
-    const chatModal = document.getElementById('chat-modal');
-    const chatList = document.getElementById('chat-messages-container');
-    const chatInput = document.getElementById('chat-custom-input');
-
-    window.openChatDrawer = function () {
-      chatModal.classList.remove('hidden');
-      renderChatMessages();
-      if (window.aarohanSound) window.aarohanSound.playClick();
-    };
-
-    window.closeChatDrawer = function () {
-      chatModal.classList.add('hidden');
-    };
-
-    window.sendCannedChat = function (text) {
-      const msgObj = {
-        sender: 'rider',
-        text: text,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      chatMessages.push(msgObj);
-      renderChatMessages();
-
-      if (window.mwendoStore) {
-        window.mwendoStore.sendChatMessage('rider', text);
-      }
-    };
-
-    window.sendCustomChat = function () {
-      const text = chatInput.value.trim();
-      if (!text) return;
-      chatInput.value = '';
-      sendCannedChat(text);
-    };
-
-    function renderChatMessages() {
-      if (!chatList) return;
-      chatList.innerHTML = chatMessages.map(msg => `
-        <div class="flex flex-col ${msg.sender === 'rider' ? 'items-end' : 'items-start'}">
-          <div class="max-w-[80%] px-3.5 py-2 rounded-2xl text-xs ${msg.sender === 'rider' ? 'bg-slate-900 text-white rounded-br-xs' : 'bg-slate-100 text-slate-800 rounded-bl-xs'
-        }">
-            ${msg.text}
-          </div>
-          <span class="text-[9px] text-slate-400 mt-0.5 px-1">${msg.time}</span>
-        </div>
-      `).join('');
-      chatList.scrollTop = chatList.scrollHeight;
-    }
-  }
+  // Trip chat now lives in shared/chat-ui.js (real messages, delivery status, no HTML injection).
+  function initChatDrawer() { /* nothing to set up here */ }
 
   window.openCallScreen = function () {
     const callModal = document.getElementById('call-modal');
@@ -2138,34 +2090,7 @@
   // =========================================================================
   // 16. EMERGENCY SOS ENHANCED ESCALATION (PHASE 2.B & 2.E)
   // =========================================================================
-  window.confirmSosAlert = function () {
-    const state = window.mwendoStore ? window.mwendoStore.getState() : null;
-    const trip = state?.activeTrip;
-    const coordsStr = `${currentPickup.lat.toFixed(5)}, ${currentPickup.lng.toFixed(5)}`;
-    const locationName = currentPickup.name || 'Kaunda Road corridor, Area 47, Lilongwe';
-
-    const sosPayload = {
-      source: 'RIDER',
-      tripId: trip?.id || 'NO_ACTIVE_TRIP',
-      location: `${locationName} [GPS: ${coordsStr}]`,
-      lat: currentPickup.lat,
-      lng: currentPickup.lng,
-      timestamp: Date.now(),
-      riderPhone: state?.rider?.phone || '+265 99 123 4567',
-      driverPhone: state?.driver?.phone || '+265 99 554 1122',
-      note: 'Rider triggered emergency assistance on Lilongwe transit corridor'
-    };
-
-    if (window.mwendoStore && window.mwendoStore.socket) {
-      window.mwendoStore.socket.emit('sos:trigger', sosPayload);
-    }
-
-    const modal = document.getElementById('sos-modal');
-    if (modal) modal.classList.add('hidden');
-
-    showToast('🚨 SOS Dispatched! Police (997) & AArohan Response Desk notified.');
-    if (window.aarohanSound) window.aarohanSound.playEmergencyAlarm();
-  };
+  // SOS is handled by confirmSosAlert() in index.html: server-confirmed, with honest wording.
 
   // =========================================================================
   // 17. DEVELOPER & VERIFICATION TESTING ACTIONS WITH LIVE SIMULATION
@@ -2216,7 +2141,7 @@
   window.answerFakeCall = function () {
     const modal = document.getElementById('fake-call-modal');
     if (modal) modal.classList.add('hidden');
-    showToast('Safety Call Connected (Encrypted Audio)');
+    showToast('Call answered');
   };
 
   // =========================================================================
@@ -2713,7 +2638,7 @@
         badge.innerText = nextLang === 'en' ? 'NY' : 'EN';
       }
       if (window.showToast) {
-        window.showToast(nextLang === 'ny' ? '🇲🇼 Chiyankhulo: Chichewa' : '🇬🇧 Language: English');
+        window.showToast(nextLang === 'ny' ? 'Chiyankhulo: Chichewa' : 'Language: English');
       }
       if (window.aarohanSound) window.aarohanSound.playClick();
     }
@@ -3121,6 +3046,7 @@
       }
       // Cash-only pilot: real payments are off, so offer Cash as the ONLY method.
       if (cfg && cfg.paymentsEnabled === false) {
+        document.documentElement.classList.add('payments-off');
         const cash = PAYMENT_METHODS.find(m => m.badge === 'MK');
         if (cash) {
           PAYMENT_METHODS.splice(0, PAYMENT_METHODS.length, cash);

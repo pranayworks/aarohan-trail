@@ -53,11 +53,12 @@ const fakePrisma = {
   user: {
     findFirst: async ({ where }) => { const u = db.users.find((x) => x.email === where.email); return u ? { ...u, driverProfile: null, wallet: null } : null; },
     findUnique: async ({ where }) => { const u = db.users.find((x) => x.phone === where.phone); return u ? { ...u } : null; },
-    create: async ({ data }) => { const u = { id: 'U-NEW-' + (++seq), passwordHash: null, ...data }; db.users.push(u); return { ...u, driverProfile: null, wallet: null }; }
+    create: async ({ data }) => { const u = { id: 'U-NEW-' + (++seq), passwordHash: null, ...data }; db.users.push(u); return { ...u, driverProfile: null, wallet: null }; },
+    update: async ({ where, data }) => { const u = db.users.find((x) => x.id === where.id); Object.assign(u, data); return { ...u }; }
   },
   wallet: { create: async ({ data }) => { db.wallets.push(data); return data; } },
   auditLog: { create: async ({ data }) => { db.audit.push(data); return data; } },
-  refreshToken: { create: async ({ data }) => { db.refresh.push(data); return data; } }
+  refreshToken: { create: async ({ data }) => { db.refresh.push(data); return data; }, updateMany: async ({ where, data }) => { let n = 0; db.refresh.forEach((r) => { if (r.userId === where.userId && !r.revokedAt) { Object.assign(r, data); n++; } }); return { count: n }; } }
 };
 const prismaPath = require.resolve('../lib/prisma');
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: fakePrisma };
@@ -78,6 +79,9 @@ emailService.sendOtpEmail = async ({ to, code }) => {
   return { provider: 'test' };
 };
 const lastCode = () => sent[sent.length - 1].code;
+let plain = [];
+const realSendEmail = emailService.sendEmail;
+const resetCode = () => (plain.filter((m) => m.purpose === 'PASSWORD_RESET').slice(-1)[0].text.match(/code is (\d{6})/) || [])[1];
 
 // Time travel for the 60-second cooldown
 const realNow = Date.now;
@@ -273,6 +277,63 @@ const errOf = async (p) => { try { await p; return null; } catch (e) { return e;
     read('tests/test_playwright_email_login.js').includes('#auth-consent') && JSON.parse(read('package.json')).scripts['test:playwright:email'] === 'node tests/test_playwright_email_login.js');
   report('The email suite runs as part of npm test and npm run test:offline',
     JSON.parse(read('package.json')).scripts.test.includes('test_email_login_offline.js') && JSON.parse(read('package.json')).scripts['test:offline'].includes('test_email_login_offline.js'));
+
+  console.log('\n--- Is this email already registered? ---');
+  db.users.push({ id: 'U-SUSP', email: 'banned@example.com', phone: '+265992222222', name: 'Banned', role: 'RIDER', status: 'SUSPENDED', passwordHash: null });
+  const known = await emailAuth.emailStatus('rita@example.com'), unknown = await emailAuth.emailStatus('nobody.here@example.com');
+  report('A registered email is recognised, a new one is not', known.exists === true && known.status === 'ACTIVE' && unknown.exists === false && unknown.status === null);
+  report('Capital letters and spaces do not matter', (await emailAuth.emailStatus('  RITA@Example.COM ')).exists === true);
+  report('A suspended account is reported as suspended, so the app can say so', (await emailAuth.emailStatus('banned@example.com')).status === 'SUSPENDED');
+  let ce = null; try { await emailAuth.emailStatus('not-an-email'); } catch (x) { ce = x; }
+  report('A badly typed email is refused', ce && ce.statusCode === 400);
+  report('Nothing else about the person is revealed (no name, phone, role or id)', Object.keys(known).sort().join() === 'exists,status' && !JSON.stringify(known).includes('Rita') && !JSON.stringify(known).includes('+265'));
+  const authRoute = read('routes/auth.js'), onb = read('rider/next/js/onboard.js');
+  report('The check is rate limited (20 tries per 15 minutes per address) and only exists in email mode', /emailCheckLimiter = rateLimit\(\{[^}]*max: 20/.test(authRoute) && /router\.post\('\/email\/check', emailCheckLimiter, requireMode\('email'\)/.test(authRoute));
+  report('The screen sends a returning person to sign in (code sent for them) and verifies a new email before creating the account', /I think you have already registered with this email/.test(onb) && /Taking you to sign in/.test(onb) && /Welcome back/.test(onb) && /Not you\? Use a different email/.test(onb) && /This is a new email, so after you verify it we will create your account/.test(onb));
+  report('A returning person is not asked to agree to the Terms again, a new one is', /S\.returning = true; S\.consent = true/.test(onb) && /Please tick the box to agree to the Terms and Privacy Policy, then tap Send code/.test(onb));
+  report('If the check cannot run (no signal, older server) sign-in still works through the code step', /catch \(ce\) \{ known = null;/.test(onb));
+
+  console.log('\n--- Forgot password (admin accounts) ---');
+  emailService.sendEmail = async (a) => { plain.push(a); return { provider: 'test' }; }; // captured only for this section
+  emailAuth.resetEmailRateLimitsForTesting(); sent = []; plain = []; const now0 = Date.now(); let tOff = 0; Date.now = () => now0 + tOff;
+  const wait = () => { tOff += 61000; };
+  const gen = await emailAuth.requestAdminPasswordReset('boss@aarohan.test', '1.1.1.1');
+  const code = resetCode();
+  report('An admin is sent a 6-digit reset code by email, valid 10 minutes', /^\d{6}$/.test(code) && plain.some((m) => m.to === 'boss@aarohan.test' && m.subject === 'Reset your Aarohan admin password') && gen.expiresInSeconds === 600);
+  wait(); plain = [];
+  const g2 = await emailAuth.requestAdminPasswordReset('rita@example.com', '1.1.1.2'); wait();
+  const g3 = await emailAuth.requestAdminPasswordReset('nobody@example.com', '1.1.1.3'); wait();
+  report('A rider, a driver or an unknown email gets the SAME answer and no email (nobody can find out who is an admin)', JSON.stringify(g2) === JSON.stringify(gen) && JSON.stringify(g3) === JSON.stringify(gen) && plain.length === 0);
+  report('The reset code is kept apart from login codes, and is not stored in plain text', db.otps.has('reset:boss@aarohan.test') && !JSON.stringify([...db.otps.values()]).includes(code));
+  let re = null; try { await emailAuth.resetAdminPassword({ email: 'boss@aarohan.test', otp: '000000', newPassword: 'Brand-New-Pass-77' }); } catch (x) { re = x; }
+  report('A wrong code is refused and counted', re && re.statusCode === 401 && /attempt/.test(re.message));
+  re = null; try { await emailAuth.resetAdminPassword({ email: 'nobody@example.com', otp: '123456', newPassword: 'Brand-New-Pass-77' }); } catch (x) { re = x; }
+  const re2 = await emailAuth.resetAdminPassword({ email: 'rita@example.com', otp: '123456', newPassword: 'Brand-New-Pass-77' }).catch((x) => x);
+  report('An unknown email and a non-admin get the same error as a wrong code (no hint)', re && re.statusCode === 401 && /not valid/.test(re.message) && re2.statusCode === 401 && /not valid/.test(re2.message));
+  const weak = ['short1', 'onlyletterspassword', '1234567890', 'boss-pass-9999', 'passwordpassword'];
+  const weakErr = []; for (const w of weak) { try { await emailAuth.resetAdminPassword({ email: 'boss@aarohan.test', otp: code, newPassword: w }); weakErr.push(null); } catch (x) { weakErr.push(x); } }
+  report('Weak passwords are refused: too short, no number, only digits, contains the email name, repeated pattern', weakErr.every((x) => x && x.statusCode === 400));
+  report('A refused weak password does not use up the code', db.otps.get('reset:boss@aarohan.test').isConsumed === false);
+  db.refresh.push({ userId: 'U-ADMIN', tokenHash: 'a' }, { userId: 'U-ADMIN', tokenHash: 'b' }, { userId: 'U-EXIST', tokenHash: 'c' });
+  const ok2 = await emailAuth.resetAdminPassword({ email: 'boss@aarohan.test', otp: code, newPassword: 'Brand-New-Pass-77' }, '1.1.1.1').catch((x) => x);
+  report('The right code with a strong password changes the password', ok2.success === true && /changed/.test(ok2.message) && bcrypt.compareSync('Brand-New-Pass-77', db.users.find((u) => u.id === 'U-ADMIN').passwordHash) && !bcrypt.compareSync('S3cure-Admin-Pass', db.users.find((u) => u.id === 'U-ADMIN').passwordHash));
+  report('The admin is signed out everywhere (all their sessions are cancelled), nobody else is', db.refresh.filter((r) => r.userId === 'U-ADMIN').every((r) => r.revokedAt) && !db.refresh.find((r) => r.userId === 'U-EXIST').revokedAt);
+  re = null; try { await emailAuth.resetAdminPassword({ email: 'boss@aarohan.test', otp: code, newPassword: 'Another-Pass-1234' }); } catch (x) { re = x; }
+  report('The code works only once', re && /already been used|not valid/.test(re.message));
+  report('The admin is told by email that the password changed, and it is written to the audit trail without the password', plain.some((m) => m.purpose === 'PASSWORD_CHANGED' && m.to === 'boss@aarohan.test') && db.audit.some((a) => a.details && a.details.event === 'ADMIN_PASSWORD_RESET') && !JSON.stringify(db.audit).includes('Brand-New-Pass-77'));
+  wait(); sent = [];
+  await emailAuth.requestAdminPasswordReset('boss@aarohan.test', '1.1.1.1'); const codeB = resetCode();
+  for (let i = 0; i < 5; i++) { try { await emailAuth.resetAdminPassword({ email: 'boss@aarohan.test', otp: '999999', newPassword: 'Brand-New-Pass-88' }); } catch (_) {} }
+  re = null; try { await emailAuth.resetAdminPassword({ email: 'boss@aarohan.test', otp: codeB, newPassword: 'Brand-New-Pass-88' }); } catch (x) { re = x; }
+  report('After 5 wrong guesses the code is locked, even the right one is refused', re && re.statusCode === 429);
+  wait(); const nowSent = plain.length; await emailAuth.requestAdminPasswordReset('boss@aarohan.test', '1.1.1.1'); const codeC = resetCode();
+  const ok3 = await emailAuth.resetAdminPassword({ email: 'boss@aarohan.test', otp: codeC, newPassword: 'Third-Fresh-Pass-9' }).catch((x) => x);
+  report('A fresh code works again after a lock', ok3.success === true && plain.length > nowSent);
+  emailService.sendEmail = realSendEmail; Date.now = realNow;
+  const aRoute = read('routes/auth.js'), aClient = read('shared/auth.js');
+  report('Both reset routes are rate limited and only exist in email mode', /resetLimiter = rateLimit\(\{ windowMs: 15 \* 60 \* 1000, max: 10/.test(aRoute) && /'\/admin\/forgot-password', resetLimiter, requireMode\('email'\)/.test(aRoute) && /'\/admin\/reset-password', resetLimiter, requireMode\('email'\)/.test(aRoute));
+  report('The admin sign-in has a "Forgot password?" link and a window with the code, the new password rules and a resend timer', /auth-forgot-btn/.test(aClient) && /openAdminForgotPassword/.test(aClient) && /Send a new code in/.test(aClient) && /Does not contain your email name/.test(aClient) && /Password changed/.test(aClient));
+  report('Riders and drivers are not offered it (they have no password, they use an emailed code)', !/forgot/i.test(read('rider/next/js/onboard.js')));
 
   Date.now = realNow;
   console.log('\n=============================================================');

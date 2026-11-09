@@ -11,6 +11,11 @@
   <!-- Self-hosted Design System: Poppins & Inter (Latin subset) via /shared/theme.css -->
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="/shared/theme.css"/>
+  <link rel="stylesheet" href="/shared/chat.css?v=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared/human.css?v=1" />
   <link rel="stylesheet" href="/shared/tailwind.built.css" />
   <style>
     body {
@@ -31,9 +36,11 @@
   <script src="/socket.io/socket.io.js"></script>
   <script src="../shared/sentry.js"></script>
   <script src="../shared/sound.js"></script>
+  <script src="../shared/brand-text.js?v=1"></script>
   <script src="../shared/auth.js"></script>
   <script src="../shared/state.js"></script>
   <script src="../shared/i18n.js"></script>
+  <script src="../shared/chat-ui.js?v=1"></script>
   <script src="./capacitor-bridge.js"></script>
 
   <!-- Sticky Top Header -->
@@ -313,8 +320,8 @@
             <a id="nav-passenger-phone-link" href="tel:+265991234567" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high">
               <span class="material-symbols-outlined text-[18px]">phone</span>
             </a>
-            <button onclick="alert('Passenger message drawer opened.')" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high">
-              <span class="material-symbols-outlined text-[18px]">chat</span>
+            <button onclick="openChatDrawer()" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-primary shadow-sm hover:bg-surface-container-high relative" aria-label="Chat with passenger">
+              <span class="material-symbols-outlined text-[18px]">chat</span><span id="chat-unread-dot" class="chat-dot hidden"></span>
             </button>
           </div>
         </div>
@@ -1552,5 +1559,33 @@
       }
     });
   </script>
+  <!-- ============================================== -->
+  <!-- MODAL: TRIP CHAT (logic: shared/chat-ui.js)    -->
+  <!-- ============================================== -->
+  <div id="chat-modal" class="chat-overlay hidden" onclick="if (event.target === this) closeChatDrawer()">
+    <div class="chat-sheet" role="dialog" aria-label="Trip chat">
+      <div class="chat-head">
+        <div class="chat-who">
+          <div class="chat-avatar" id="chat-avatar">C</div>
+          <div style="min-width:0">
+            <div class="chat-title" id="chat-title">Your captain</div>
+            <div class="chat-sub">Chat for this trip</div>
+          </div>
+        </div>
+        <button type="button" class="chat-close" onclick="closeChatDrawer()" aria-label="Close chat">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div id="chat-messages-container" class="chat-list" aria-live="polite"></div>
+      <div id="chat-quick" class="chat-quick"></div>
+      <form class="chat-composer" onsubmit="event.preventDefault(); sendCustomChat();">
+        <input id="chat-custom-input" type="text" maxlength="500" placeholder="Write a message" autocomplete="off" enterkeyhint="send" aria-label="Message" />
+        <button type="submit" class="chat-send" aria-label="Send message">
+          <span class="material-symbols-outlined">send</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
 </body>
 </html>

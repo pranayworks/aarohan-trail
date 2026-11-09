@@ -1,0 +1,94 @@
+/* =============================================================================
+   Aarohan rider: design tokens.
+   White and ash, with translucent glass surfaces.
+   ============================================================================= */
+:root {
+  color-scheme: light;
+
+  /* ash (soft greys, light to dark). The old "midnight" names now hold the light ash surfaces. */
+  --midnight-950: #DDE0E4;
+  --midnight-900: #E8EAED;
+  --midnight-800: #F3F4F6;
+  --midnight-700: #ECEEF1;
+  --midnight-600: #E0E3E7;
+  --midnight-500: #CBD0D6;
+
+  /* text greys (these names hold dark ash so existing text colours stay readable on white) */
+  --silver-50: #FFFFFF;
+  --silver-100: #1E2228;
+  --silver-200: #2B3038;
+  --silver-300: #3F454E;
+  --silver-400: #5E6672;
+  --silver-500: #7C848F;
+  --silver-600: #9AA1AB;
+
+  /* accents are ash too: mid greys */
+  --steel-200: #59606B;
+  --steel-300: #4A515B;
+  --steel-400: #6B727D;
+  --steel-500: #565D68;
+  --steel-600: #3B414A;
+  --steel-700: #2E333B;
+  --gold-100: #F1F2F4;
+  --gold-200: #3B414A;
+  --gold-300: #4A515B;
+  --gold-400: #2F343C;
+  --gold-500: #1F2329;
+  --gold-600: #14171B;
+
+  /* roles */
+  --bg: #E9EBEE;
+  --bg-grad: radial-gradient(70% 45% at 10% 0%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 65%), radial-gradient(55% 40% at 100% 28%, rgba(168, 175, 186, 0.38), rgba(168, 175, 186, 0) 65%), radial-gradient(60% 40% at 0% 100%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 60%), linear-gradient(170deg, #F3F4F6 0%, #DFE2E7 100%);
+  --surface: rgba(255, 255, 255, 0.62);
+  --surface-2: rgba(255, 255, 255, 0.5);
+  --surface-3: rgba(206, 211, 218, 0.62);
+  --line: rgba(40, 46, 56, 0.10);
+  --line-strong: rgba(40, 46, 56, 0.20);
+  --text: #1E2228;
+  --text-dim: #5E6672;
+  --text-faint: #8B929D;
+  --accent: var(--steel-400);
+  --accent-strong: var(--steel-500);
+  --cta: var(--gold-400);
+  --cta-strong: var(--gold-300);
+  --on-cta: #FFFFFF;
+  --blur: blur(18px) saturate(1.25);
+  --glass: rgba(255, 255, 255, 0.74);
+  --glass-2: rgba(255, 255, 255, 0.7);
+  --sheet-bg: rgba(255, 255, 255, 0.7);
+  --scrim: rgba(30, 34, 40, 0.28);
+  --hero-glow: #FFFFFF;
+  --tint-rgb: 60, 66, 76;
+  --tint2-rgb: 90, 97, 108;
+  --route: #2F343C;
+  --route-under: rgba(255, 255, 255, 0.85);
+  --pin-a: #6B727D;
+  --pin-b: #2F343C;
+  --pin-dot: #FFFFFF;
+  --mark-bg: #2B2F36;
+  --mark-a: #B9BEC6;
+  --mark-b: #FFFFFF;
+  --mark-dot: #8E95A0;
+  --card-shadow: 0 8px 28px rgba(30, 34, 40, 0.08);
+
+  /* type */
+  --font-display: 'Bricolage Grotesque', 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* shape and space */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --pad: 20px;
+
+  /* motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --t-fast: 160ms;
+  --t-med: 280ms;
+  --t-slow: 460ms;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}

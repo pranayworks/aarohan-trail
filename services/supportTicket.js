@@ -5,6 +5,7 @@
 // ============================================================================
 
 const prisma = require('../lib/prisma');
+const supportMail = require('./supportMail');
 
 const VALID_CATEGORIES = [
   'PAYMENT_DISPUTE', 'SAFETY', 'LOST_ITEM', 'DRIVER_CONDUCT',
@@ -43,6 +44,8 @@ async function createTicket({ userId, tripId, category, subject, description, pr
     }
   });
 
+  // Emails go out in the background so a slow mail provider never slows the rider down.
+  supportMail.onTicketCreated(ticket).catch(() => {});
   return ticket;
 }
 
@@ -77,6 +80,7 @@ async function addTicketMessage({ ticketId, authorId, authorRole, body }) {
     }
   });
 
+  supportMail.onTicketMessage({ ticket, authorRole, body: message.body }).catch(() => {});
   return message;
 }
 
@@ -136,8 +140,9 @@ async function getUserTickets(userId, { page = 1, limit = 20 } = {}) {
 /**
  * Admin: list all tickets with optional filters (logs ADMIN_TICKETS_VIEWED).
  */
-async function adminListTickets({ adminId, status, priority, category, page = 1, limit = 50 } = {}) {
+async function adminListTickets({ adminId, status, priority, category, role, page = 1, limit = 50 } = {}) {
   const where = {};
+  if (role === 'RIDER' || role === 'DRIVER') where.user = { role }; // separate lists for riders and drivers
   if (status)   where.status   = status;
   if (priority) where.priority = priority;
   if (category) where.category = category;
