@@ -410,7 +410,7 @@ app.get('/api/app-config', (req, res) => {
     googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim() || null,
     contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || '',
     env: process.env.NODE_ENV || 'development',
-    allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development',
+    allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development' || String(process.env.ALLOW_LOCATION_SIMULATION || '').toLowerCase() === 'true', // set ALLOW_LOCATION_SIMULATION=true only for demos outside Malawi
     paymentsEnabled: featureFlags.paymentsEnabled(),
     authMode: featureFlags.authMode(),
     sentryDsn: (process.env.SENTRY_DSN || '').trim(),
