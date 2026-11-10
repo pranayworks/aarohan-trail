@@ -34,7 +34,7 @@
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(function () {});
     AR.D.wireApproval();
     window.authFetch = function (u, o) { return window.aarohanAuth.fetchWithAuth(u, o); }; // used by the native push code to register the phone
-    window.handleIncomingPushTripOffer = function () { try { AR.nav.resetTo('home'); } catch (_) {} }; // tapping a push opens Home, where the offer card appears
+    window.handleIncomingPushTripOffer = function () { try { AR.nav.resetTo('home'); } catch (_) {} try { AR.D.fetchPendingOffer(); } catch (_) {} }; // tapping a push opens Home, where the offer card appears
     AR.onSocket('driver:commission_limit', function (p) {
       AR.D.online = false; AR.D.stopGps(); AR.haptic([40, 60, 40]);
       AR.sheet.open({ dismissable: false, html: '<h2>Time to pay your commission</h2><p class="dim">You owe Aarohan <b>' + AR.fmt.money(p.debtMWK) + '</b>, which has reached your limit of ' + AR.fmt.money(p.limitMWK) + '. You will not get new orders until you pay. You have been taken offline.</p><div class="stack gap12 mt24"><button class="btn btn-gold" id="pay">Pay commission now</button><button class="btn btn-ghost" style="width:100%" id="later">Later</button></div>',

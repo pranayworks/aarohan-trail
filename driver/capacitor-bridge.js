@@ -374,6 +374,8 @@
               return;
             }
 
+            // The loud, full-priority channel the server's offers use (without it Android may keep them quiet).
+            try { await PushNotifications.createChannel({ id: 'aarohan_dispatch_channel', name: 'Ride offers', description: 'New ride and parcel offers', importance: 5, visibility: 1, sound: 'default', vibration: true, lights: true }); } catch (_) {}
             await PushNotifications.register();
 
             PushNotifications.addListener('registration', async (token) => {

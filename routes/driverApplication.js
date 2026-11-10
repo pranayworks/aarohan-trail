@@ -34,6 +34,20 @@ const driverIdOf = async (req, res) => { const d = await prisma.driver.findFirst
 router.get('/driver/commission', async (req, res) => { try { const id = await driverIdOf(req, res); if (id) res.json({ success: true, ...(await app.commissionSummary(id)) }); } catch (e) { fail(res, e); } });
 router.get('/driver/performance', async (req, res) => { try { const id = await driverIdOf(req, res); if (id) res.json({ success: true, ...(await app.performance(id)) }); } catch (e) { fail(res, e); } });
 router.get('/driver/hotspots', async (req, res) => { try { const id = await driverIdOf(req, res); if (id) res.json({ success: true, areas: await app.hotspots() }); } catch (e) { fail(res, e); } });
+// The offer that is still open for this captain (used when the app is opened from a push alert, or after a weak-signal reconnect).
+router.get('/driver/pending-offer', async (req, res) => {
+  try {
+    const id = await driverIdOf(req, res); if (!id) return;
+    const offer = await prisma.tripOffer.findFirst({ where: { driverId: id, status: 'PENDING', expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' } });
+    if (!offer) return res.json({ success: true, offer: null });
+    const dispatch = require('../services/dispatch');
+    const trip = await prisma.trip.findUnique({ where: { id: offer.tripId }, include: { rider: { select: { id: true, name: true } }, stops: { orderBy: { sequence: 'asc' } } } });
+    if (!trip || trip.driverId || !['REQUESTED', 'OFFERED'].includes(trip.status)) return res.json({ success: true, offer: null });
+    const safe = await dispatch.attachParcelForDriver(dispatch.getDriverSafeTrip(trip));
+    if (safe && safe.rider) safe.rider = { ...safe.rider, name: String(safe.rider.name || 'Rider').split(' ')[0] };
+    res.json({ success: true, offer, trip: safe });
+  } catch (e) { fail(res, e); }
+});
 
 // "Why am I not getting trips?": the same conditions the dispatcher uses to pick a driver, checked one by one.
 router.get('/driver/readiness', async (req, res) => {

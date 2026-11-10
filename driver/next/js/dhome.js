@@ -130,6 +130,12 @@
   // Browsers only allow sound after a tap, so the first tap anywhere switches the sound on.
   document.addEventListener('pointerdown', function () { try { window.mwendoSound && window.mwendoSound.getContext(); } catch (_) {} }, { passive: true });
   var current = null;
+  // Shows the offer that is still open (after opening the app from a push alert, or coming back to the app while online).
+  AR.D.fetchPendingOffer = function () {
+    if (!AR.D.online && !AR.D._fromPush) return Promise.resolve();
+    return AR.api('/driver/pending-offer').then(function (r) { if (r && r.offer && r.trip) AR.D.showOffer({ offer: r.offer, trip: r.trip }); }).catch(function () {});
+  };
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { try { AR.D.fetchPendingOffer(); } catch (_) {} } });
   AR.D.showOffer = function (payload) {
     var t = payload && payload.trip, o = payload && payload.offer; if (!t || !o) return;
     if (current) current.remove();

@@ -122,6 +122,7 @@ async function sendPushToUser(userId, { title, body, data = {} }) {
       data: stringifiedData,
       android: {
         priority: 'high',
+        ttl: 20000, // an offer is only open for 15 seconds, so never deliver it late
         notification: {
           channelId: 'aarohan_dispatch_channel',
           sound: 'default',

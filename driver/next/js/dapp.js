@@ -78,6 +78,7 @@
       AR.nav.tab('home', true);
       setTimeout(function () { if (AR.loadTrips) AR.loadTrips(false).catch(function () {}); }, 1500);
       if (AR.D.resume) AR.D.resume();
+      setTimeout(function () { try { AR.D.fetchPendingOffer(); } catch (_) {} }, 1200); // an offer that was open while the app was closed
     },
     async signOut() {
       var ok = await AR.confirm({ title: 'Log out?', body: AR.D.online ? 'You are online. Logging out will take you offline.' : 'You will need to sign in again with a new code.', yes: 'Log out', no: 'Stay signed in' });
