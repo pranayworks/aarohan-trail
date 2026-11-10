@@ -253,7 +253,7 @@ class DispatchService {
     }
 
     // Find nearby eligible drivers in corridor
-    const nearby = await this.findNearbyDrivers(trip.pickupLat, trip.pickupLng, trip.tier, 15.0);
+    const nearby = await this.findNearbyDrivers(trip.pickupLat, trip.pickupLng, trip.tier, parseFloat(process.env.DISPATCH_RADIUS_KM) || 30.0); // wide search so a ride is not missed when few captains are online
 
     // Filter out drivers who already received an offer for this trip
     const offeredDriverIds = new Set(trip.offers.map(o => o.driverId));

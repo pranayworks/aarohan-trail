@@ -36,7 +36,7 @@ router.get('/drivers/nearby', async (req, res) => {
   const lat = parseFloat(req.query.lat);
   const lng = parseFloat(req.query.lng);
   const tier = req.query.tier;
-  const radius = parseFloat(req.query.radius || req.query.radiusKm || 7.0);
+  const radius = parseFloat(req.query.radius || req.query.radiusKm || 30.0);
 
   if (isNaN(lat) || isNaN(lng)) {
     return res.status(400).json({ error: 'Pickup lat and lng coordinates required' });

@@ -61,7 +61,7 @@
       async function loadNear() {
         var p = AR.trip.pickup; if (!p) return; var t = ++nearToken, chip = AR.$('#near', el); if (!chip) return;
         try {
-          var d = await fetch('/api/drivers/nearby?lat=' + p.lat + '&lng=' + p.lng + '&radius=5').then(function (r) { return r.json(); });
+          var d = await fetch('/api/drivers/nearby?lat=' + p.lat + '&lng=' + p.lng + '&radius=30').then(function (r) { return r.json(); });
           if (t !== nearToken) return;
           var n = d.count || 0, eta = (d.drivers || []).reduce(function (m, x) { return x.etaMinutes != null && x.etaMinutes < m ? x.etaMinutes : m; }, 99);
           chip.classList.toggle('none', n === 0);
