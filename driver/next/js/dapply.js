@@ -229,9 +229,23 @@
         AR.$$('[data-retry]', b).forEach(function (btn) { btn.addEventListener('click', function () { UP.retry(btn.dataset.retry); }); });
         AR.$('#done', b).addEventListener('click', function () { AR.nav.back(); });
       }
-      UP.listeners.push(rows);
+      // After a rejection: once every flagged photo has been retaken, ask whether to send the application for review again.
+      var asking = false;
+      function maybeResubmit() {
+        var a = AR.D.app;
+        if (asking || !a || a.approvalStatus !== 'REJECTED' || !a.canSubmit || UP.pending() || UP.failed()) return;
+        asking = true;
+        AR.confirm({ title: 'Submit again for review?', body: 'All your photos are uploaded. I confirm that everything I gave is true, genuine and belongs to me. Our team will check it again.', yes: 'Yes, submit', no: 'Not yet' }).then(async function (yes) {
+          if (!yes) { setTimeout(function () { asking = false; }, 30000); return; }
+          try { await AR.api('/driver/application/submit', { method: 'POST', body: { declaration: true } }); AR.toast('Sent. Our team will review it.'); await AR.session.start(); }
+          catch (e) { asking = false; AR.toast(e.message || 'Could not submit. Try again.', 'gold'); }
+        });
+      }
+      var paintAndAsk = function () { rows(); setTimeout(maybeResubmit, 400); };
+      UP.listeners.push(paintAndAsk);
       rows();
-      return { show: rows, destroy: function () { UP.listeners = UP.listeners.filter(function (f) { return f !== rows; }); } };
+      setTimeout(maybeResubmit, 600);
+      return { show: function () { AR.D.reloadApp().catch(function () {}).then(paintAndAsk); }, destroy: function () { UP.listeners = UP.listeners.filter(function (f) { return f !== paintAndAsk; }); } };
     }
   });
 
