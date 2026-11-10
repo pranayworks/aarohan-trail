@@ -254,7 +254,11 @@ router.get('/trips/history', requireAuth, async (req, res) => {
     const trips = await prisma.trip.findMany({
       where: {
         ...whereCondition,
-        status: { in: ['COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED'] }
+        OR: [
+          { status: { in: ['COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED', 'NO_DRIVERS'] } },
+          // a request nobody ever answered and that is no longer live still belongs in the history
+          { status: { in: ['REQUESTED', 'OFFERED'] }, createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } }
+        ]
       },
       include: {
         stops: { orderBy: { sequence: 'asc' } },
@@ -265,7 +269,7 @@ router.get('/trips/history', requireAuth, async (req, res) => {
         parcelDetail: true
       },
       orderBy: { createdAt: 'desc' },
-      take: 50
+      take: 100
     });
 
     res.json({ success: true, trips });

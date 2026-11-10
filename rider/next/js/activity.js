@@ -5,7 +5,7 @@
   'use strict';
   var AR = window.AR;
 
-  var STATUS = { COMPLETED: 'Completed', CANCELLED_BY_RIDER: 'Cancelled', CANCELLED_BY_DRIVER: 'Cancelled by captain', EXPIRED: 'No captain found' };
+  var STATUS = { COMPLETED: 'Completed', CANCELLED_BY_RIDER: 'Cancelled', CANCELLED_BY_DRIVER: 'Cancelled by captain', EXPIRED: 'No captain found', NO_DRIVERS: 'No captain found', REQUESTED: 'No captain found', OFFERED: 'No captain found' };
   var TIER_LABEL = { MOTO: 'Moto', AUTO: 'Auto', CAB: 'Cab' };
 
   // One simple shape for every screen that shows a trip.
