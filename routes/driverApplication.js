@@ -107,4 +107,35 @@ router.post('/admin/drivers/:driverId/checklist', requireRole('ADMIN', 'SUPPORT'
   } catch (e) { fail(res, e); }
 });
 
+// Admin flags specific documents (or the live face check) as unclear/bad, with a reason for each.
+// The driver then sees exactly which items to retake and why, and only has to redo those.
+router.post('/admin/drivers/:driverId/request-retake', requireRole('ADMIN', 'SUPPORT'), validateBody(z.object({
+  items: z.array(z.object({ type: z.string().min(1).max(40), reason: z.string().trim().min(3).max(300) })).min(1).max(12)
+})), async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    const driver = await prisma.driver.findUnique({ where: { id: driverId }, include: { user: true } });
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+    if (driver.approvalStatus === 'APPROVED') return res.status(409).json({ error: 'This driver is already approved.' });
+    const now = new Date(), flagged = [];
+    for (const it of req.body.items) {
+      if (it.type === 'LIVE_FACE') {
+        const r = await prisma.driverLiveness.updateMany({ where: { driverId, status: { in: ['PENDING_REVIEW', 'ALTERNATIVE_REQUESTED'] } }, data: { status: 'REJECTED', reviewedBy: req.user.id, reviewedAt: now, rejectionReason: it.reason } });
+        if (r.count) flagged.push({ label: 'Live face check', reason: it.reason });
+      } else {
+        const r = await prisma.driverDocument.updateMany({ where: { driverId, type: it.type }, data: { status: 'REJECTED', rejectionReason: it.reason, reviewedBy: req.user.id, reviewedAt: now } });
+        if (r.count) flagged.push({ label: it.type.replace(/_/g, ' ').toLowerCase(), reason: it.reason });
+      }
+    }
+    if (!flagged.length) return res.status(400).json({ error: 'Nothing to flag. Those items were not uploaded.' });
+    const summary = 'Please retake: ' + flagged.map((f) => f.label + ' (' + f.reason + ')').join('; ');
+    await prisma.driver.update({ where: { id: driverId }, data: { approvalStatus: 'REJECTED', rejectionReason: summary.slice(0, 900), availability: 'OFFLINE' } });
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'DRIVER_REJECTED', entityType: 'DRIVER', entityId: driverId, details: { event: 'RETAKE_REQUESTED', items: flagged, driverName: driver.user && driver.user.name }, ipAddress: req.ip || null } }).catch(() => {});
+    const io = req.app.get('io');
+    if (io) io.to('ops').to('driver:' + driverId).emit('driver:status_changed', { driverId, approvalStatus: 'REJECTED', reason: summary });
+    try { require('../services/pushNotification').sendPushToUser(driver.userId, { title: 'Some photos need to be retaken', body: 'Open Aarohan Captain to see which ones and why.', data: { type: 'DRIVER_REJECTED' } }).catch(() => {}); } catch (_) { /* push is optional */ }
+    res.json({ success: true, flagged });
+  } catch (e) { fail(res, e); }
+});
+
 module.exports = router;

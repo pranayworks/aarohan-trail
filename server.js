@@ -180,7 +180,7 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:', 'blob:', 'https://*.supabase.co', 'https://api.mapbox.com', 'https://*.tile.openstreetmap.org', 'https://*.openstreetmap.org', 'https://*.basemaps.cartocdn.com', 'https://api.maptiler.com', 'https://lh3.googleusercontent.com'],
       mediaSrc: ["'self'", 'blob:', 'https://*.supabase.co'], // ad videos
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-      connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://api.maptiler.com', 'https://nominatim.openstreetmap.org', '*.sentry.io', 'https://accounts.google.com', 'https://cdn.jsdelivr.net', 'https://storage.googleapis.com'], // the last two load the face-detection model for the driver face check
+      connectSrc: ["'self'", 'ws:', 'wss:', 'https://api.mapbox.com', 'https://events.mapbox.com', 'https://api.maptiler.com', 'https://nominatim.openstreetmap.org', '*.sentry.io', 'https://accounts.google.com', 'https://cdn.jsdelivr.net', 'https://storage.googleapis.com', 'https://*.supabase.co'], // supabase: the admin opens driver documents and face photos; the last two (after it) load the face-detection model for the driver face check
       workerSrc: ["'self'", 'blob:'],
       childSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
