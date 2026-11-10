@@ -254,11 +254,8 @@ router.get('/trips/history', requireAuth, async (req, res) => {
     const trips = await prisma.trip.findMany({
       where: {
         ...whereCondition,
-        OR: [
-          { status: { in: ['COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED', 'NO_DRIVERS'] } },
-          // A request that never finished (stuck or abandoned) still belongs in the history once it is no longer live.
-          { status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }, createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } }
-        ]
+        // a rider sees every ride this account ever made; a captain sees finished ones
+        ...(isDriver ? { status: { in: ['COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED', 'NO_DRIVERS'] } } : {})
       },
       include: {
         stops: { orderBy: { sequence: 'asc' } },

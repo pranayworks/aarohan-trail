@@ -15,7 +15,7 @@
     return {
       raw: t, id: t.id, isParcel: t.serviceType === 'PARCEL',
       tier: TIER_LABEL[String(t.tier || '').toUpperCase()] || AR.fmt.cap(t.tier),
-      status: t.status, statusLabel: STATUS[t.status] || AR.fmt.cap(t.status), done: done, cancelled: !done,
+      status: t.status, statusLabel: (['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'].indexOf(t.status) >= 0 && Date.now() - new Date(t.createdAt).getTime() < 30 * 60 * 1000) ? 'In progress' : (STATUS[t.status] || AR.fmt.cap(t.status)), done: done, cancelled: !done,
       from: t.pickupAddress, to: t.dropoffAddress, stops: t.stops || [],
       when: done ? (t.completedAt || t.createdAt) : (t.cancelledAt || t.createdAt),
       fare: t.fareMWK, plate: v.plateNumber || '', model: v.makeModel || '', color: v.color || '',
@@ -106,6 +106,8 @@
           html += card(t, i);
         });
         list.innerHTML = (F.type === 'ALL' && F.status === 'ALL' && F.month === 'ALL' ? sumHtml(data) : '') + html;
+        var who = ''; try { var u = window.aarohanAuth && window.aarohanAuth.getUser(); who = u ? (u.email || u.phone || '') : ''; } catch (_) {}
+        list.insertAdjacentHTML('beforeend', '<p class="center tiny dim" style="margin:8px 0 0">' + r.length + ' of ' + data.length + ' rides shown' + (who ? ' for ' + AR.esc(who) : '') + '</p>');
         AR.$$('.trip-card', list).forEach(function (b) { b.addEventListener('click', function () { AR.nav.go('trip-detail', { id: b.dataset.id }); }); });
       }
 
