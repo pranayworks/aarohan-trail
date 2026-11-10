@@ -273,7 +273,7 @@
         try {
           await AR.D.reloadApp(); var a = AR.D.app; if (!a) return;
           if (a.approvalStatus === 'APPROVED') { clearInterval(timer); AR.D.approved(); }
-          else if (!a.submitted || a.approvalStatus === 'REJECTED') { AR.toast('Your application needs changes.', 'gold'); AR.session.start(); }
+          else if (!a.submitted || a.approvalStatus === 'REJECTED') { clearInterval(timer); timer = null; AR.toast('Your application needs changes.', 'gold'); AR.session.start(); }
           else paint();
         } catch (_) {}
       }

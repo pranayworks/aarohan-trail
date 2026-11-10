@@ -53,7 +53,7 @@
     async start() {
       await AR.session.refresh();
       var app = document.getElementById('app');
-      AR.nav.stack.forEach(function (e) { try { e.el.remove(); } catch (_) {} });
+      AR.nav.stack.forEach(function (e) { try { if (e.inst && e.inst.destroy) e.inst.destroy(); } catch (_) {} try { e.el.remove(); } catch (_) {} }); // stop each screen's timers, or an old poll resets the app again
       app.innerHTML = ''; AR.nav.stack = []; AR.nav.tabs = {}; AR.nav.activeTab = null; if (AR.nav.tabbar) { AR.nav.tabbar.remove(); AR.nav.tabbar = null; }
       var a = null;
       try { a = (await AR.api('/driver/application')).application; }
