@@ -112,6 +112,12 @@ router.patch('/admin/tickets/:ticketId', requireAuth, requireRole('ADMIN', 'SUPP
       adminId:    req.user.id,
       status, resolution, assignedTo, priority
     });
+    if (status === 'RESOLVED' || status === 'CLOSED') {
+      try {
+        const io = req.app.get('io'); if (io) io.to('user:' + updated.userId).emit('ticket:closed', { ticketId: updated.id });
+        require('../services/pushNotification').sendPushToUser(updated.userId, { title: 'Your ticket is resolved', body: updated.subject || 'Open the app to see the answer.', data: { type: 'TICKET_RESOLVED', ticketId: updated.id } }).catch(() => {});
+      } catch (_) { /* notices are best effort */ }
+    }
     res.json({ success: true, ticket: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -129,7 +129,7 @@
       var body = AR.page(el, 'Ticket'), timer = null;
       async function load() {
         try {
-          var d = await AR.api('/tickets/' + params.id), k = d.ticket, closed = k.status === 'CLOSED';
+          var d = await AR.api('/tickets/' + params.id), k = d.ticket, closed = k.status === 'CLOSED' || k.status === 'RESOLVED';
           var msgs = [{ body: k.description, mine: true, at: k.createdAt }].concat((k.messages || []).map(function (m) { return { body: m.body, mine: m.authorRole === 'RIDER' || m.authorId === k.userId, at: m.createdAt }; }));
           var keep = AR.$('#reply', body) ? AR.$('#reply', body).value : '';
           body.innerHTML = '<div class="card"><div class="hstack gap8" style="justify-content:space-between"><span class="badge gold">' + AR.esc(CAT[k.category] || 'Ticket') + '</span><span class="badge ' + (k.status === 'RESOLVED' || closed ? 'steel' : '') + '">' + AR.esc(AR.fmt.cap(k.status)) + '</span></div><h3 class="mt12" style="font-size:19px">' + AR.esc(k.subject) + '</h3><div class="small dim mt8">Opened ' + AR.esc(AR.fmt.dateTime(k.createdAt)) + '</div></div>' +

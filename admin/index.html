@@ -2680,16 +2680,16 @@
       const resolution = input?.value.trim() || 'Resolved by Lilongwe Support Operations.';
 
       try {
-        const res = await authFetch(`/api/tickets/${currentAdminInspectTicketId}`, {
+        const res = await authFetch(`/api/admin/tickets/${currentAdminInspectTicketId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'RESOLVED', resolution })
         });
-        if (res.ok) {
-          alert('Dispute marked as RESOLVED and audit trail updated.');
-          closeAdminTicketInspectModal();
-          loadAdminTickets();
-        }
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || ('Server said ' + res.status));
+        alert('Ticket resolved. The user now sees it as closed.');
+        closeAdminTicketInspectModal();
+        loadAdminTickets();
       } catch (err) {
         alert('Failed to resolve ticket: ' + err.message);
       }
