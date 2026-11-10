@@ -391,7 +391,10 @@ router.post('/refresh', validateBody(refreshTokenSchema), async (req, res) => {
     );
     return res.json({ success: true, ...result });
   } catch (err) {
-    return res.status(401).json({ error: err.message });
+    // Only a real "this login is no longer valid" answer signs the person out. A slow or briefly unreachable database must not.
+    const genuine = /invalid refresh token|refresh token|security alert|account is|required/i.test(String(err && err.message));
+    if (!genuine) console.warn('[Auth] refresh failed for a temporary reason:', err && err.message);
+    return res.status(genuine ? 401 : 503).json({ error: genuine ? err.message : 'Temporary problem. Please try again.' });
   }
 });
 

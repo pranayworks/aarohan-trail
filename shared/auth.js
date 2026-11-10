@@ -223,7 +223,8 @@
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
             console.warn('[Auth] Token refresh failed:', errData.error || res.statusText);
-            this.clearSession();
+            // Stay signed in on a temporary server problem (500, 502, 503, 504). Only a real rejection signs out.
+            if (res.status === 400 || res.status === 401 || res.status === 403) this.clearSession();
             return null;
           }
 

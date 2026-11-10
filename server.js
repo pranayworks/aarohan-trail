@@ -413,6 +413,7 @@ app.get('/api/app-config', (req, res) => {
     contactEmail: process.env.CONTACT_EMAIL || process.env.SUPPORT_EMAIL || '',
     env: process.env.NODE_ENV || 'development',
     allowLocationSimulation: (process.env.NODE_ENV || 'development') === 'development' || String(process.env.ALLOW_LOCATION_SIMULATION || '').toLowerCase() === 'true', // set ALLOW_LOCATION_SIMULATION=true only for demos outside Malawi
+    pushEnabled: String(process.env.PUSH_ENABLED || '').toLowerCase() === 'true', // set PUSH_ENABLED=true only after the Firebase files are added to the apps
     paymentsEnabled: featureFlags.paymentsEnabled(),
     authMode: featureFlags.authMode(),
     sentryDsn: (process.env.SENTRY_DSN || '').trim(),

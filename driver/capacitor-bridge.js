@@ -354,6 +354,8 @@
 
     async initPushNotifications() {
       if (!this.isNative) return;
+      // Push needs the Firebase files inside the app. Without them Android closes the app, so it stays off until PUSH_ENABLED=true.
+      try { const c = await fetch('/api/app-config').then((r) => r.json()); if (!c.pushEnabled) return; } catch (_) { return; }
 
       this.showPermissionExplanationModal({
         type: 'notifications',

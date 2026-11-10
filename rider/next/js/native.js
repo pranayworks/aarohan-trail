@@ -25,6 +25,8 @@
   async function setupPush() {
     var C = window.Capacitor;
     if (!C || !C.isNativePlatform || !C.isNativePlatform() || (AR.D && AR.D.app !== undefined)) return;
+    // Push needs the Firebase files inside the app. Without them Android closes the app, so it stays off until PUSH_ENABLED=true.
+    if (!(AR.state && AR.state.cfg && AR.state.cfg.pushEnabled)) return;
     var P = C.Plugins && C.Plugins.PushNotifications; if (!P) return;
     var asked = ''; try { asked = localStorage.getItem('aarohan_push_asked') || ''; } catch (_) {}
     async function register() {

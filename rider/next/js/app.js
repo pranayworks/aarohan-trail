@@ -92,6 +92,14 @@
     else AR.nav.go(seen ? 'auth' : 'intro', {}, { anim: 'fade' });
   }
 
+    // Stay signed in unless the server really rejected the login. Retry a few times on a weak signal.
+    async function startKeepingLogin() {
+      for (var i = 0; i < 4; i++) {
+        try { await AR.session.start(); return true; }
+        catch (e) { if (!(window.aarohanAuth && window.aarohanAuth.isAuthenticated())) return false; await AR.sleep(1500); }
+      }
+      AR.toast('Could not reach Aarohan. Check your internet.', 'gold'); return false;
+    }
   async function boot() {
     var mk = document.getElementById('splash-mark'); if (mk) mk.innerHTML = AR.mark(84);
     window.showToast = AR.toast;
@@ -110,8 +118,7 @@
     // The shared auth helper holds every request until the app says the session is ready.
     if (window.aarohanAuth) window.aarohanAuth.setReady(window.aarohanAuth.getUser());
     if (window.aarohanAuth && window.aarohanAuth.isAuthenticated()) {
-      try { await AR.session.start(); started = true; }
-      catch (e) { if (e.status === 401 || e.status === 403) window.aarohanAuth.clearSession(); else AR.toast('Could not reach Aarohan. Check your internet.', 'gold'); }
+      started = await startKeepingLogin();
     }
     if (!started) showIntro();
     await AR.sleep(500);

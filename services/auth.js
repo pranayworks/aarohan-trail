@@ -437,7 +437,10 @@ async function rotateRefreshToken(rawToken, userAgent = null, ipAddress = null) 
   }
 
   // REPLAY DETECTION: Token already revoked!
-  if (existingToken.revokedAt) {
+  // A token that was swapped for a new one in the last 5 minutes is most likely a phone that never received the answer
+  // (slow mobile network, app closed mid-refresh). Let it through once more instead of signing the person out everywhere.
+  const justRotated = existingToken.revokedAt && (Date.now() - new Date(existingToken.revokedAt).getTime() < 5 * 60 * 1000);
+  if (existingToken.revokedAt && !justRotated) {
     console.warn(`[SECURITY ALERT] Refresh token replay detected for user ${existingToken.userId}! Revoking all sessions.`);
     // Invalidate all tokens for this user immediately
     await prisma.refreshToken.updateMany({
@@ -463,11 +466,13 @@ async function rotateRefreshToken(rawToken, userAgent = null, ipAddress = null) 
   const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   await prisma.$transaction(async (tx) => {
-    // Revoke old token
-    await tx.refreshToken.update({
-      where: { id: existingToken.id },
-      data: { revokedAt: new Date() }
-    });
+    // Revoke old token (already done if this is a retry of a lost answer)
+    if (!existingToken.revokedAt) {
+      await tx.refreshToken.update({
+        where: { id: existingToken.id },
+        data: { revokedAt: new Date() }
+      });
+    }
 
     // Create new token
     await tx.refreshToken.create({
