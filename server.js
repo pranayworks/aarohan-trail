@@ -313,6 +313,25 @@ app.get(['/rider', '/rider/'], (req, res) => res.redirect(302, '/rider/next/'));
 app.get(['/driver', '/driver/'], (req, res) => res.redirect(302, '/driver/next/'));
 // Ad pictures and videos saved on this computer during development (production uses the public Supabase bucket).
 app.use('/media/ads', express.static(path.join(__dirname, 'uploads', 'ads'), { maxAge: '7d', setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff') }));
+// FAST OPEN ON SLOW NETWORKS: each app page lists its scripts and styles with a version that changes on every deploy.
+// A file with that version is kept by the phone for a year, so after the first visit the app opens without downloading
+// (or even asking the server about) its files again. The page itself is always checked, so every update is picked up.
+function versionedIndex(file) {
+  return (req, res) => {
+    let html;
+    try { html = require('fs').readFileSync(file, 'utf8'); } catch (_) { return res.status(404).end(); }
+    html = html.replace(/((?:src|href)="(?:\.\/|\/(?:shared|rider|driver)\/)[^"?]*\.(?:js|css))(?:\?v=[^"]*)?"/g, (m, g1) => g1 + '?v=' + BUILD_ID + '"');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.type('html').send(html);
+  };
+}
+app.get(['/rider/next', '/rider/next/', '/rider/next/index.html'], versionedIndex(path.join(__dirname, 'rider', 'next', 'index.html')));
+app.get(['/driver/next', '/driver/next/', '/driver/next/index.html'], versionedIndex(path.join(__dirname, 'driver', 'next', 'index.html')));
+const longCache = { maxAge: '365d', immutable: true, etag: false, lastModified: false };
+for (const dir of ['rider', 'driver', 'shared']) {
+  const handler = express.static(path.join(__dirname, dir), longCache);
+  app.use('/' + dir, (req, res, next) => (req.query.v && /\.(js|css)$/.test(req.path) ? handler(req, res, next) : next()));
+}
 app.use('/rider', express.static(path.join(__dirname, 'rider'), noCacheStatic));
 app.use('/driver', express.static(path.join(__dirname, 'driver'), noCacheStatic));
 app.use('/admin', express.static(path.join(__dirname, 'admin'), noCacheStatic));
