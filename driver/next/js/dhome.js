@@ -15,12 +15,15 @@
   AR.D.onlineMs = function () { var base = 0; try { base = parseInt(localStorage.getItem(dayKey()) || '0', 10); } catch (_) {} return base + (AR.D.online && AR.D._since ? Date.now() - AR.D._since : 0); };
   AR.D.setOnline = function (on) {
     return new Promise(function (resolve) {
-      var s = AR.store() && AR.store().socket;
-      if (!s || !(AR.store().isRealtimeConnected)) return resolve({ success: false, error: 'Connecting to Aarohan. Try again in a moment.' });
+      var st = AR.store();
+      (st && st.ensureConnected ? st.ensureConnected(12000) : Promise.resolve(!!(st && st.isRealtimeConnected))).then(function (ok) {
+      var s = st && st.socket;
+      if (!ok || !s) return resolve({ success: false, error: 'Cannot reach Aarohan. Check your signal and try again.' });
       s.timeout(8000).emit('driver:set_status', { status: on ? 'ONLINE' : 'OFFLINE' }, function (err, res) {
         if (err || !res) return resolve({ success: false, error: 'No answer from Aarohan. Check your signal.' });
         if (res.success) { AR.D.online = on; if (on) { AR.D.startGps(); AR.D.markOnline(true); } else { AR.D.stopGps(); AR.D.markOnline(false); } }
         resolve(res);
+      });
       });
     });
   };

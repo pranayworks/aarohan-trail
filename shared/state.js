@@ -175,6 +175,26 @@
         .catch(err => console.warn('Could not fetch initial server state:', err));
     }
 
+    // Waits (up to ms) for the live connection, refreshing the sign-in token and reconnecting if needed. Resolves true/false.
+    ensureConnected(ms) {
+      return new Promise(async (resolve) => {
+        if (this.socket && this.isRealtimeConnected) return resolve(true);
+        try {
+          const A = window.aarohanAuth;
+          let tok = A && A.getAccessToken ? A.getAccessToken() : null;
+          if (A && A.refreshToken) { try { const fresh = await A.refreshToken(); if (fresh) tok = fresh; } catch (_) {} }
+          if (!this.socket) this.initSocketIo();
+          if (this.socket && tok) { this.socket.auth = { token: tok }; if (!this.socket.connected) this.socket.connect(); }
+        } catch (_) {}
+        let waited = 0;
+        const t = setInterval(() => {
+          waited += 250;
+          if (this.socket && this.isRealtimeConnected) { clearInterval(t); resolve(true); }
+          else if (waited >= (ms || 10000)) { clearInterval(t); resolve(false); }
+        }, 250);
+      });
+    }
+
     initSocketIo() {
       this.attachAuthLifecycle();
       const token = (typeof window !== 'undefined' && window.aarohanAuth) ? window.aarohanAuth.getAccessToken() : null;
@@ -202,6 +222,7 @@
 
             this.socket.on('connect_error', async (err) => {
               console.warn('[MwendoStateStore] ⚠️ Socket handshake error:', err.message);
+              try { const t2 = window.aarohanAuth && window.aarohanAuth.getAccessToken(); if (t2) this.socket.auth = { token: t2 }; } catch (_) {} // retries must use the newest token
               if (window.aarohanAuth && err.message && (err.message.includes('Authentication') || err.message.includes('token') || err.message.includes('expired'))) {
                 console.log('[MwendoStateStore] Proactively refreshing JWT token for Socket.IO reconnect...');
                 const freshToken = await window.aarohanAuth.refreshToken();
