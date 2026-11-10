@@ -47,3 +47,5 @@ docs/screenshots/playwright-failure-*.png
 keystore.properties
 **/google-services.json
 *.single-app.bak
+*.bak
+_to_delete/
