@@ -256,8 +256,8 @@ router.get('/trips/history', requireAuth, async (req, res) => {
         ...whereCondition,
         OR: [
           { status: { in: ['COMPLETED', 'CANCELLED_BY_RIDER', 'CANCELLED_BY_DRIVER', 'EXPIRED', 'NO_DRIVERS'] } },
-          // a request nobody ever answered and that is no longer live still belongs in the history
-          { status: { in: ['REQUESTED', 'OFFERED'] }, createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } }
+          // A request that never finished (stuck or abandoned) still belongs in the history once it is no longer live.
+          { status: { in: ['REQUESTED', 'OFFERED', 'DRIVER_ARRIVING', 'ARRIVED', 'IN_TRANSIT'] }, createdAt: { lt: new Date(Date.now() - 30 * 60 * 1000) } }
         ]
       },
       include: {
