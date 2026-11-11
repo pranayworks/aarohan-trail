@@ -31,7 +31,17 @@
         b.addEventListener('click', function () {
           AR.lang.set(b.dataset.l);
           if (first) { var seen = false; try { seen = localStorage.getItem('aarohan_intro_seen') === '1'; } catch (_) {} AR.nav.replace(seen ? 'auth' : 'intro'); }
-          else { AR.toast('Language changed.'); setTimeout(function () { location.reload(); }, 500); }
+          else {
+            // Change the language on the spot: no page reload (a reload could leave the app stuck on a weak phone).
+            try { if (AR.lang.apply) AR.lang.apply(); } catch (_) {}
+            try { AR.toast(cur === 'ny' ? 'Chilankhulo chasinthidwa.' : 'Language changed.'); } catch (_) {}
+            setTimeout(function () {
+              var done = false;
+              try { if (AR.session && AR.session.start) { done = true; var p = AR.session.start(); if (p && p.catch) p.catch(function () { try { AR.nav.back(); } catch (_) {} }); } } catch (_) {}
+              if (!done) { try { AR.nav.back(); } catch (_) {} }
+              setTimeout(function () { try { if (AR.lang.apply) AR.lang.apply(); } catch (_) {} }, 400);
+            }, 350);
+          }
         });
       });
     }
