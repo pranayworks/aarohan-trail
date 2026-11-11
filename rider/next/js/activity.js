@@ -49,8 +49,8 @@
     mount: function (el) {
       var F = { type: 'ALL', status: 'ALL', month: 'ALL', sort: 'NEW' };
       el.innerHTML = '<div class="topbar"><button class="icon-btn" data-tabback aria-label="Back">' + AR.icon('chevronLeft') + '</button><h1>Activity</h1><button class="icon-btn" id="sortbtn" aria-label="Sort">' + AR.icon('sort', 20) + '</button></div>' +
-        '<div class="filters" id="f-type"></div><div class="filters" id="f-status" style="padding-top:0"></div>' +
-        '<div style="padding:0 var(--pad) 12px" id="f-month-wrap"></div><div class="scroll with-tabs" id="list" style="padding-top:0"></div>';
+        '<div class="scroll with-tabs" id="scr" style="padding-left:0;padding-right:0"><div class="filters" id="f-type"></div><div class="filters" id="f-status" style="padding-top:0"></div>' +
+        '<div style="padding:0 var(--pad) 12px" id="f-month-wrap"></div><div id="list" style="padding:0 var(--pad)"></div></div>';
       var sumHtml = function (rows) {
         var now = AR.fmt.month(new Date()), m = rows.filter(function (t) { return t.done && AR.fmt.month(t.when) === now; });
         if (!m.length) return '';
