@@ -64,6 +64,7 @@
           // A slow or missing GPS fix (for example right after a break) must not block going online. Only a location permission that is really switched off does.
           var known = AR.D.coords || AR.map._last, denied = false;
           try { var pm = navigator.permissions && await navigator.permissions.query({ name: 'geolocation' }); denied = !!(pm && pm.state === 'denied'); } catch (_) {}
+          if (denied && !known && AR.state.cfg && AR.state.cfg.allowLocationSimulation) { AR.map.setTest(true); AR.toast('Using the Lilongwe test location.'); denied = false; } // demo server: this browser blocks GPS, so use the test spot
           if (denied && !known) { go.classList.remove('is-loading'); paint(); return AR.toast('Location is switched off for Aarohan Captain. Turn it on in the phone settings.', 'gold'); }
         } }
         if (!AR.D.online && AR.D.endBreak) { try { AR.D.endBreak(); } catch (_) {} } // going online ends any break
