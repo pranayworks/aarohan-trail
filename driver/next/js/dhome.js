@@ -60,7 +60,13 @@
         if (go.classList.contains('is-loading')) return;
         go.classList.add('is-loading');
         AR.$('#golabel', el).textContent = AR.D.online ? 'Going offline...' : 'Going online...';
-        if (!AR.D.online) { var g = await Promise.race([AR.map.locate(), new Promise(function (ok) { setTimeout(function () { ok({ ok: true, slow: true }); }, 2500); })]); if (!g.ok) { go.classList.remove('is-loading'); paint(); return AR.toast('Turn on location to go online.', 'gold'); } }
+        if (!AR.D.online) { var g = await Promise.race([AR.map.locate(), new Promise(function (ok) { setTimeout(function () { ok({ ok: true, slow: true }); }, 2500); })]); if (!g.ok) {
+          // A slow or missing GPS fix (for example right after a break) must not block going online. Only a location permission that is really switched off does.
+          var known = AR.D.coords || AR.map._last, denied = false;
+          try { var pm = navigator.permissions && await navigator.permissions.query({ name: 'geolocation' }); denied = !!(pm && pm.state === 'denied'); } catch (_) {}
+          if (denied && !known) { go.classList.remove('is-loading'); paint(); return AR.toast('Location is switched off for Aarohan Captain. Turn it on in the phone settings.', 'gold'); }
+        } }
+        if (!AR.D.online && AR.D.endBreak) { try { AR.D.endBreak(); } catch (_) {} } // going online ends any break
         var r = await AR.D.setOnline(!AR.D.online); go.classList.remove('is-loading'); AR.haptic(15);
         if (!r.success) { AR.sheet.open({ html: '<h2>You cannot go online yet</h2><p class="dim">' + AR.esc(r.error || 'Something went wrong.') + '</p>' + (/commission/i.test(r.error || '') ? '<button class="btn btn-gold mt24" id="pay">Pay commission</button>' : '<button class="btn btn-line mt24" id="ok">OK</button>'), onOpen: function (c) { var p = AR.$('#pay', c.el); if (p) p.addEventListener('click', function () { c.close(); AR.nav.tab('earnings'); }); var o = AR.$('#ok', c.el); if (o) o.addEventListener('click', function () { c.close(); }); } }); }
         paint();
