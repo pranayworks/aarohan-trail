@@ -14,6 +14,7 @@
   try { var s = localStorage.getItem('aarohan_lang'); if (s && D[s]) cur = s; } catch (_) {}
   AR.lang = { get: function () { return cur; }, chosen: function () { try { return !!localStorage.getItem('aarohan_lang'); } catch (_) { return true; } },
     set: function (l) { if (!D[l]) return; cur = l; try { localStorage.setItem('aarohan_lang', l); } catch (_) {} document.documentElement.lang = l === 'ny' ? 'ny' : 'en'; } };
+  AR.lang.dict = D;
   AR.t = function (k) { return (D[cur] && D[cur][k]) || D.en[k] || k; };
 
   // params: { first: true } at first launch, otherwise opened from Settings
@@ -32,15 +33,10 @@
           AR.lang.set(b.dataset.l);
           if (first) { var seen = false; try { seen = localStorage.getItem('aarohan_intro_seen') === '1'; } catch (_) {} AR.nav.replace(seen ? 'auth' : 'intro'); }
           else {
-            // Change the language on the spot: no page reload (a reload could leave the app stuck on a weak phone).
+            // Change the language on the spot: no page reload and no sign-in check, so nobody is ever asked to log in again.
             try { if (AR.lang.apply) AR.lang.apply(); } catch (_) {}
             try { AR.toast(cur === 'ny' ? 'Chilankhulo chasinthidwa.' : 'Language changed.'); } catch (_) {}
-            setTimeout(function () {
-              var done = false;
-              try { if (AR.session && AR.session.start) { done = true; var p = AR.session.start(); if (p && p.catch) p.catch(function () { try { AR.nav.back(); } catch (_) {} }); } } catch (_) {}
-              if (!done) { try { AR.nav.back(); } catch (_) {} }
-              setTimeout(function () { try { if (AR.lang.apply) AR.lang.apply(); } catch (_) {} }, 400);
-            }, 350);
+            setTimeout(function () { try { AR.nav.back(); } catch (_) {} setTimeout(function () { try { if (AR.lang.apply) AR.lang.apply(); } catch (_) {} }, 350); }, 300);
           }
         });
       });

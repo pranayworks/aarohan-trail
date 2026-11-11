@@ -77,6 +77,12 @@
       if (n.nodeType === 3) { var o = originals.get(n); if (o && n.nodeValue === o.ny) n.nodeValue = o.en; }
       else ATTRS.forEach(function (a) { var o = n['__i18n_' + a]; if (o && n.getAttribute(a) === o.ny) n.setAttribute(a, o.en); });
     });
+    // words that the small built-in list (tabs, greeting) already wrote in Chichewa go back to English too
+    try {
+      var d = AR.lang.dict, back = {}; Object.keys(d.ny).forEach(function (k) { if (d.en[k] && !back[d.ny[k]]) back[d.ny[k]] = d.en[k]; });
+      var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), x;
+      while ((x = w.nextNode())) { var t = norm(x.nodeValue); if (back[t]) x.nodeValue = x.nodeValue.replace(t, back[t]); }
+    } catch (_) {}
     live.clear(); if (obs) obs.takeRecords(); busy = false;
   }
   // Called whenever the language is chosen. Safe to call any time.
